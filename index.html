@@ -225,6 +225,19 @@
     margin-bottom:16px;
     flex-wrap:wrap;
   }
+  .filter-row-scroll{
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:6px;
+    scrollbar-width:thin;
+  }
+  .filter-row-scroll .filter-chip{
+    flex-shrink:0;
+    padding:6px 11px;
+    min-width:34px;
+    text-align:center;
+  }
   .filter-chip{
     font-family:var(--font-mono);
     font-size:11px;
@@ -243,6 +256,57 @@
     border-color:var(--gold);
     color:var(--gold);
   }
+  .date-select{
+    font-family:var(--font-mono);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-weight:700;
+    padding:6px 12px;
+    border-radius:6px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--ice-faint);
+    cursor:pointer;
+    max-width:100%;
+  }
+  .date-select.active{
+    background:var(--panel-3);
+    border-color:var(--gold);
+    color:var(--gold);
+  }
+  .filters-toggle-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+  }
+  .filters-toggle-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    border:1px solid var(--line);
+  }
+  .filter-count-badge{
+    background:var(--red);
+    color:#fff;
+    border-radius:999px;
+    padding:1px 7px;
+    font-size:10px;
+    font-family:var(--font-mono);
+    font-weight:700;
+  }
+  .chev{font-size:10px;color:var(--ice-faint);}
+  .filters-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 14px 4px;
+    margin-bottom:16px;
+  }
+  .filters-panel .filter-row{margin-bottom:10px;}
+  .date-select:focus{outline:none;border-color:var(--gold);}
 
   .match-card{
     background:var(--panel);
@@ -290,6 +354,14 @@
     text-transform:uppercase;
     letter-spacing:0.05em;
   }
+  .venue-badge{
+    font-family:var(--font-mono);
+    font-size:10px;
+    color:var(--ice-faint);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+  }
+  .venue-badge::before{content:"\1F4CD ";}
   .match-status{
     font-family:var(--font-mono);
     font-size:10px;
@@ -536,118 +608,106 @@
 (function(){
 
 var OFFICIAL_MATCHES = [
-  {id:"W1", cat:"F", pool:"A", date:"2026-08-15", time:"10:00", teamA:"Australie", teamB:"Japon"},
-  {id:"M1", cat:"H", pool:"D", date:"2026-08-15", time:"13:00", teamA:"Inde", teamB:"Pays de Galles"},
-  {id:"W3", cat:"F", pool:"A", date:"2026-08-15", time:"16:00", teamA:"Pays-Bas", teamB:"Chili"},
-  {id:"M3", cat:"H", pool:"D", date:"2026-08-15", time:"19:00", teamA:"Angleterre", teamB:"Pakistan"},
-  {id:"W2", cat:"F", pool:"B", date:"2026-08-15", time:"11:30", teamA:"Allemagne", teamB:"Ecosse"},
-  {id:"M2", cat:"H", pool:"B", date:"2026-08-15", time:"14:30", teamA:"Allemagne", teamB:"Malaisie"},
-  {id:"W4", cat:"F", pool:"B", date:"2026-08-15", time:"17:30", teamA:"Argentine", teamB:"Etats-Unis"},
-  {id:"M4", cat:"H", pool:"B", date:"2026-08-15", time:"21:00", teamA:"Belgique", teamB:"France"},
-
-  {id:"W5", cat:"F", pool:"D", date:"2026-08-16", time:"10:00", teamA:"Angleterre", teamB:"Afrique du Sud"},
-  {id:"W6", cat:"F", pool:"D", date:"2026-08-16", time:"13:00", teamA:"Chine", teamB:"Inde"},
-  {id:"M7", cat:"H", pool:"A", date:"2026-08-16", time:"16:00", teamA:"Pays-Bas", teamB:"Nouvelle-Zelande"},
-  {id:"M8", cat:"H", pool:"A", date:"2026-08-16", time:"19:00", teamA:"Argentine", teamB:"Japon"},
-  {id:"M5", cat:"H", pool:"C", date:"2026-08-16", time:"11:30", teamA:"Australie", teamB:"Irlande"},
-  {id:"M6", cat:"H", pool:"C", date:"2026-08-16", time:"14:30", teamA:"Espagne", teamB:"Afrique du Sud"},
-  {id:"W7", cat:"F", pool:"C", date:"2026-08-16", time:"17:30", teamA:"Belgique", teamB:"Nouvelle-Zelande"},
-  {id:"W8", cat:"F", pool:"C", date:"2026-08-16", time:"20:30", teamA:"Espagne", teamB:"Irlande"},
-
-  {id:"W9", cat:"F", pool:"A", date:"2026-08-17", time:"09:30", teamA:"Chili", teamB:"Japon"},
-  {id:"M9", cat:"H", pool:"D", date:"2026-08-17", time:"12:30", teamA:"Pakistan", teamB:"Pays de Galles"},
-  {id:"M11", cat:"H", pool:"D", date:"2026-08-17", time:"15:00", teamA:"Inde", teamB:"Angleterre"},
-  {id:"W12", cat:"F", pool:"A", date:"2026-08-17", time:"18:00", teamA:"Australie", teamB:"Pays-Bas"},
-  {id:"W10", cat:"F", pool:"B", date:"2026-08-17", time:"11:00", teamA:"Etats-Unis", teamB:"Ecosse"},
-  {id:"M10", cat:"H", pool:"B", date:"2026-08-17", time:"14:00", teamA:"France", teamB:"Malaisie"},
-  {id:"W11", cat:"F", pool:"B", date:"2026-08-17", time:"17:00", teamA:"Allemagne", teamB:"Argentine"},
-  {id:"M12", cat:"H", pool:"B", date:"2026-08-17", time:"20:30", teamA:"Allemagne", teamB:"Belgique"},
-
-  {id:"M13", cat:"H", pool:"A", date:"2026-08-18", time:"09:30", teamA:"Nouvelle-Zelande", teamB:"Japon"},
-  {id:"W14", cat:"F", pool:"D", date:"2026-08-18", time:"12:30", teamA:"Angleterre", teamB:"Chine"},
-  {id:"W15", cat:"F", pool:"D", date:"2026-08-18", time:"15:00", teamA:"Inde", teamB:"Afrique du Sud"},
-  {id:"M16", cat:"H", pool:"A", date:"2026-08-18", time:"18:00", teamA:"Argentine", teamB:"Pays-Bas"},
-  {id:"W13", cat:"F", pool:"C", date:"2026-08-18", time:"11:00", teamA:"Nouvelle-Zelande", teamB:"Irlande"},
-  {id:"M14", cat:"H", pool:"C", date:"2026-08-18", time:"14:00", teamA:"Espagne", teamB:"Australie"},
-  {id:"M15", cat:"H", pool:"C", date:"2026-08-18", time:"17:00", teamA:"Irlande", teamB:"Afrique du Sud"},
-  {id:"W16", cat:"F", pool:"C", date:"2026-08-18", time:"20:30", teamA:"Espagne", teamB:"Belgique"},
-
-  {id:"W17", cat:"F", pool:"A", date:"2026-08-19", time:"09:30", teamA:"Chili", teamB:"Australie"},
-  {id:"M17", cat:"H", pool:"D", date:"2026-08-19", time:"12:30", teamA:"Angleterre", teamB:"Pays de Galles"},
-  {id:"M18", cat:"H", pool:"D", date:"2026-08-19", time:"15:00", teamA:"Pakistan", teamB:"Inde"},
-  {id:"W20", cat:"F", pool:"A", date:"2026-08-19", time:"18:00", teamA:"Pays-Bas", teamB:"Japon"},
-  {id:"W18", cat:"F", pool:"B", date:"2026-08-19", time:"11:00", teamA:"Argentine", teamB:"Ecosse"},
-  {id:"W19", cat:"F", pool:"B", date:"2026-08-19", time:"14:00", teamA:"Etats-Unis", teamB:"Allemagne"},
-  {id:"M19", cat:"H", pool:"B", date:"2026-08-19", time:"17:00", teamA:"France", teamB:"Allemagne"},
-  {id:"M20", cat:"H", pool:"B", date:"2026-08-19", time:"20:30", teamA:"Belgique", teamB:"Malaisie"},
-
-  {id:"W21", cat:"F", pool:"D", date:"2026-08-20", time:"09:30", teamA:"Chine", teamB:"Afrique du Sud"},
-  {id:"M22", cat:"H", pool:"A", date:"2026-08-20", time:"12:30", teamA:"Nouvelle-Zelande", teamB:"Argentine"},
-  {id:"W23", cat:"F", pool:"D", date:"2026-08-20", time:"15:00", teamA:"Inde", teamB:"Angleterre"},
-  {id:"M24", cat:"H", pool:"A", date:"2026-08-20", time:"18:00", teamA:"Pays-Bas", teamB:"Japon"},
-  {id:"M21", cat:"H", pool:"C", date:"2026-08-20", time:"11:00", teamA:"Australie", teamB:"Afrique du Sud"},
-  {id:"W22", cat:"F", pool:"C", date:"2026-08-20", time:"14:00", teamA:"Nouvelle-Zelande", teamB:"Espagne"},
-  {id:"M23", cat:"H", pool:"C", date:"2026-08-20", time:"17:00", teamA:"Irlande", teamB:"Espagne"},
-  {id:"W24", cat:"F", pool:"C", date:"2026-08-20", time:"20:30", teamA:"Belgique", teamB:"Irlande"},
-
-  {id:"W25", cat:"F", pool:"G", date:"2026-08-21", time:"09:30", teamA:"3e Poule D", teamB:"4e Poule A"},
-  {id:"W26", cat:"F", pool:"G", date:"2026-08-21", time:"12:30", teamA:"3e Poule A", teamB:"4e Poule D"},
-  {id:"W27", cat:"F", pool:"E", date:"2026-08-21", time:"15:00", teamA:"1er Poule D", teamB:"2e Poule A"},
-  {id:"W28", cat:"F", pool:"E", date:"2026-08-21", time:"18:00", teamA:"1er Poule A", teamB:"2e Poule D"},
-  {id:"M25", cat:"H", pool:"H", date:"2026-08-21", time:"11:00", teamA:"3e Poule B", teamB:"4e Poule C"},
-  {id:"M26", cat:"H", pool:"H", date:"2026-08-21", time:"14:00", teamA:"3e Poule C", teamB:"4e Poule B"},
-  {id:"M27", cat:"H", pool:"F", date:"2026-08-21", time:"17:00", teamA:"1er Poule C", teamB:"2e Poule B"},
-  {id:"M28", cat:"H", pool:"F", date:"2026-08-21", time:"20:30", teamA:"1er Poule B", teamB:"2e Poule C"},
-
-  {id:"M29", cat:"H", pool:"G", date:"2026-08-22", time:"10:00", teamA:"3e Poule A", teamB:"4e Poule D"},
-  {id:"M30", cat:"H", pool:"G", date:"2026-08-22", time:"13:00", teamA:"3e Poule D", teamB:"4e Poule A"},
-  {id:"M31", cat:"H", pool:"E", date:"2026-08-22", time:"16:00", teamA:"1er Poule A", teamB:"2e Poule D"},
-  {id:"M32", cat:"H", pool:"E", date:"2026-08-22", time:"19:00", teamA:"1er Poule D", teamB:"2e Poule A"},
-  {id:"W29", cat:"F", pool:"H", date:"2026-08-22", time:"11:30", teamA:"3e Poule C", teamB:"4e Poule B"},
-  {id:"W30", cat:"F", pool:"H", date:"2026-08-22", time:"14:30", teamA:"3e Poule B", teamB:"4e Poule C"},
-  {id:"W31", cat:"F", pool:"F", date:"2026-08-22", time:"17:30", teamA:"1er Poule C", teamB:"2e Poule B"},
-  {id:"W32", cat:"F", pool:"F", date:"2026-08-22", time:"20:30", teamA:"1er Poule B", teamB:"2e Poule C"},
-
-  {id:"W33", cat:"F", pool:"G", date:"2026-08-23", time:"10:00", teamA:"4e Poule A", teamB:"4e Poule D"},
-  {id:"W34", cat:"F", pool:"G", date:"2026-08-23", time:"13:00", teamA:"3e Poule A", teamB:"3e Poule D"},
-  {id:"W35", cat:"F", pool:"E", date:"2026-08-23", time:"16:00", teamA:"1er Poule A", teamB:"1er Poule D"},
-  {id:"W36", cat:"F", pool:"E", date:"2026-08-23", time:"19:00", teamA:"2e Poule A", teamB:"2e Poule D"},
-  {id:"M33", cat:"H", pool:"H", date:"2026-08-23", time:"11:30", teamA:"4e Poule B", teamB:"4e Poule C"},
-  {id:"M34", cat:"H", pool:"H", date:"2026-08-23", time:"14:30", teamA:"3e Poule B", teamB:"3e Poule C"},
-  {id:"M35", cat:"H", pool:"F", date:"2026-08-23", time:"17:30", teamA:"1er Poule B", teamB:"1er Poule C"},
-  {id:"M36", cat:"H", pool:"F", date:"2026-08-23", time:"20:30", teamA:"2e Poule B", teamB:"2e Poule C"},
-
-  {id:"M37", cat:"H", pool:"G", date:"2026-08-24", time:"09:30", teamA:"4e Poule A", teamB:"4e Poule D"},
-  {id:"M38", cat:"H", pool:"G", date:"2026-08-24", time:"12:30", teamA:"3e Poule A", teamB:"3e Poule D"},
-  {id:"M39", cat:"H", pool:"E", date:"2026-08-24", time:"14:45", teamA:"2e Poule A", teamB:"2e Poule D"},
-  {id:"M40", cat:"H", pool:"E", date:"2026-08-24", time:"18:00", teamA:"1er Poule A", teamB:"1er Poule D"},
-  {id:"W37", cat:"F", pool:"H", date:"2026-08-24", time:"11:00", teamA:"4e Poule C", teamB:"4e Poule B"},
-  {id:"W38", cat:"F", pool:"H", date:"2026-08-24", time:"14:00", teamA:"3e Poule C", teamB:"3e Poule B"},
-  {id:"W39", cat:"F", pool:"F", date:"2026-08-24", time:"17:00", teamA:"2e Poule C", teamB:"2e Poule B"},
-  {id:"W40", cat:"F", pool:"F", date:"2026-08-24", time:"20:30", teamA:"1er Poule C", teamB:"1er Poule B"},
-
-  {id:"W41", cat:"F", stage:"13e-14e place", date:"2026-08-27", time:"09:30", teamA:"3e Poule G", teamB:"3e Poule H"},
-  {id:"W43", cat:"F", stage:"11e-12e place", date:"2026-08-27", time:"12:30", teamA:"2e Poule G", teamB:"2e Poule H"},
-  {id:"W45", cat:"F", stage:"5e-6e place", date:"2026-08-27", time:"15:00", teamA:"3e Poule E", teamB:"3e Poule F"},
-  {id:"W47", cat:"F", stage:"Demi-finale 1", date:"2026-08-27", time:"18:00", teamA:"1er Poule E", teamB:"2e Poule F"},
-  {id:"W42", cat:"F", stage:"15e-16e place", date:"2026-08-27", time:"11:00", teamA:"4e Poule G", teamB:"4e Poule H"},
-  {id:"W44", cat:"F", stage:"9e-10e place", date:"2026-08-27", time:"14:00", teamA:"1er Poule G", teamB:"1er Poule H"},
-  {id:"W46", cat:"F", stage:"7e-8e place", date:"2026-08-27", time:"17:00", teamA:"4e Poule E", teamB:"4e Poule F"},
-  {id:"W48", cat:"F", stage:"Demi-finale 2", date:"2026-08-27", time:"20:30", teamA:"1er Poule F", teamB:"2e Poule E"},
-
-  {id:"M41", cat:"H", stage:"13e-14e place", date:"2026-08-28", time:"09:30", teamA:"3e Poule G", teamB:"3e Poule H"},
-  {id:"M43", cat:"H", stage:"11e-12e place", date:"2026-08-28", time:"12:30", teamA:"2e Poule G", teamB:"2e Poule H"},
-  {id:"M45", cat:"H", stage:"5e-6e place", date:"2026-08-28", time:"15:00", teamA:"3e Poule E", teamB:"3e Poule F"},
-  {id:"M47", cat:"H", stage:"Demi-finale 1", date:"2026-08-28", time:"18:00", teamA:"2e Poule E", teamB:"2e Poule F"},
-  {id:"M42", cat:"H", stage:"15e-16e place", date:"2026-08-28", time:"11:00", teamA:"4e Poule G", teamB:"4e Poule H"},
-  {id:"M44", cat:"H", stage:"9e-10e place", date:"2026-08-28", time:"14:00", teamA:"1er Poule G", teamB:"1er Poule H"},
-  {id:"M46", cat:"H", stage:"7e-8e place", date:"2026-08-28", time:"17:00", teamA:"4e Poule E", teamB:"4e Poule F"},
-  {id:"M48", cat:"H", stage:"Demi-finale 2", date:"2026-08-28", time:"20:30", teamA:"1er Poule F", teamB:"2e Poule E"},
-
-  {id:"W49", cat:"F", stage:"Petite finale", date:"2026-08-29", time:"13:00", teamA:"Perdant demi 1 (F)", teamB:"Perdant demi 2 (F)"},
-  {id:"W50", cat:"F", stage:"Finale", date:"2026-08-29", time:"16:00", teamA:"Vainqueur demi 1 (F)", teamB:"Vainqueur demi 2 (F)"},
-  {id:"M49", cat:"H", stage:"Petite finale", date:"2026-08-30", time:"14:00", teamA:"Perdant demi 1 (H)", teamB:"Perdant demi 2 (H)"},
-  {id:"M50", cat:"H", stage:"Finale", date:"2026-08-30", time:"16:30", teamA:"Vainqueur demi 1 (H)", teamB:"Vainqueur demi 2 (H)"}
+  {id:"W1", cat:"F", pool:"A", date:"2026-08-15", time:"10:00", teamA:"Australie", teamB:"Japon", venue:"Amsterdam"},
+  {id:"M1", cat:"H", pool:"D", date:"2026-08-15", time:"13:00", teamA:"Inde", teamB:"Pays de Galles", venue:"Amsterdam"},
+  {id:"W3", cat:"F", pool:"A", date:"2026-08-15", time:"16:00", teamA:"Pays-Bas", teamB:"Chili", venue:"Amsterdam"},
+  {id:"M3", cat:"H", pool:"D", date:"2026-08-15", time:"19:00", teamA:"Angleterre", teamB:"Pakistan", venue:"Amsterdam"},
+  {id:"W2", cat:"F", pool:"B", date:"2026-08-15", time:"11:30", teamA:"Allemagne", teamB:"Ecosse", venue:"Wavre"},
+  {id:"M2", cat:"H", pool:"B", date:"2026-08-15", time:"14:30", teamA:"Allemagne", teamB:"Malaisie", venue:"Wavre"},
+  {id:"W4", cat:"F", pool:"B", date:"2026-08-15", time:"17:30", teamA:"Argentine", teamB:"Etats-Unis", venue:"Wavre"},
+  {id:"M4", cat:"H", pool:"B", date:"2026-08-15", time:"21:00", teamA:"Belgique", teamB:"France", venue:"Wavre"},
+  {id:"W5", cat:"F", pool:"D", date:"2026-08-16", time:"10:00", teamA:"Angleterre", teamB:"Afrique du Sud", venue:"Amsterdam"},
+  {id:"W6", cat:"F", pool:"D", date:"2026-08-16", time:"13:00", teamA:"Chine", teamB:"Inde", venue:"Amsterdam"},
+  {id:"M7", cat:"H", pool:"A", date:"2026-08-16", time:"16:00", teamA:"Pays-Bas", teamB:"Nouvelle-Zelande", venue:"Amsterdam"},
+  {id:"M8", cat:"H", pool:"A", date:"2026-08-16", time:"19:00", teamA:"Argentine", teamB:"Japon", venue:"Amsterdam"},
+  {id:"M5", cat:"H", pool:"C", date:"2026-08-16", time:"11:30", teamA:"Australie", teamB:"Irlande", venue:"Wavre"},
+  {id:"M6", cat:"H", pool:"C", date:"2026-08-16", time:"14:30", teamA:"Espagne", teamB:"Afrique du Sud", venue:"Wavre"},
+  {id:"W7", cat:"F", pool:"C", date:"2026-08-16", time:"17:30", teamA:"Belgique", teamB:"Nouvelle-Zelande", venue:"Wavre"},
+  {id:"W8", cat:"F", pool:"C", date:"2026-08-16", time:"20:30", teamA:"Espagne", teamB:"Irlande", venue:"Wavre"},
+  {id:"W9", cat:"F", pool:"A", date:"2026-08-17", time:"09:30", teamA:"Chili", teamB:"Japon", venue:"Amsterdam"},
+  {id:"M9", cat:"H", pool:"D", date:"2026-08-17", time:"12:30", teamA:"Pakistan", teamB:"Pays de Galles", venue:"Amsterdam"},
+  {id:"M11", cat:"H", pool:"D", date:"2026-08-17", time:"15:00", teamA:"Inde", teamB:"Angleterre", venue:"Amsterdam"},
+  {id:"W12", cat:"F", pool:"A", date:"2026-08-17", time:"18:00", teamA:"Australie", teamB:"Pays-Bas", venue:"Amsterdam"},
+  {id:"W10", cat:"F", pool:"B", date:"2026-08-17", time:"11:00", teamA:"Etats-Unis", teamB:"Ecosse", venue:"Wavre"},
+  {id:"M10", cat:"H", pool:"B", date:"2026-08-17", time:"14:00", teamA:"France", teamB:"Malaisie", venue:"Wavre"},
+  {id:"W11", cat:"F", pool:"B", date:"2026-08-17", time:"17:00", teamA:"Allemagne", teamB:"Argentine", venue:"Wavre"},
+  {id:"M12", cat:"H", pool:"B", date:"2026-08-17", time:"20:30", teamA:"Allemagne", teamB:"Belgique", venue:"Wavre"},
+  {id:"M13", cat:"H", pool:"A", date:"2026-08-18", time:"09:30", teamA:"Nouvelle-Zelande", teamB:"Japon", venue:"Amsterdam"},
+  {id:"W14", cat:"F", pool:"D", date:"2026-08-18", time:"12:30", teamA:"Angleterre", teamB:"Chine", venue:"Amsterdam"},
+  {id:"W15", cat:"F", pool:"D", date:"2026-08-18", time:"15:00", teamA:"Inde", teamB:"Afrique du Sud", venue:"Amsterdam"},
+  {id:"M16", cat:"H", pool:"A", date:"2026-08-18", time:"18:00", teamA:"Argentine", teamB:"Pays-Bas", venue:"Amsterdam"},
+  {id:"W13", cat:"F", pool:"C", date:"2026-08-18", time:"11:00", teamA:"Nouvelle-Zelande", teamB:"Irlande", venue:"Wavre"},
+  {id:"M14", cat:"H", pool:"C", date:"2026-08-18", time:"14:00", teamA:"Espagne", teamB:"Australie", venue:"Wavre"},
+  {id:"M15", cat:"H", pool:"C", date:"2026-08-18", time:"17:00", teamA:"Irlande", teamB:"Afrique du Sud", venue:"Wavre"},
+  {id:"W16", cat:"F", pool:"C", date:"2026-08-18", time:"20:30", teamA:"Espagne", teamB:"Belgique", venue:"Wavre"},
+  {id:"W17", cat:"F", pool:"A", date:"2026-08-19", time:"09:30", teamA:"Chili", teamB:"Australie", venue:"Amsterdam"},
+  {id:"M17", cat:"H", pool:"D", date:"2026-08-19", time:"12:30", teamA:"Angleterre", teamB:"Pays de Galles", venue:"Amsterdam"},
+  {id:"M18", cat:"H", pool:"D", date:"2026-08-19", time:"15:00", teamA:"Pakistan", teamB:"Inde", venue:"Amsterdam"},
+  {id:"W20", cat:"F", pool:"A", date:"2026-08-19", time:"18:00", teamA:"Pays-Bas", teamB:"Japon", venue:"Amsterdam"},
+  {id:"W18", cat:"F", pool:"B", date:"2026-08-19", time:"11:00", teamA:"Argentine", teamB:"Ecosse", venue:"Wavre"},
+  {id:"W19", cat:"F", pool:"B", date:"2026-08-19", time:"14:00", teamA:"Etats-Unis", teamB:"Allemagne", venue:"Wavre"},
+  {id:"M19", cat:"H", pool:"B", date:"2026-08-19", time:"17:00", teamA:"France", teamB:"Allemagne", venue:"Wavre"},
+  {id:"M20", cat:"H", pool:"B", date:"2026-08-19", time:"20:30", teamA:"Belgique", teamB:"Malaisie", venue:"Wavre"},
+  {id:"W21", cat:"F", pool:"D", date:"2026-08-20", time:"09:30", teamA:"Chine", teamB:"Afrique du Sud", venue:"Amsterdam"},
+  {id:"M22", cat:"H", pool:"A", date:"2026-08-20", time:"12:30", teamA:"Nouvelle-Zelande", teamB:"Argentine", venue:"Amsterdam"},
+  {id:"W23", cat:"F", pool:"D", date:"2026-08-20", time:"15:00", teamA:"Inde", teamB:"Angleterre", venue:"Amsterdam"},
+  {id:"M24", cat:"H", pool:"A", date:"2026-08-20", time:"18:00", teamA:"Pays-Bas", teamB:"Japon", venue:"Amsterdam"},
+  {id:"M21", cat:"H", pool:"C", date:"2026-08-20", time:"11:00", teamA:"Australie", teamB:"Afrique du Sud", venue:"Wavre"},
+  {id:"W22", cat:"F", pool:"C", date:"2026-08-20", time:"14:00", teamA:"Nouvelle-Zelande", teamB:"Espagne", venue:"Wavre"},
+  {id:"M23", cat:"H", pool:"C", date:"2026-08-20", time:"17:00", teamA:"Irlande", teamB:"Espagne", venue:"Wavre"},
+  {id:"W24", cat:"F", pool:"C", date:"2026-08-20", time:"20:30", teamA:"Belgique", teamB:"Irlande", venue:"Wavre"},
+  {id:"W25", cat:"F", pool:"G", date:"2026-08-21", time:"09:30", teamA:"3e Poule D", teamB:"4e Poule A", venue:"Amsterdam"},
+  {id:"W26", cat:"F", pool:"G", date:"2026-08-21", time:"12:30", teamA:"3e Poule A", teamB:"4e Poule D", venue:"Amsterdam"},
+  {id:"W27", cat:"F", pool:"E", date:"2026-08-21", time:"15:00", teamA:"1er Poule D", teamB:"2e Poule A", venue:"Amsterdam"},
+  {id:"W28", cat:"F", pool:"E", date:"2026-08-21", time:"18:00", teamA:"1er Poule A", teamB:"2e Poule D", venue:"Amsterdam"},
+  {id:"M25", cat:"H", pool:"H", date:"2026-08-21", time:"11:00", teamA:"3e Poule B", teamB:"4e Poule C", venue:"Wavre"},
+  {id:"M26", cat:"H", pool:"H", date:"2026-08-21", time:"14:00", teamA:"3e Poule C", teamB:"4e Poule B", venue:"Wavre"},
+  {id:"M27", cat:"H", pool:"F", date:"2026-08-21", time:"17:00", teamA:"1er Poule C", teamB:"2e Poule B", venue:"Wavre"},
+  {id:"M28", cat:"H", pool:"F", date:"2026-08-21", time:"20:30", teamA:"1er Poule B", teamB:"2e Poule C", venue:"Wavre"},
+  {id:"M29", cat:"H", pool:"G", date:"2026-08-22", time:"10:00", teamA:"3e Poule A", teamB:"4e Poule D", venue:"Amsterdam"},
+  {id:"M30", cat:"H", pool:"G", date:"2026-08-22", time:"13:00", teamA:"3e Poule D", teamB:"4e Poule A", venue:"Amsterdam"},
+  {id:"M31", cat:"H", pool:"E", date:"2026-08-22", time:"16:00", teamA:"1er Poule A", teamB:"2e Poule D", venue:"Amsterdam"},
+  {id:"M32", cat:"H", pool:"E", date:"2026-08-22", time:"19:00", teamA:"1er Poule D", teamB:"2e Poule A", venue:"Amsterdam"},
+  {id:"W29", cat:"F", pool:"H", date:"2026-08-22", time:"11:30", teamA:"3e Poule C", teamB:"4e Poule B", venue:"Wavre"},
+  {id:"W30", cat:"F", pool:"H", date:"2026-08-22", time:"14:30", teamA:"3e Poule B", teamB:"4e Poule C", venue:"Wavre"},
+  {id:"W31", cat:"F", pool:"F", date:"2026-08-22", time:"17:30", teamA:"1er Poule C", teamB:"2e Poule B", venue:"Wavre"},
+  {id:"W32", cat:"F", pool:"F", date:"2026-08-22", time:"20:30", teamA:"1er Poule B", teamB:"2e Poule C", venue:"Wavre"},
+  {id:"W33", cat:"F", pool:"G", date:"2026-08-23", time:"10:00", teamA:"4e Poule A", teamB:"4e Poule D", venue:"Amsterdam"},
+  {id:"W34", cat:"F", pool:"G", date:"2026-08-23", time:"13:00", teamA:"3e Poule A", teamB:"3e Poule D", venue:"Amsterdam"},
+  {id:"W35", cat:"F", pool:"E", date:"2026-08-23", time:"16:00", teamA:"1er Poule A", teamB:"1er Poule D", venue:"Amsterdam"},
+  {id:"W36", cat:"F", pool:"E", date:"2026-08-23", time:"19:00", teamA:"2e Poule A", teamB:"2e Poule D", venue:"Amsterdam"},
+  {id:"M33", cat:"H", pool:"H", date:"2026-08-23", time:"11:30", teamA:"4e Poule B", teamB:"4e Poule C", venue:"Wavre"},
+  {id:"M34", cat:"H", pool:"H", date:"2026-08-23", time:"14:30", teamA:"3e Poule B", teamB:"3e Poule C", venue:"Wavre"},
+  {id:"M35", cat:"H", pool:"F", date:"2026-08-23", time:"17:30", teamA:"1er Poule B", teamB:"1er Poule C", venue:"Wavre"},
+  {id:"M36", cat:"H", pool:"F", date:"2026-08-23", time:"20:30", teamA:"2e Poule B", teamB:"2e Poule C", venue:"Wavre"},
+  {id:"M37", cat:"H", pool:"G", date:"2026-08-24", time:"09:30", teamA:"4e Poule A", teamB:"4e Poule D", venue:"Amsterdam"},
+  {id:"M38", cat:"H", pool:"G", date:"2026-08-24", time:"12:30", teamA:"3e Poule A", teamB:"3e Poule D", venue:"Amsterdam"},
+  {id:"M39", cat:"H", pool:"E", date:"2026-08-24", time:"14:45", teamA:"2e Poule A", teamB:"2e Poule D", venue:"Amsterdam"},
+  {id:"M40", cat:"H", pool:"E", date:"2026-08-24", time:"18:00", teamA:"1er Poule A", teamB:"1er Poule D", venue:"Amsterdam"},
+  {id:"W37", cat:"F", pool:"H", date:"2026-08-24", time:"11:00", teamA:"4e Poule C", teamB:"4e Poule B", venue:"Wavre"},
+  {id:"W38", cat:"F", pool:"H", date:"2026-08-24", time:"14:00", teamA:"3e Poule C", teamB:"3e Poule B", venue:"Wavre"},
+  {id:"W39", cat:"F", pool:"F", date:"2026-08-24", time:"17:00", teamA:"2e Poule C", teamB:"2e Poule B", venue:"Wavre"},
+  {id:"W40", cat:"F", pool:"F", date:"2026-08-24", time:"20:30", teamA:"1er Poule C", teamB:"1er Poule B", venue:"Wavre"},
+  {id:"W41", cat:"F", stage:"13e-14e place", date:"2026-08-27", time:"09:30", teamA:"3e Poule G", teamB:"3e Poule H", venue:"Amsterdam"},
+  {id:"W43", cat:"F", stage:"11e-12e place", date:"2026-08-27", time:"12:30", teamA:"2e Poule G", teamB:"2e Poule H", venue:"Amsterdam"},
+  {id:"W45", cat:"F", stage:"5e-6e place", date:"2026-08-27", time:"15:00", teamA:"3e Poule E", teamB:"3e Poule F", venue:"Amsterdam"},
+  {id:"W47", cat:"F", stage:"Demi-finale 1", date:"2026-08-27", time:"18:00", teamA:"1er Poule E", teamB:"2e Poule F", venue:"Amsterdam"},
+  {id:"W42", cat:"F", stage:"15e-16e place", date:"2026-08-27", time:"11:00", teamA:"4e Poule G", teamB:"4e Poule H", venue:"Wavre"},
+  {id:"W44", cat:"F", stage:"9e-10e place", date:"2026-08-27", time:"14:00", teamA:"1er Poule G", teamB:"1er Poule H", venue:"Wavre"},
+  {id:"W46", cat:"F", stage:"7e-8e place", date:"2026-08-27", time:"17:00", teamA:"4e Poule E", teamB:"4e Poule F", venue:"Wavre"},
+  {id:"W48", cat:"F", stage:"Demi-finale 2", date:"2026-08-27", time:"20:30", teamA:"1er Poule F", teamB:"2e Poule E", venue:"Wavre"},
+  {id:"M41", cat:"H", stage:"13e-14e place", date:"2026-08-28", time:"09:30", teamA:"3e Poule G", teamB:"3e Poule H", venue:"Amsterdam"},
+  {id:"M43", cat:"H", stage:"11e-12e place", date:"2026-08-28", time:"12:30", teamA:"2e Poule G", teamB:"2e Poule H", venue:"Amsterdam"},
+  {id:"M45", cat:"H", stage:"5e-6e place", date:"2026-08-28", time:"15:00", teamA:"3e Poule E", teamB:"3e Poule F", venue:"Amsterdam"},
+  {id:"M47", cat:"H", stage:"Demi-finale 1", date:"2026-08-28", time:"18:00", teamA:"2e Poule E", teamB:"2e Poule F", venue:"Amsterdam"},
+  {id:"M42", cat:"H", stage:"15e-16e place", date:"2026-08-28", time:"11:00", teamA:"4e Poule G", teamB:"4e Poule H", venue:"Wavre"},
+  {id:"M44", cat:"H", stage:"9e-10e place", date:"2026-08-28", time:"14:00", teamA:"1er Poule G", teamB:"1er Poule H", venue:"Wavre"},
+  {id:"M46", cat:"H", stage:"7e-8e place", date:"2026-08-28", time:"17:00", teamA:"4e Poule E", teamB:"4e Poule F", venue:"Wavre"},
+  {id:"M48", cat:"H", stage:"Demi-finale 2", date:"2026-08-28", time:"20:30", teamA:"1er Poule F", teamB:"2e Poule E", venue:"Wavre"},
+  {id:"W49", cat:"F", stage:"Petite finale", date:"2026-08-29", time:"13:00", teamA:"Perdant demi 1 (F)", teamB:"Perdant demi 2 (F)", venue:"Amsterdam"},
+  {id:"W50", cat:"F", stage:"Finale", date:"2026-08-29", time:"16:00", teamA:"Vainqueur demi 1 (F)", teamB:"Vainqueur demi 2 (F)", venue:"Amsterdam"},
+  {id:"M49", cat:"H", stage:"Petite finale", date:"2026-08-30", time:"14:00", teamA:"Perdant demi 1 (H)", teamB:"Perdant demi 2 (H)", venue:"Wavre"},
+  {id:"M50", cat:"H", stage:"Finale", date:"2026-08-30", time:"16:30", teamA:"Vainqueur demi 1 (H)", teamB:"Vainqueur demi 2 (H)", venue:"Wavre"}
 ];
 
 var RESULTS = {
@@ -661,9 +721,12 @@ var state = {
   predictions: {},
   me: null,
   tab: "pronostics",
-  filterCat: "all",
-  filterPool: "all",
+  filterCats: [],
+  filterPools: [],
+  filterDate: "all",
+  filterVenues: [],
   showAddPlayer: false,
+  filtersOpen: false,
   joinError: null,
   joinBusy: false
 };
@@ -675,7 +738,7 @@ function mergeOfficialMatches(){
       state.matches.push({
         id: om.id, cat: om.cat, pool: om.pool || null, stage: om.stage || null,
         teamA: om.teamA, teamB: om.teamB,
-        date: om.date, time: om.time,
+        date: om.date, time: om.time, venue: om.venue || null,
         scoreA: null, scoreB: null
       });
       added++;
@@ -692,6 +755,27 @@ function syncHardcodedResults(){
     if(match.scoreA === null || match.scoreA === undefined){
       match.scoreA = RESULTS[id].a;
       match.scoreB = RESULTS[id].b;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+function syncMissingFields(){
+  var changed = false;
+  state.matches.forEach(function(m){
+    var official = OFFICIAL_MATCHES.find(function(om){ return om.id === m.id; });
+    if(!official) return;
+    if(!m.venue && official.venue){
+      m.venue = official.venue;
+      changed = true;
+    }
+    if(!m.pool && official.pool){
+      m.pool = official.pool;
+      changed = true;
+    }
+    if(!m.stage && official.stage){
+      m.stage = official.stage;
       changed = true;
     }
   });
@@ -1002,22 +1086,17 @@ function computeStandings(matches){
 function renderPoules(){
   var html = '<h2 class="section-title">Classement des poules</h2>';
   html += '<p class="section-hint">Calcule a partir des scores officiels saisis dans l\'onglet Saisie resultat match. Bareme classique : 3 pts victoire, 1 pt match nul, 0 pt defaite.</p>';
-  html += renderCatFilter();
-  html += renderPoolFilter();
+  html += renderFilters();
 
-  var cats = state.filterCat === "all" ? ["F", "H"] : [state.filterCat];
+  var cats = state.filterCats.length === 0 ? ["F", "H"] : state.filterCats;
   var pools = ["A","B","C","D","E","F","G","H"].filter(function(p){
-    return state.filterPool === "all" || state.filterPool === p;
+    return state.filterPools.length === 0 || state.filterPools.indexOf(p) !== -1;
   });
   var any = false;
 
-  if(state.filterPool === "finale"){
-    pools = [];
-  }
-
   cats.forEach(function(cat){
     pools.forEach(function(pool){
-      var matches = sortMatches(state.matches.filter(function(m){ return m.cat === cat && m.pool === pool; }));
+      var matches = sortMatches(state.matches.filter(function(m){ return m.cat === cat && m.pool === pool && matchMatchesDateFilter(m) && matchMatchesVenueFilter(m); }));
       if(!matches.length) return;
       any = true;
       var standings = computeStandings(matches);
@@ -1042,7 +1121,8 @@ function renderPoules(){
       html += '<div class="pool-matches-list">';
       matches.forEach(function(m){
         var scoreTxt = (m.scoreA === null || m.scoreA === undefined) ? "a venir" : (m.scoreA + " - " + m.scoreB);
-        html += '<div class="pool-match-line"><span class="match-date">' + formatDate(m.date, m.time) + '</span> ' + escapeHtml(m.teamA) + ' <b>' + scoreTxt + '</b> ' + escapeHtml(m.teamB) + '</div>';
+        var venueTxt = m.venue ? " \u00b7 " + m.venue : "";
+        html += '<div class="pool-match-line"><span class="match-date">' + formatDate(m.date, m.time) + venueTxt + '</span> ' + escapeHtml(m.teamA) + ' <b>' + scoreTxt + '</b> ' + escapeHtml(m.teamB) + '</div>';
       });
       html += '</div>';
     });
@@ -1060,15 +1140,14 @@ function renderPronostics(){
     return '<div class="empty"><div class="big">Choisissez votre nom</div><p>Cliquez sur "+" en haut pour ajouter les joueurs de la famille.</p></div>';
   }
   var filtered = state.matches.filter(function(m){
-    return (state.filterCat === "all" || m.cat === state.filterCat) && matchMatchesPoolFilter(m);
+    return matchMatchesCatFilter(m) && matchMatchesPoolFilter(m) && matchMatchesDateFilter(m) && matchMatchesVenueFilter(m);
   });
   var sorted = sortMatches(filtered);
   var upcoming = sorted.filter(function(m){ return m.scoreA === null || m.scoreA === undefined; });
 
   var html = '<h2 class="section-title">Mes pronostics</h2>';
   html += '<p class="section-hint">Entrez le score que vous imaginez pour chaque match, puis enregistrez. Vous voyez aussi les pronostics des autres, et vous pouvez modifier le votre tant que le match n\'est pas termine. Les matchs joues passent dans l\'onglet "Classement Prono". <span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur &middot; <b>0 pt</b> faux</span></p>';
-  html += renderCatFilter();
-  html += renderPoolFilter();
+  html += renderFilters();
 
   if(!state.matches.length){
     html += '<div class="empty"><div class="big">Aucun match</div><p>Allez dans l\'onglet "Saisie resultat match" pour charger le calendrier officiel des poules.</p></div>';
@@ -1084,37 +1163,106 @@ function renderPronostics(){
   return html;
 }
 
+function toggleInArray(arr, val){
+  var idx = arr.indexOf(val);
+  if(idx === -1) arr.push(val); else arr.splice(idx, 1);
+}
+
 function renderCatFilter(){
   var opts = [
-    {id:"all", label:"Toutes"},
     {id:"F", label:"Femmes"},
     {id:"H", label:"Hommes"}
   ];
   return '<div class="filter-row">' + opts.map(function(o){
-    var active = state.filterCat === o.id ? " active" : "";
-    return '<button class="filter-chip' + active + '" data-action="set-filter" data-filter="' + o.id + '">' + o.label + '</button>';
+    var active = state.filterCats.indexOf(o.id) !== -1 ? " active" : "";
+    return '<button class="filter-chip' + active + '" data-action="toggle-cat-filter" data-filter="' + o.id + '">' + o.label + '</button>';
   }).join("") + '</div>';
+}
+
+function matchMatchesCatFilter(m){
+  return state.filterCats.length === 0 || state.filterCats.indexOf(m.cat) !== -1;
 }
 
 function renderPoolFilter(){
   var opts = [
-    {id:"all", label:"Toutes les poules"},
-    {id:"A", label:"Poule A"}, {id:"B", label:"Poule B"},
-    {id:"C", label:"Poule C"}, {id:"D", label:"Poule D"},
-    {id:"E", label:"Poule E"}, {id:"F", label:"Poule F"},
-    {id:"G", label:"Poule G"}, {id:"H", label:"Poule H"},
-    {id:"finale", label:"Phase finale"}
+    {id:"A", label:"A"}, {id:"B", label:"B"},
+    {id:"C", label:"C"}, {id:"D", label:"D"},
+    {id:"E", label:"E"}, {id:"F", label:"F"},
+    {id:"G", label:"G"}, {id:"H", label:"H"},
+    {id:"finale", label:"Finale"}
   ];
-  return '<div class="filter-row">' + opts.map(function(o){
-    var active = state.filterPool === o.id ? " active" : "";
-    return '<button class="filter-chip' + active + '" data-action="set-pool-filter" data-pool="' + o.id + '">' + o.label + '</button>';
+  return '<div class="filter-row filter-row-scroll">' + opts.map(function(o){
+    var active = state.filterPools.indexOf(o.id) !== -1 ? " active" : "";
+    return '<button class="filter-chip' + active + '" data-action="toggle-pool-filter" data-pool="' + o.id + '">' + o.label + '</button>';
   }).join("") + '</div>';
 }
 
 function matchMatchesPoolFilter(m){
-  if(state.filterPool === "all") return true;
-  if(state.filterPool === "finale") return !!m.stage;
-  return m.pool === state.filterPool;
+  if(state.filterPools.length === 0) return true;
+  var matchesFinale = state.filterPools.indexOf("finale") !== -1 && !!m.stage;
+  var matchesPool = !!m.pool && state.filterPools.indexOf(m.pool) !== -1;
+  return matchesFinale || matchesPool;
+}
+
+function renderDateFilter(){
+  var dates = [];
+  state.matches.forEach(function(m){
+    if(m.date && dates.indexOf(m.date) === -1) dates.push(m.date);
+  });
+  dates.sort();
+  var options = '<option value="all">Toutes les dates</option>' + dates.map(function(d){
+    var sel = state.filterDate === d ? " selected" : "";
+    return '<option value="' + d + '"' + sel + '>' + formatDate(d) + '</option>';
+  }).join("");
+  var activeClass = state.filterDate !== "all" ? " active" : "";
+  return '<div class="filter-row"><select class="date-select' + activeClass + '" id="date-filter-select">' + options + '</select></div>';
+}
+
+function matchMatchesDateFilter(m){
+  return state.filterDate === "all" || m.date === state.filterDate;
+}
+
+function renderVenueFilter(){
+  var opts = [
+    {id:"Amsterdam", label:"Amsterdam"},
+    {id:"Wavre", label:"Wavre"}
+  ];
+  return '<div class="filter-row">' + opts.map(function(o){
+    var active = state.filterVenues.indexOf(o.id) !== -1 ? " active" : "";
+    return '<button class="filter-chip' + active + '" data-action="toggle-venue-filter" data-venue="' + o.id + '">' + o.label + '</button>';
+  }).join("") + '</div>';
+}
+
+function matchMatchesVenueFilter(m){
+  return state.filterVenues.length === 0 || state.filterVenues.indexOf(m.venue) !== -1;
+}
+
+function activeFilterCount(){
+  return state.filterCats.length + state.filterPools.length + state.filterVenues.length + (state.filterDate !== "all" ? 1 : 0);
+}
+
+function renderFilters(){
+  var count = activeFilterCount();
+  var html = '<div class="filters-toggle-row">';
+  html += '<button class="btn btn-ghost filters-toggle-btn" data-action="toggle-filters">' +
+    'Filtres' + (count > 0 ? ' <span class="filter-count-badge">' + count + '</span>' : '') +
+    ' <span class="chev">' + (state.filtersOpen ? "\u25B4" : "\u25BE") + '</span>' +
+    '</button>';
+  if(count > 0){
+    html += '<button class="btn btn-ghost btn-sm" data-action="clear-filters">Effacer les filtres</button>';
+  }
+  html += '</div>';
+
+  if(state.filtersOpen){
+    html += '<div class="filters-panel">';
+    html += renderDateFilter();
+    html += renderVenueFilter();
+    html += renderCatFilter();
+    html += renderPoolFilter();
+    html += '</div>';
+  }
+
+  return html;
 }
 
 function renderPredictionCard(m, isDone){
@@ -1124,6 +1272,7 @@ function renderPredictionCard(m, isDone){
 
   var catBadge = catLabel(m.cat) ? '<span class="cat-badge cat-' + m.cat.toLowerCase() + '">' + catLabel(m.cat) + '</span>' : '';
   var poolBadge = roundBadge(m);
+  var venueBadge = m.venue ? '<span class="venue-badge">' + escapeHtml(m.venue) + '</span>' : '';
 
   var statusBadge = isDone
     ? '<span class="match-status status-done">Termine ' + m.scoreA + ' — ' + m.scoreB + '</span>'
@@ -1176,7 +1325,7 @@ function renderPredictionCard(m, isDone){
       '<div class="match-top">' +
         '<span class="match-meta">' +
           '<span class="match-date">' + formatDate(m.date, m.time) + '</span>' +
-          catBadge + poolBadge +
+          catBadge + poolBadge + venueBadge +
         '</span>' +
         statusBadge +
       '</div>' +
@@ -1222,11 +1371,10 @@ function renderResultats(){
 
   html += '<h2 class="section-title" style="margin-top:30px;">Matchs joues</h2>';
   html += '<p class="section-hint">Le detail des pronostics et des points gagnes pour chaque match termine.</p>';
-  html += renderCatFilter();
-  html += renderPoolFilter();
+  html += renderFilters();
 
   var filtered = state.matches.filter(function(m){
-    return (state.filterCat === "all" || m.cat === state.filterCat) && matchMatchesPoolFilter(m);
+    return matchMatchesCatFilter(m) && matchMatchesPoolFilter(m) && matchMatchesDateFilter(m) && matchMatchesVenueFilter(m);
   });
   var done = sortMatches(filtered).filter(function(m){ return !(m.scoreA === null || m.scoreA === undefined); });
   done.reverse();
@@ -1244,11 +1392,10 @@ function renderAdmin(){
   var html = '<h2 class="section-title">Gerer les matchs</h2>';
   html += '<p class="section-hint">Les 100 matchs (poules et phase finale) sont deja charges. Les matchs apres les poules utilisent des noms provisoires comme "1er Poule A" : Claude les mettra a jour avec les vraies equipes au fur et a mesure des resultats. Entrez le score final une fois le match joue pour debloquer les points.</p>';
 
-  html += renderCatFilter();
-  html += renderPoolFilter();
+  html += renderFilters();
 
   var filtered = state.matches.filter(function(m){
-    return (state.filterCat === "all" || m.cat === state.filterCat) && matchMatchesPoolFilter(m);
+    return matchMatchesCatFilter(m) && matchMatchesPoolFilter(m) && matchMatchesDateFilter(m) && matchMatchesVenueFilter(m);
   });
   var sorted = sortMatches(filtered);
   if(!sorted.length){
@@ -1261,6 +1408,7 @@ function renderAdmin(){
     var hasScore = !(m.scoreA === null || m.scoreA === undefined);
     var catBadge = catLabel(m.cat) ? '<span class="cat-badge cat-' + m.cat.toLowerCase() + '">' + catLabel(m.cat) + '</span>' : '';
     var poolBadge = roundBadge(m);
+    var venueBadge = m.venue ? '<span class="venue-badge">' + escapeHtml(m.venue) + '</span>' : '';
 
     html +=
       '<div class="admin-match-row">' +
@@ -1268,7 +1416,7 @@ function renderAdmin(){
           '<div class="admin-teams-line"><span class="admin-teams">' + escapeHtml(m.teamA) + ' vs ' + escapeHtml(m.teamB) + '</span></div>' +
           '<div class="admin-meta-line">' +
             '<span class="admin-date">' + formatDate(m.date, m.time) + '</span>' +
-            catBadge + poolBadge +
+            catBadge + poolBadge + venueBadge +
           '</div>' +
         '</div>' +
         '<div class="admin-controls">' +
@@ -1428,19 +1576,53 @@ function attachEvents(){
     }
   }
 
-  app.querySelectorAll('[data-action="set-filter"]').forEach(function(el){
+  var toggleFiltersBtn = app.querySelector('[data-action="toggle-filters"]');
+  if(toggleFiltersBtn){
+    toggleFiltersBtn.addEventListener("click", function(){
+      state.filtersOpen = !state.filtersOpen;
+      render();
+    });
+  }
+
+  var clearFiltersBtn = app.querySelector('[data-action="clear-filters"]');
+  if(clearFiltersBtn){
+    clearFiltersBtn.addEventListener("click", function(){
+      state.filterCats = [];
+      state.filterPools = [];
+      state.filterVenues = [];
+      state.filterDate = "all";
+      render();
+    });
+  }
+
+  app.querySelectorAll('[data-action="toggle-cat-filter"]').forEach(function(el){
     el.addEventListener("click", function(){
-      state.filterCat = el.getAttribute("data-filter");
+      toggleInArray(state.filterCats, el.getAttribute("data-filter"));
       render();
     });
   });
 
-  app.querySelectorAll('[data-action="set-pool-filter"]').forEach(function(el){
+  app.querySelectorAll('[data-action="toggle-pool-filter"]').forEach(function(el){
     el.addEventListener("click", function(){
-      state.filterPool = el.getAttribute("data-pool");
+      toggleInArray(state.filterPools, el.getAttribute("data-pool"));
       render();
     });
   });
+
+  app.querySelectorAll('[data-action="toggle-venue-filter"]').forEach(function(el){
+    el.addEventListener("click", function(){
+      toggleInArray(state.filterVenues, el.getAttribute("data-venue"));
+      render();
+    });
+  });
+
+  var dateSelect = document.getElementById("date-filter-select");
+  if(dateSelect){
+    dateSelect.addEventListener("change", function(){
+      state.filterDate = dateSelect.value;
+      render();
+    });
+  }
 
   app.querySelectorAll('[data-action="save-pred"]').forEach(function(el){
     el.addEventListener("click", async function(){
@@ -1510,6 +1692,7 @@ async function init(){
     if(added > 0) needsSave = true;
   }
   if(syncHardcodedResults()) needsSave = true;
+  if(syncMissingFields()) needsSave = true;
   if(needsSave){
     await saveCloud();
   }
