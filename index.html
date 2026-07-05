@@ -1276,6 +1276,7 @@ function renderAdmin(){
           '<span class="vs-dash">:</span>' +
           '<input class="admin-score-input" type="text" inputmode="numeric" maxlength="2" data-role="final-b" data-match="' + m.id + '" value="' + (hasScore ? m.scoreB : "") + '" placeholder="-">' +
           '<button class="btn" data-action="save-final" data-match="' + m.id + '">Valider</button>' +
+          (hasScore ? '<button class="btn btn-ghost" data-action="clear-final" data-match="' + m.id + '">Effacer</button>' : '') +
         '</div>' +
       '</div>';
   });
@@ -1482,6 +1483,19 @@ function attachEvents(){
         render();
         showToast("Score enregistre, points mis a jour");
       }
+    });
+  });
+
+  app.querySelectorAll('[data-action="clear-final"]').forEach(function(el){
+    el.addEventListener("click", async function(){
+      var matchId = el.getAttribute("data-match");
+      var match = state.matches.find(function(m){ return m.id === matchId; });
+      if(!match) return;
+      match.scoreA = null;
+      match.scoreB = null;
+      await saveCloud();
+      render();
+      showToast("Score efface, le match redevient a venir");
     });
   });
 }
