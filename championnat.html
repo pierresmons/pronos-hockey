@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pronos Hockey — Championnat belge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a1420;
+    --panel:#101f30;
+    --panel-2:#16293d;
+    --panel-3:#1c3149;
+    --line:#24425e;
+    --ice:#eaf6fb;
+    --ice-dim:#93aec2;
+    --ice-faint:#5f7c92;
+    --red:#d5262f;
+    --red-dark:#8f1a20;
+    --gold:#f0a93b;
+    --green:#2fae66;
+    --font-display:'Teko','Oswald','Arial Narrow',sans-serif;
+    --font-body:'Inter',system-ui,-apple-system,sans-serif;
+    --font-mono:'JetBrains Mono','Space Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ice);font-family:var(--font-body);}
+  body{min-height:100vh;}
+  #app{max-width:760px;margin:0 auto;padding:0 0 60px;}
+
+  .rink-header{
+    position:relative;
+    overflow:hidden;
+    background:linear-gradient(180deg,#0c1c2c 0%,#0a1420 100%);
+    border-bottom:3px solid var(--red);
+    padding:32px 24px 22px;
+    text-align:center;
+  }
+  .rink-header::before{
+    content:"";
+    position:absolute;
+    top:-120px;left:50%;
+    width:360px;height:360px;
+    transform:translateX(-50%);
+    border:2px solid rgba(234,246,251,0.07);
+    border-radius:50%;
+  }
+  .rink-header::after{
+    content:"";
+    position:absolute;
+    top:-10px;left:50%;
+    width:8px;height:8px;
+    transform:translateX(-50%);
+    background:rgba(213,38,47,0.35);
+    border-radius:50%;
+  }
+  .eyebrow{
+    position:relative;
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--red);
+    margin:0 0 6px;
+    font-weight:700;
+  }
+  h1.title{
+    position:relative;
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:44px;
+    line-height:0.95;
+    letter-spacing:0.01em;
+    text-transform:uppercase;
+    margin:0;
+    color:var(--ice);
+  }
+  h1.title span{color:var(--red);}
+  .subtitle{
+    position:relative;
+    font-size:13px;
+    color:var(--ice-dim);
+    margin:8px 0 0;
+  }
+
+  .players-row{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    padding:16px 20px;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+    align-items:center;
+  }
+  .players-label{
+    font-family:var(--font-mono);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    color:var(--ice-faint);
+    margin-right:4px;
+  }
+  .chip{
+    font-family:var(--font-body);
+    font-size:13px;
+    font-weight:600;
+    padding:7px 14px;
+    border-radius:999px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--ice-dim);
+    cursor:pointer;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .chip:hover{border-color:var(--ice-faint);}
+  .chip.active{
+    background:var(--red);
+    border-color:var(--red);
+    color:#fff;
+  }
+  .chip-add{
+    font-family:var(--font-mono);
+    font-size:16px;
+    line-height:1;
+    padding:7px 12px;
+    border-radius:999px;
+    background:transparent;
+    border:1px dashed var(--ice-faint);
+    color:var(--ice-faint);
+    cursor:pointer;
+  }
+  .chip-add:hover{color:var(--ice);border-color:var(--ice);}
+  .inline-input{
+    background:#050b12;
+    border:1px solid var(--line);
+    border-radius:999px;
+    color:var(--ice);
+    font-family:var(--font-body);
+    font-size:13px;
+    padding:6px 14px;
+    width:130px;
+  }
+  .inline-input:focus{outline:none;border-color:var(--red);}
+  .btn-sm{padding:6px 12px;font-size:12px;border-radius:999px;}
+  .room-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 20px;
+    background:var(--bg);
+    border-bottom:1px solid var(--line);
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--ice-faint);
+  }
+  .room-code b{color:var(--gold);letter-spacing:0.05em;}
+  .pool-matches-list{
+    margin-top:8px;
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+  }
+  .pool-match-line{
+    font-size:12.5px;
+    color:var(--ice-dim);
+  }
+  .pool-match-line b{color:var(--ice);}
+  .pool-match-line .match-date{margin-right:6px;}
+
+  .tabs{
+    display:flex;
+    background:var(--bg);
+    border-bottom:1px solid var(--line);
+    position:sticky;
+    top:0;
+    z-index:10;
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:13px 8px;
+    font-family:var(--font-display);
+    font-size:17px;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+    color:var(--ice-faint);
+    cursor:pointer;
+    border-bottom:3px solid transparent;
+    background:none;
+    border-top:none;border-left:none;border-right:none;
+  }
+  .tab.active{color:var(--ice);border-bottom-color:var(--red);}
+
+  .content{padding:22px 20px 0;}
+
+  .section-title{
+    font-family:var(--font-display);
+    font-size:22px;
+    text-transform:uppercase;
+    letter-spacing:0.02em;
+    color:var(--ice);
+    margin:0 0 4px;
+  }
+  .section-hint{
+    font-size:12.5px;
+    color:var(--ice-faint);
+    margin:0 0 18px;
+    line-height:1.5;
+  }
+  .legend{
+    display:inline-flex;
+    gap:14px;
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--ice-dim);
+    flex-wrap:wrap;
+  }
+  .legend b{color:var(--gold);}
+
+  .filter-row{
+    display:flex;
+    gap:8px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .filter-row-scroll{
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:6px;
+    scrollbar-width:thin;
+  }
+  .filter-row-scroll .filter-chip{
+    flex-shrink:0;
+    padding:6px 11px;
+    min-width:34px;
+    text-align:center;
+  }
+  .filter-chip{
+    font-family:var(--font-mono);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-weight:700;
+    padding:6px 12px;
+    border-radius:6px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--ice-faint);
+    cursor:pointer;
+  }
+  .filter-chip.active{
+    background:var(--panel-3);
+    border-color:var(--gold);
+    color:var(--gold);
+  }
+  .date-select{
+    font-family:var(--font-mono);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-weight:700;
+    padding:6px 12px;
+    border-radius:6px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--ice-faint);
+    cursor:pointer;
+    max-width:100%;
+  }
+  .date-select.active{
+    background:var(--panel-3);
+    border-color:var(--gold);
+    color:var(--gold);
+  }
+  .filters-toggle-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+  }
+  .filters-toggle-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    border:1px solid var(--line);
+  }
+  .filter-count-badge{
+    background:var(--red);
+    color:#fff;
+    border-radius:999px;
+    padding:1px 7px;
+    font-size:10px;
+    font-family:var(--font-mono);
+    font-weight:700;
+  }
+  .chev{font-size:10px;color:var(--ice-faint);}
+  .filters-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 14px 4px;
+    margin-bottom:16px;
+  }
+  .filters-panel .filter-row{margin-bottom:10px;}
+  .date-select:focus{outline:none;border-color:var(--gold);}
+
+  .match-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 16px;
+    margin-bottom:12px;
+  }
+  .match-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:12px;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .match-meta{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .match-date{
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--ice-faint);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+  }
+  .cat-badge{
+    font-family:var(--font-mono);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-weight:700;
+    padding:2px 7px;
+    border-radius:4px;
+  }
+  .cat-badge.cat-f{background:rgba(212,83,126,0.18);color:#e79bb6;}
+  .cat-badge.cat-h{background:rgba(55,138,221,0.18);color:#7db3ec;}
+  .pool-badge{
+    font-family:var(--font-mono);
+    font-size:10px;
+    color:var(--ice-faint);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+  }
+  .venue-badge{
+    font-family:var(--font-mono);
+    font-size:10px;
+    color:var(--ice-faint);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+  }
+  .venue-badge::before{content:"\1F4CD ";}
+  .match-status{
+    font-family:var(--font-mono);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    padding:2px 8px;
+    border-radius:4px;
+  }
+  .status-open{background:rgba(47,174,102,0.15);color:var(--green);}
+  .status-done{background:rgba(240,169,59,0.15);color:var(--gold);}
+
+  .scoreboard{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    gap:10px;
+  }
+  .team{
+    font-family:var(--font-display);
+    font-size:19px;
+    letter-spacing:0.01em;
+    text-transform:uppercase;
+    color:var(--ice);
+    text-align:center;
+    line-height:1.1;
+  }
+  .team.team-a{text-align:right;}
+  .team.team-b{text-align:left;}
+  .score-inputs{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .digit{
+    width:46px;
+    height:46px;
+    background:#050b12;
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--red);
+    font-family:var(--font-mono);
+    font-weight:700;
+    font-size:22px;
+    text-align:center;
+    padding:0;
+  }
+  .digit:focus{outline:none;border-color:var(--red);}
+  .digit:disabled{color:var(--ice-dim);background:#0d1826;}
+  .vs-dash{color:var(--ice-faint);font-family:var(--font-mono);font-size:14px;}
+
+  .match-actions{
+    margin-top:12px;
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+    align-items:center;
+  }
+  .btn{
+    font-family:var(--font-body);
+    font-size:12.5px;
+    font-weight:600;
+    padding:8px 14px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+    color:var(--ice);
+    cursor:pointer;
+  }
+  .btn:hover{border-color:var(--ice-faint);}
+  .btn-primary{background:var(--red);border-color:var(--red);color:#fff;}
+  .btn-primary:hover{background:var(--red-dark);border-color:var(--red-dark);}
+  .btn-ghost{background:transparent;border:1px solid transparent;color:var(--ice-faint);}
+  .btn-ghost:hover{color:var(--ice);}
+  .save-msg{
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--green);
+    opacity:0;
+    transition:opacity .3s;
+  }
+  .save-msg.show{opacity:1;}
+
+  .predictions-list{
+    margin-top:12px;
+    padding-top:12px;
+    border-top:1px dashed var(--line);
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 14px;
+  }
+  .pred-tag{
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    color:var(--ice-dim);
+  }
+  .pred-tag b{color:var(--ice);}
+  .pred-tag.exact{color:var(--gold);}
+  .pred-tag.exact b{color:var(--gold);}
+  .pred-tag.correct{color:var(--green);}
+  .pred-tag.wrong{color:var(--ice-faint);}
+
+  .empty{
+    text-align:center;
+    padding:50px 20px;
+    color:var(--ice-faint);
+  }
+  .empty .big{font-family:var(--font-display);font-size:26px;color:var(--ice-dim);text-transform:uppercase;margin-bottom:6px;}
+  .empty p{font-size:13px;margin:0;}
+
+  table.leaderboard{width:100%;border-collapse:collapse;margin-top:6px;}
+  table.leaderboard th{
+    font-family:var(--font-mono);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--ice-faint);
+    text-align:left;
+    padding:0 10px 10px;
+    border-bottom:1px solid var(--line);
+  }
+  table.leaderboard th.num, table.leaderboard td.num{text-align:right;}
+  table.leaderboard td{
+    padding:12px 10px;
+    border-bottom:1px solid var(--line);
+    font-size:14px;
+  }
+  table.leaderboard tr:last-child td{border-bottom:none;}
+  .rank{
+    font-family:var(--font-mono);
+    font-weight:700;
+    color:var(--ice-faint);
+    width:26px;
+    display:inline-block;
+  }
+  .rank.r1{color:var(--gold);}
+  .rank.r2{color:#c8ccd1;}
+  .rank.r3{color:#c98a4d;}
+  .player-name{font-weight:600;}
+  .points-val{
+    font-family:var(--font-mono);
+    font-weight:700;
+    font-size:17px;
+    color:var(--ice);
+  }
+  .points-sub{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    color:var(--ice-faint);
+  }
+
+  .admin-form{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+    margin-bottom:20px;
+  }
+  .form-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:10px;
+    flex-wrap:wrap;
+  }
+  .form-row input{flex:1;min-width:110px;}
+  input[type=text], input[type=date]{
+    background:#050b12;
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--ice);
+    font-family:var(--font-body);
+    font-size:13.5px;
+    padding:9px 10px;
+  }
+  input[type=text]:focus, input[type=date]:focus{outline:none;border-color:var(--red);}
+  input[type=text]::placeholder{color:var(--ice-faint);}
+
+  .admin-match-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    padding:12px 0;
+    border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  .admin-match-row:last-child{border-bottom:none;}
+  .admin-match-info{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width:0;
+  }
+  .admin-teams-line{display:flex;align-items:center;flex-wrap:wrap;}
+  .admin-teams{font-family:var(--font-display);font-size:17px;text-transform:uppercase;color:var(--ice);}
+  .admin-meta-line{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .admin-date{font-family:var(--font-mono);font-size:11px;color:var(--ice-faint);}
+  .admin-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .admin-score-input{
+    width:38px;height:34px;
+    text-align:center;
+    background:#050b12;
+    border:1px solid var(--line);
+    border-radius:5px;
+    color:var(--gold);
+    font-family:var(--font-mono);
+    font-weight:700;
+  }
+
+  .toast{
+    position:fixed;
+    bottom:20px;left:50%;
+    transform:translateX(-50%);
+    background:var(--panel-3);
+    border:1px solid var(--red);
+    color:var(--ice);
+    padding:10px 18px;
+    border-radius:8px;
+    font-size:13px;
+    font-family:var(--font-body);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s, transform .25s;
+    z-index:100;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+  @media (max-width:480px){
+    h1.title{font-size:34px;}
+    .team{font-size:15px;}
+    .digit{width:38px;height:40px;font-size:18px;}
+  }
+</style>
+<style>
+  .pool-picker{max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#050b12;margin-bottom:10px;}
+  .pool-group-title{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--gold);margin:10px 0 4px;cursor:pointer;}
+  .pool-opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ice-dim);padding:3px 0;cursor:pointer;}
+  .pool-opt input{accent-color:var(--red);}
+  .pool-opt.checked{color:var(--ice);}
+  .search-input{width:100%;margin-bottom:8px;}
+  .selected-count{font-family:var(--font-mono);font-size:11px;color:var(--gold);}
+  .sync-line{font-family:var(--font-mono);font-size:10.5px;color:var(--ice-faint);padding:6px 20px;border-bottom:1px solid var(--line);}
+  .status-locked{background:rgba(147,174,194,0.12);color:var(--ice-dim);}
+  .std-pts{font-family:var(--font-mono);font-weight:700;color:var(--ice);}
+  .team-hl td{background:rgba(213,38,47,0.10);}
+  .filter-row select.date-select{min-width:160px;}
+  @media (max-width:480px){ .tab{font-size:15px;padding:12px 4px;} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+
+/* ===================== Configuration ===================== */
+var SEASON_FROM = "2026-07-01";
+var SEASON_TO   = "2027-06-30";
+var API = "https://hockey.be/wp-json/sportlink-api/cached";
+var FIREBASE_URL = "https://pronos-hockey-default-rtdb.europe-west1.firebasedatabase.app";
+var ROOMS_PATH = "hbrooms";            /* parties separees de celles de la Coupe du monde */
+var LOCAL_ROOM_KEY = "hb-pool-room";
+var LOCAL_ME_KEY = "hb-pool-me";
+
+/* Liste des poules hockey.be (id, nom, nb de matchs au 02/10/2026) */
+var ALL_POOLS = [["11761","Top Hockey Men's League Outdoor Week - Carlsberg Men's Hockey League - A",132],["11762","Belgian League Men Outdoor Week - Nat. 1 - A",132],["11763","Belgian League Men Outdoor Week - Nat. 2 - A",132],["11764","Belgian League Men Outdoor Week - Nat. 3 - A",132],["11765","Belgian League Men Outdoor Week - Nat. 4 - A",156],["11766","Top Hockey Women's League Outdoor Week - Belfius Women's Hockey League - A",132],["11767","Belgian League Women Outdoor Week - Nat. 1 - A",132],["11769","Belgian League Women Outdoor Week - Nat. 2 - A",132],["11821","Belgian League Women Outdoor Week - Nat. 3 - A",182],["11898","Open League Men Outdoor Week - Nat. Honour - OL - A",132],["11899","Open League Men Outdoor Week - Nat. 1 - OL - A",132],["11900","Open League Men Outdoor Week - Reg. 1 - OL - HV",118],["11901","Open League Men Outdoor Week - Reg. 1 - OL - HWB",134],["11902","Open League Men Outdoor Week - Reg. 2 - OL - HV - A",138],["11903","Open League Men Outdoor Week - Reg. 2 - OL - HV - B",158],["11904","Open League Men Outdoor Week - Reg. 2 - OL - HWB - A",115],["11905","Open League Men Outdoor Week - Reg. 2 - OL - HWB - B",115],["12084","Open League Men Outdoor Week - Reg. 3 - OL - HWB - A",75],["12085","Open League Men Outdoor Week - Reg. 3 - OL - HWB - B",114],["11890","Open League Women Outdoor Week - Nat. Honour - OL - A",134],["11891","Open League Women Outdoor Week - Nat. 1 - OL - A",134],["11892","Open League Women Outdoor Week - Reg. 1 - OL - HV",134],["11893","Open League Women Outdoor Week - Reg. 1 - OL - HWB",132],["11894","Open League Women Outdoor Week - Reg. 2 - OL - HV - A",137],["11895","Open League Women Outdoor Week - Reg. 2 - OL - HV - B",190],["11896","Open League Women Outdoor Week - Reg. 2 - OL - HWB - A",118],["11897","Open League Women Outdoor Week - Reg. 2 - OL - HWB - B",116],["12086","Open League Women Outdoor Week - Reg. 3 - OL - HWB",110],["11861","Fun League Men Outdoor Week - Nat. Honour - FL - A",110],["11875","Fun League Men Outdoor Week - Reg. 1 - FL - HV",113],["11876","Fun League Men Outdoor Week - Reg. 1 - FL - HWB",135],["11871","Fun League Men Outdoor Week - Reg. 2 - FL - HV - A",111],["11872","Fun League Men Outdoor Week - Reg. 2 - FL - HV - B",91],["11873","Fun League Men Outdoor Week - Reg. 2 - FL - HWB - A",135],["11874","Fun League Men Outdoor Week - Reg. 2 - FL - HWB - B",133],["11866","Fun League Men Outdoor Week - Reg. 3 - FL - HV - A",92],["11867","Fun League Men Outdoor Week - Reg. 3 - FL - HV - B",134],["11868","Fun League Men Outdoor Week - Reg. 3 - FL - HWB - A",133],["11869","Fun League Men Outdoor Week - Reg. 3 - FL - HWB - B",135],["11870","Fun League Men Outdoor Week - Reg. 3 - FL - HWB - C",90],["11864","Fun League Men Outdoor Week - Reg. 4 - FL - HWB - A",112],["11865","Fun League Men Outdoor Week - Reg. 4 - FL - HWB - B",90],["12421","Fun League Men Outdoor Week - New team - FL - A",1],["11877","Fun League Women Outdoor Week - Nat. Honour - FL - A",90],["11878","Fun League Women Outdoor Week - Reg. 1 - FL - HV",144],["11879","Fun League Women Outdoor Week - Reg. 1 - FL - HWB",133],["11880","Fun League Women Outdoor Week - Reg. 2 - FL - HV - A",114],["11881","Fun League Women Outdoor Week - Reg. 2 - FL - HV - B",101],["11882","Fun League Women Outdoor Week - Reg. 2 - FL - HWB - A",133],["11883","Fun League Women Outdoor Week - Reg. 2 - FL - HWB - B",139],["12087","Fun League Women Outdoor Week - Reg. 3 - FL - HV",92],["11886","Fun League Women Outdoor Week - Reg. 3 - FL - HWB - A",134],["11887","Fun League Women Outdoor Week - Reg. 3 - FL - HWB - B",114],["11888","Fun League Women Outdoor Week - Reg. 3 - FL - HWB - C",111],["11889","Fun League Women Outdoor Week - Reg. 3 - FL - HWB - D",116],["11884","Fun League Women Outdoor Week - Reg. 4 - FL - HWB - A",21],["11885","Fun League Women Outdoor Week - Reg. 4 - FL - HWB - B",30],["12088","Fun League Women Outdoor Week - Reg. 4 - FL - HWB - C",30],["12212","35+ Outdoor Week - Nat. Honour - A",92],["11813","45+ Outdoor Week - Nat. Honour - A",132],["11814","45+ Outdoor Week - Nat. 1 - A",137],["12213","45+ Outdoor Week - Nat. 2 - A",21],["12214","45+ Outdoor Week - Nat. 2 - B",21],["12255","Open League Gentlemen Outdoor Week - Reg. 1 - OL - HV - A",57],["12256","Open League Gentlemen Outdoor Week - Reg. 1 - OL - HV - B",58],["12254","Open League Gentlemen Outdoor Week - Reg. 1 - OL - HWB",42],["12257","Open League Gentlemen Outdoor Week - Reg. 2 - OL - HV - A",45],["12258","Open League Gentlemen Outdoor Week - Reg. 2 - OL - HV - B",56],["12259","Open League Gentlemen Outdoor Week - Reg. 2 - OL - HWB - A",42],["12260","Open League Gentlemen Outdoor Week - Reg. 2 - OL - HWB - B",42],["12261","Open League Gentlemen Outdoor Week - Reg. 3 - OL - HWB - A",42],["12262","Open League Gentlemen Outdoor Week - Reg. 3 - OL - HWB - B",42],["12263","Open League Gentlemen Outdoor Week - Reg. 3 - OL - HWB - C",56],["12264","Open League Gentlemen Outdoor Week - Reg. 3 - OL - HWB - D",42],["12265","Open League Gentlemen Outdoor Week - Reg. 4 - OL - HWB",42],["12268","Fun League Gentlemen Outdoor Week - Reg. 1 - FL - HV - A",42],["12269","Fun League Gentlemen Outdoor Week - Reg. 1 - FL - HV - B",42],["12266","Fun League Gentlemen Outdoor Week - Reg. 1 - FL - HWB - A",42],["12267","Fun League Gentlemen Outdoor Week - Reg. 1 - FL - HWB - B",42],["12274","Fun League Gentlemen Outdoor Week - Reg. 2 - FL - HV - A",56],["12275","Fun League Gentlemen Outdoor Week - Reg. 2 - FL - HV - B",42],["12276","Fun League Gentlemen Outdoor Week - Reg. 2 - FL - HV - C",42],["12277","Fun League Gentlemen Outdoor Week - Reg. 2 - FL - HV - D",42],["12270","Fun League Gentlemen Outdoor Week - Reg. 2 - FL - HWB - A",56],["12271","Fun League Gentlemen Outdoor Week - Reg. 2 - FL - HWB - B",56],["12272","Fun League Gentlemen Outdoor Week - Reg. 2 - FL - HWB - C",56],["12273","Fun League Gentlemen Outdoor Week - Reg. 2 - FL - HWB - D",44],["12278","Fun League Gentlemen Outdoor Week - Reg. 3 - FL - HV",56],["12279","Fun League Gentlemen Outdoor Week - Reg. 3 - FL - HWB - A",56],["12280","Fun League Gentlemen Outdoor Week - Reg. 3 - FL - HWB - B",42],["12281","Fun League Gentlemen Outdoor Week - Reg. 3 - FL - HWB - C",56],["12282","Fun League Gentlemen Outdoor Week - Reg. 3 - FL - HWB - D",58],["12232","Junior Ladies Outdoor Week - Nat. Honour - A",56],["12234","Junior Ladies Outdoor Week - Reg. 1 - HV",56],["12233","Junior Ladies Outdoor Week - Reg. 1 - HWB",56],["12235","Junior Ladies Outdoor Week - Reg. 2 - HV",56],["12236","Junior Ladies Outdoor Week - Reg. 2 - HWB - A",56],["12237","Junior Ladies Outdoor Week - Reg. 2 - HWB - B",42],["12238","Ladies Outdoor Week - Nat. Honour - A",42],["12239","Ladies Outdoor Week - Reg. 1 - HV",42],["12240","Ladies Outdoor Week - Reg. 1 - HWB",56],["12241","Ladies Outdoor Week - Reg. 2 - HV - A",58],["12242","Ladies Outdoor Week - Reg. 2 - HV - B",55],["12243","Ladies Outdoor Week - Reg. 2 - HWB - A",42],["12244","Ladies Outdoor Week - Reg. 2 - HWB - B",42],["12245","Ladies Outdoor Week - Reg. 3 - HV",56],["12246","Ladies Outdoor Week - Reg. 3 - HWB - A",56],["12247","Ladies Outdoor Week - Reg. 3 - HWB - B",42],["12248","Ladies Outdoor Week - Reg. 3 - HWB - C",42],["12249","Ladies Outdoor Week - Reg. 3 - HWB - D",42],["12250","Ladies Outdoor Week - Reg. 4 - HWB - A",56],["12251","Ladies Outdoor Week - Reg. 4 - HWB - B",42],["12252","Ladies Outdoor Week - Reg. 4 - HWB - C",42],["12253","Ladies Outdoor Week - Reg. 4 - HWB - D",42],["12089","U19 Boys Outdoor Week - Nat. 1 - A",66],["12090","U19 Boys Outdoor Week - Nat. 2 - A",66],["12091","U19 Boys Outdoor Week - Nat. 3 - A",66],["12181","U19 Boys Outdoor Week - Reg. 1 - A",66],["12182","U19 Boys Outdoor Week - Reg. 1 - B",66],["12183","U19 Boys Outdoor Week - Reg. 1 - C",55],["12184","U19 Boys Outdoor Week - Reg. 1 - D",55],["12185","U19 Boys Outdoor Week - Reg. 2 - A",30],["12186","U19 Boys Outdoor Week - Reg. 2 - B",30],["12187","U19 Boys Outdoor Week - Reg. 2 - C",30],["12188","U19 Boys Outdoor Week - Reg. 2 - D",30],["12189","U19 Boys Outdoor Week - Reg. 2 - E",30],["12190","U19 Boys Outdoor Week - Reg. 3 - A",30],["12191","U19 Boys Outdoor Week - Reg. 3 - B",30],["12192","U19 Boys Outdoor Week - Reg. 3 - C",30],["12193","U19 Boys Outdoor Week - Reg. 3 - D",13],["12092","U19 Girls Outdoor Week - Nat. 1 - A",66],["12093","U19 Girls Outdoor Week - Nat. 2 - A",66],["12094","U19 Girls Outdoor Week - Nat. 3 - A",68],["12194","U19 Girls Outdoor Week - Reg. 1 - A",66],["12195","U19 Girls Outdoor Week - Reg. 1 - B",55],["12196","U19 Girls Outdoor Week - Reg. 1 - C",45],["12197","U19 Girls Outdoor Week - Reg. 2 - A",20],["12198","U19 Girls Outdoor Week - Reg. 2 - B",21],["12199","U19 Girls Outdoor Week - Reg. 2 - C",30],["12200","U19 Girls Outdoor Week - Reg. 2 - D",30],["12201","U19 Girls Outdoor Week - Reg. 2 - E",30],["12202","U19 Girls Outdoor Week - Reg. 2 - F",30],["12203","U19 Girls Outdoor Week - Reg. 2 - G",20],["12204","U19 Girls Outdoor Week - Reg. 3 - A",11],["12383","U19 Girls Outdoor Week - Reg. 3 - Argos U19G-1 - Wellington U19G-3",1],["12205","U19 Girls Outdoor Week - Reg. 3 - B",20],["12206","U19 Girls Outdoor Week - Reg. 3 - C",20],["12207","U19 Girls Outdoor Week - Reg. 3 - D",30],["12208","U19 Girls Outdoor Week - Reg. 3 - E",26],["12209","U19 Girls Outdoor Week - Reg. 3 - F",21],["12210","U19 Girls Outdoor Week - Reg. 3 - G",20],["12382","U19 Girls Outdoor Week - Reg. 3 - Grez U19G-1 - Uccle Sport U19G-3",1],["12211","U19 Girls Outdoor Week - Reg. 3 - H",12],["12384","U19 Girls Outdoor Week - Reg. 3 - Rasante U19G-3 - Argos U19G-1",1],["12386","U19 Girls Outdoor Week - Reg. 3 - Waterloo Ducks U19G-3 - Grez U19G-1",1],["12385","U19 Girls Outdoor Week - Reg. 3 - Waterloo Ducks U19G-3 - Oree U19G-5",1],["12097","U16 Boys Outdoor Week - Nat. 1 - A",66],["12096","U16 Boys Outdoor Week - Nat. 2 - A",66],["12095","U16 Boys Outdoor Week - Nat. 3 - A",66],["12163","U16 Boys Outdoor Week - Reg. 1 - A",30],["12164","U16 Boys Outdoor Week - Reg. 1 - B",30],["12165","U16 Boys Outdoor Week - Reg. 1 - C",30],["12166","U16 Boys Outdoor Week - Reg. 1 - D",66],["12167","U16 Boys Outdoor Week - Reg. 2 - A",20],["12168","U16 Boys Outdoor Week - Reg. 2 - B",20],["12169","U16 Boys Outdoor Week - Reg. 2 - C",20],["12170","U16 Boys Outdoor Week - Reg. 2 - D",20],["12171","U16 Boys Outdoor Week - Reg. 2 - E",20],["12172","U16 Boys Outdoor Week - Reg. 2 - F",20],["12173","U16 Boys Outdoor Week - Reg. 2 - G",30],["12174","U16 Boys Outdoor Week - Reg. 2 - H",30],["12175","U16 Boys Outdoor Week - Reg. 3 - A",16],["12176","U16 Boys Outdoor Week - Reg. 3 - B",20],["12177","U16 Boys Outdoor Week - Reg. 3 - C",20],["12178","U16 Boys Outdoor Week - Reg. 3 - D",30],["12179","U16 Boys Outdoor Week - Reg. 3 - E",16],["12180","U16 Boys Outdoor Week - Reg. 3 - F",30],["12100","U16 Girls Outdoor Week - Nat. 1 - A",66],["12099","U16 Girls Outdoor Week - Nat. 2 - A",66],["12098","U16 Girls Outdoor Week - Nat. 3 - A",66],["12145","U16 Girls Outdoor Week - Reg. 1 - A",55],["12146","U16 Girls Outdoor Week - Reg. 1 - B",30],["12147","U16 Girls Outdoor Week - Reg. 1 - C",20],["12148","U16 Girls Outdoor Week - Reg. 1 - D",20],["12149","U16 Girls Outdoor Week - Reg. 2 - A",30],["12150","U16 Girls Outdoor Week - Reg. 2 - B",30],["12151","U16 Girls Outdoor Week - Reg. 2 - C",30],["12152","U16 Girls Outdoor Week - Reg. 2 - D",20],["12153","U16 Girls Outdoor Week - Reg. 2 - E",30],["12154","U16 Girls Outdoor Week - Reg. 2 - F",30],["12155","U16 Girls Outdoor Week - Reg. 2 - G",30],["12156","U16 Girls Outdoor Week - Reg. 3 - A",20],["12157","U16 Girls Outdoor Week - Reg. 3 - B",20],["12158","U16 Girls Outdoor Week - Reg. 3 - C",17],["12159","U16 Girls Outdoor Week - Reg. 3 - D",30],["12160","U16 Girls Outdoor Week - Reg. 3 - E",30],["12161","U16 Girls Outdoor Week - Reg. 3 - F",20],["12162","U16 Girls Outdoor Week - Reg. 3 - G",30],["12105","U14 Boys Outdoor Week - Nat. 1 - A",66],["12106","U14 Boys Outdoor Week - Nat. 1 - B",66],["12101","U14 Boys Outdoor Week - Nat. 2 - A",66],["12107","U14 Boys Outdoor Week - Reg. 1 - A",20],["12108","U14 Boys Outdoor Week - Reg. 1 - B",30],["12109","U14 Boys Outdoor Week - Reg. 1 - C",20],["12110","U14 Boys Outdoor Week - Reg. 1 - D",45],["12111","U14 Boys Outdoor Week - Reg. 1 - E",45],["12120","U14 Boys Outdoor Week - Reg. 2 - A",18],["12121","U14 Boys Outdoor Week - Reg. 2 - B",32],["12122","U14 Boys Outdoor Week - Reg. 2 - C",20],["12123","U14 Boys Outdoor Week - Reg. 2 - D",30],["12124","U14 Boys Outdoor Week - Reg. 2 - E",30],["12125","U14 Boys Outdoor Week - Reg. 2 - F",20],["12126","U14 Boys Outdoor Week - Reg. 2 - G",30],["12127","U14 Boys Outdoor Week - Reg. 2 - H",20],["12112","U14 Boys Outdoor Week - Reg. 3 - A",30],["12113","U14 Boys Outdoor Week - Reg. 3 - B",30],["12114","U14 Boys Outdoor Week - Reg. 3 - C",20],["12115","U14 Boys Outdoor Week - Reg. 3 - D",30],["12116","U14 Boys Outdoor Week - Reg. 3 - E",30],["12117","U14 Boys Outdoor Week - Reg. 3 - F",20],["12118","U14 Boys Outdoor Week - Reg. 3 - G",20],["12119","U14 Boys Outdoor Week - Reg. 3 - H",30],["12103","U14 Girls Outdoor Week - Nat. 1 - A",66],["12104","U14 Girls Outdoor Week - Nat. 1 - B",66],["12102","U14 Girls Outdoor Week - Nat. 2 - A",42],["12128","U14 Girls Outdoor Week - Reg. 1 - A",45],["12129","U14 Girls Outdoor Week - Reg. 1 - B",30],["12130","U14 Girls Outdoor Week - Reg. 2 - A",20],["12131","U14 Girls Outdoor Week - Reg. 2 - B",20],["12132","U14 Girls Outdoor Week - Reg. 2 - C",30],["12133","U14 Girls Outdoor Week - Reg. 2 - D",20],["12134","U14 Girls Outdoor Week - Reg. 2 - E",30],["12135","U14 Girls Outdoor Week - Reg. 2 - F",30],["12136","U14 Girls Outdoor Week - Reg. 3 - A",20],["12137","U14 Girls Outdoor Week - Reg. 3 - B",20],["12138","U14 Girls Outdoor Week - Reg. 3 - C",20],["12139","U14 Girls Outdoor Week - Reg. 3 - D",20],["12140","U14 Girls Outdoor Week - Reg. 3 - E",20],["12141","U14 Girls Outdoor Week - Reg. 3 - F",20],["12142","U14 Girls Outdoor Week - Reg. 3 - G",30],["12143","U14 Girls Outdoor Week - Reg. 3 - H",20],["12144","U14 Girls Outdoor Week - Reg. 3 - I",30],["12055","U12 Boys Outdoor Week - Reg. 1 - A",45],["12056","U12 Boys Outdoor Week - Reg. 1 - B",45],["12057","U12 Boys Outdoor Week - Reg. 1 - C",36],["12058","U12 Boys Outdoor Week - Reg. 1 - D",45],["12059","U12 Boys Outdoor Week - Reg. 2 - A",20],["12060","U12 Boys Outdoor Week - Reg. 2 - B",20],["12061","U12 Boys Outdoor Week - Reg. 2 - C",30],["12062","U12 Boys Outdoor Week - Reg. 2 - D",20],["12063","U12 Boys Outdoor Week - Reg. 2 - E",30],["12064","U12 Boys Outdoor Week - Reg. 2 - F",30],["12065","U12 Boys Outdoor Week - Reg. 2 - G",30],["12066","U12 Boys Outdoor Week - Reg. 2 - H",32],["12067","U12 Boys Outdoor Week - Reg. 3 - A",20],["12068","U12 Boys Outdoor Week - Reg. 3 - B",30],["12069","U12 Boys Outdoor Week - Reg. 3 - C",26],["12070","U12 Boys Outdoor Week - Reg. 3 - D",30],["12071","U12 Boys Outdoor Week - Reg. 3 - E",30],["12072","U12 Boys Outdoor Week - Reg. 3 - F",20],["12073","U12 Boys Outdoor Week - Reg. 3 - G",20],["12037","U12 Girls Outdoor Week - Reg. 1 - A",30],["12038","U12 Girls Outdoor Week - Reg. 1 - B",30],["12039","U12 Girls Outdoor Week - Reg. 1 - C",30],["12040","U12 Girls Outdoor Week - Reg. 1 - D",30],["12041","U12 Girls Outdoor Week - Reg. 1 - E",30],["12042","U12 Girls Outdoor Week - Reg. 2 - A",30],["12043","U12 Girls Outdoor Week - Reg. 2 - B",30],["12044","U12 Girls Outdoor Week - Reg. 2 - C",30],["12045","U12 Girls Outdoor Week - Reg. 2 - D",30],["12046","U12 Girls Outdoor Week - Reg. 2 - E",30],["12047","U12 Girls Outdoor Week - Reg. 2 - F",30],["12048","U12 Girls Outdoor Week - Reg. 2 - G",30],["12049","U12 Girls Outdoor Week - Reg. 3 - A",18],["12050","U12 Girls Outdoor Week - Reg. 3 - B",32],["12051","U12 Girls Outdoor Week - Reg. 3 - C",20],["12052","U12 Girls Outdoor Week - Reg. 3 - D",20],["12053","U12 Girls Outdoor Week - Reg. 3 - E",12],["12054","U12 Girls Outdoor Week - Reg. 3 - F",20],["12018","U11 Boys Outdoor Week - Reg. 1 - A",30],["12019","U11 Boys Outdoor Week - Reg. 1 - B",20],["12020","U11 Boys Outdoor Week - Reg. 1 - C",30],["12021","U11 Boys Outdoor Week - Reg. 1 - D",30],["12022","U11 Boys Outdoor Week - Reg. 1 - E",30],["12023","U11 Boys Outdoor Week - Reg. 2 - A",30],["12024","U11 Boys Outdoor Week - Reg. 2 - B",32],["12025","U11 Boys Outdoor Week - Reg. 2 - C",30],["12026","U11 Boys Outdoor Week - Reg. 2 - D",20],["12027","U11 Boys Outdoor Week - Reg. 2 - E",20],["12028","U11 Boys Outdoor Week - Reg. 2 - F",20],["12029","U11 Boys Outdoor Week - Reg. 2 - G",30],["12030","U11 Boys Outdoor Week - Reg. 3 - A",20],["12031","U11 Boys Outdoor Week - Reg. 3 - B",20],["12032","U11 Boys Outdoor Week - Reg. 3 - C",20],["12033","U11 Boys Outdoor Week - Reg. 3 - D",20],["12034","U11 Boys Outdoor Week - Reg. 3 - E",20],["12035","U11 Boys Outdoor Week - Reg. 3 - F",20],["12036","U11 Boys Outdoor Week - Reg. 3 - G",22],["12002","U11 Girls Outdoor Week - Reg. 1 - A",20],["12003","U11 Girls Outdoor Week - Reg. 1 - B",20],["12004","U11 Girls Outdoor Week - Reg. 1 - C",20],["12005","U11 Girls Outdoor Week - Reg. 1 - D",20],["12006","U11 Girls Outdoor Week - Reg. 2 - A",30],["12007","U11 Girls Outdoor Week - Reg. 2 - B",20],["12008","U11 Girls Outdoor Week - Reg. 2 - C",20],["12009","U11 Girls Outdoor Week - Reg. 2 - D",20],["12010","U11 Girls Outdoor Week - Reg. 2 - E",20],["12011","U11 Girls Outdoor Week - Reg. 2 - F",20],["12012","U11 Girls Outdoor Week - Reg. 3 - A",30],["12013","U11 Girls Outdoor Week - Reg. 3 - B",30],["12014","U11 Girls Outdoor Week - Reg. 3 - C",20],["12015","U11 Girls Outdoor Week - Reg. 3 - D",30],["12016","U11 Girls Outdoor Week - Reg. 3 - E",20],["12017","U11 Girls Outdoor Week - Reg. 3 - F",20],["11981","U10 Boys Outdoor Week - Reg. 1 - A",45],["11982","U10 Boys Outdoor Week - Reg. 1 - B",45],["11983","U10 Boys Outdoor Week - Reg. 1 - C",45],["11984","U10 Boys Outdoor Week - Reg. 1 - D",45],["11985","U10 Boys Outdoor Week - Reg. 2 - A",20],["11986","U10 Boys Outdoor Week - Reg. 2 - B",20],["11987","U10 Boys Outdoor Week - Reg. 2 - C",20],["11988","U10 Boys Outdoor Week - Reg. 2 - D",30],["11989","U10 Boys Outdoor Week - Reg. 2 - E",20],["11990","U10 Boys Outdoor Week - Reg. 2 - F",20],["11991","U10 Boys Outdoor Week - Reg. 2 - G",30],["11992","U10 Boys Outdoor Week - Reg. 2 - H",30],["11993","U10 Boys Outdoor Week - Reg. 3 - A",20],["11994","U10 Boys Outdoor Week - Reg. 3 - B",32],["11995","U10 Boys Outdoor Week - Reg. 3 - C",30],["11996","U10 Boys Outdoor Week - Reg. 3 - D",16],["11997","U10 Boys Outdoor Week - Reg. 3 - E",30],["11998","U10 Boys Outdoor Week - Reg. 3 - F",32],["11999","U10 Boys Outdoor Week - Reg. 3 - G",30],["12000","U10 Boys Outdoor Week - Reg. 3 - H",30],["12001","U10 Boys Outdoor Week - Reg. 3 - I",30],["11977","U10 Girls Outdoor Week - Reg. 1 - A",30],["11978","U10 Girls Outdoor Week - Reg. 1 - B",20],["11979","U10 Girls Outdoor Week - Reg. 1 - C",20],["11980","U10 Girls Outdoor Week - Reg. 1 - D",20],["11970","U10 Girls Outdoor Week - Reg. 2 - A",31],["11971","U10 Girls Outdoor Week - Reg. 2 - B",20],["11972","U10 Girls Outdoor Week - Reg. 2 - C",20],["11973","U10 Girls Outdoor Week - Reg. 2 - D",30],["11974","U10 Girls Outdoor Week - Reg. 2 - E",20],["11975","U10 Girls Outdoor Week - Reg. 2 - F",30],["11976","U10 Girls Outdoor Week - Reg. 2 - G",20],["11964","U10 Girls Outdoor Week - Reg. 3 - A",8],["11965","U10 Girls Outdoor Week - Reg. 3 - B",20],["11966","U10 Girls Outdoor Week - Reg. 3 - C",20],["11967","U10 Girls Outdoor Week - Reg. 3 - D",20],["11968","U10 Girls Outdoor Week - Reg. 3 - E",20],["11969","U10 Girls Outdoor Week - Reg. 3 - F",20],["12409","U10 Girls Outdoor Week - Reg. 3 - Gantoise U10G-4 - Wolvendael U10G-1",1],["12407","U10 Girls Outdoor Week - Reg. 3 - Hoekies U10G-1 - Argos U10G-1",1],["12410","U10 Girls Outdoor Week - Reg. 3 - Linkebeek U10G-1 - Argos U10G-1",1],["12405","U10 Girls Outdoor Week - Reg. 3 - Linkebeek U10G-1 - Grez U10G-1",1],["12408","U10 Girls Outdoor Week - Reg. 3 - Oree U10G-2 - Argos U10G-1",1],["12404","U10 Girls Outdoor Week - Reg. 3 - White Star U10G-2 - Linkebeek U10G-1",1],["12411","U10 Girls Outdoor Week - Reg. 3 - White Star U10G-2 - Wolvendael U10G-1",1],["12406","U10 Girls Outdoor Week - Reg. 3 - Wolvendael U10G-1 - Linkebeek U10G-1",1],["11940","U9 Boys Outdoor Week - Reg. 1 - A",18],["11941","U9 Boys Outdoor Week - Reg. 1 - B",12],["11942","U9 Boys Outdoor Week - Reg. 1 - C",12],["11943","U9 Boys Outdoor Week - Reg. 1 - D",12],["11944","U9 Boys Outdoor Week - Reg. 1 - E",12],["11945","U9 Boys Outdoor Week - Reg. 2 - A",18],["11946","U9 Boys Outdoor Week - Reg. 2 - B",12],["11947","U9 Boys Outdoor Week - Reg. 2 - C",12],["11948","U9 Boys Outdoor Week - Reg. 2 - D",18],["11949","U9 Boys Outdoor Week - Reg. 2 - E",18],["11950","U9 Boys Outdoor Week - Reg. 2 - F",18],["11951","U9 Boys Outdoor Week - Reg. 2 - G",19],["11952","U9 Boys Outdoor Week - Reg. 2 - H",12],["11953","U9 Boys Outdoor Week - Reg. 2 - I",18],["11954","U9 Boys Outdoor Week - Reg. 2 - J",18],["11955","U9 Boys Outdoor Week - Reg. 2 - K",12],["11956","U9 Boys Outdoor Week - Reg. 3 - A",18],["11957","U9 Boys Outdoor Week - Reg. 3 - B",12],["11958","U9 Boys Outdoor Week - Reg. 3 - C",18],["11959","U9 Boys Outdoor Week - Reg. 3 - D",19],["11960","U9 Boys Outdoor Week - Reg. 3 - E",11],["11961","U9 Boys Outdoor Week - Reg. 3 - F",12],["11962","U9 Boys Outdoor Week - Reg. 3 - G",19],["11963","U9 Boys Outdoor Week - Reg. 3 - H",12],["11921","U9 Girls Outdoor Week - Reg. 1 - A",18],["11922","U9 Girls Outdoor Week - Reg. 1 - B",18],["11923","U9 Girls Outdoor Week - Reg. 1 - C",18],["11924","U9 Girls Outdoor Week - Reg. 2 - A",18],["11925","U9 Girls Outdoor Week - Reg. 2 - B",12],["11926","U9 Girls Outdoor Week - Reg. 2 - C",18],["11927","U9 Girls Outdoor Week - Reg. 2 - D",19],["11928","U9 Girls Outdoor Week - Reg. 2 - E",18],["11929","U9 Girls Outdoor Week - Reg. 2 - F",18],["11930","U9 Girls Outdoor Week - Reg. 2 - G",12],["11931","U9 Girls Outdoor Week - Reg. 2 - H",12],["11932","U9 Girls Outdoor Week - Reg. 2 - I",18],["11933","U9 Girls Outdoor Week - Reg. 2 - J",13],["11934","U9 Girls Outdoor Week - Reg. 3 - A",12],["11935","U9 Girls Outdoor Week - Reg. 3 - B",22],["11936","U9 Girls Outdoor Week - Reg. 3 - C",18],["11937","U9 Girls Outdoor Week - Reg. 3 - D",18],["11938","U9 Girls Outdoor Week - Reg. 3 - E",12],["11939","U9 Girls Outdoor Week - Reg. 3 - F",12],["12229","U8 Boys Outdoor Week - Reg. 1 - A",114],["12230","U8 Boys Outdoor Week - Reg. 2 - A",305],["12231","U8 Boys Outdoor Week - Reg. 3 - A",233],["12226","U8 Girls Outdoor Week - Reg. 1 - A",90],["12227","U8 Girls Outdoor Week - Reg. 2 - A",225],["12228","U8 Girls Outdoor Week - Reg. 3 - A",172],["12223","U7 Boys Outdoor Week - Reg. 1 - A",66],["12224","U7 Boys Outdoor Week - Reg. 2 - A",298],["12225","U7 Boys Outdoor Week - Reg. 3 - A",226],["12081","U7 Girls Outdoor Week - Reg. 1 - HV - A",18],["12083","U7 Girls Outdoor Week - Reg. 1 - HV - B",18],["12082","U7 Girls Outdoor Week - Reg. 1 - HWB - A",12],["12221","U7 Girls Outdoor Week - Reg. 2 - A",203],["12222","U7 Girls Outdoor Week - Reg. 3 - A",152],["11841","Dr. Oetker Hockey Cup Women 1st round Outdoor Week - Dr. Oetker Hockey Cup Women 1st round - A",3],["11842","Dr. Oetker Hockey Cup Women 1st round Outdoor Week - Dr. Oetker Hockey Cup Women 1st round - B",3],["11843","Dr. Oetker Hockey Cup Women 1st round Outdoor Week - Dr. Oetker Hockey Cup Women 1st round - C",3],["11844","Dr. Oetker Hockey Cup Women 1st round Outdoor Week - Dr. Oetker Hockey Cup Women 1st round - D",3],["11845","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - A",3],["11846","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - B",3],["11847","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - C",3],["11848","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - D",3],["11849","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - E",3],["11850","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - F",3],["11851","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - G",3],["11852","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - H",3],["11853","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - I",3],["11854","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - J",3],["11855","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - K",3],["11856","Dr. Oetker Hockey Cup Men 1st round Outdoor Week - Dr. Oetker Hockey Cup Men 1st round - L",3],["11858","Dr. Oetker Hockey Cup Women 1/16 Outdoor Week - Dr. Oetker Hockey Cup Women 1/16 - A",16],["11857","Dr. Oetker Hockey Cup Men 1/16 Outdoor Week - Dr. Oetker Hockey Cup Men 1/16 - A",16],["12363","Dr. Oetker Hockey Cup Women 1/8 Outdoor Week - Dr. Oetker Hockey Cup Women 1/8 - A",8],["12364","Dr. Oetker Hockey Cup Men 1/8 Outdoor Week - Dr. Oetker Hockey Cup Men 1/8 - A",8],["12215","Cup Belgium 1/8 finals Outdoor Week - Belgium - Belgium",6],["12217","Cup President 1/8 finals Outdoor Week - President - President",1],["12218","Cup Sergant 1/8 finals Outdoor Week - Sergant - Sergant",6],["12301","Cup Campion 1/16 finals Outdoor Week - Campion - Campion",16],["12216","Cup Lobet 1/16 finals Outdoor Week - Lobet - Lobet",11],["12074","Cup Campion 1/32 finals Outdoor Week - Campion - Campion",4],["12321","Test-competitie Outdoor Week - Testklasse 1 - A",1],["12362","R2C Adultes Recreatief Week - HWB (Outdoor) - A",10],["12365","R2C U18 Recreatief Week - HWB (Outdoor) - A",4],["12361","R2C 10-14 Recreatief Week - HWB (Outdoor) - A",15],["12341","Trimmers Trimmers Week - HV - TR - A",28],["12342","Trimmers Trimmers Week - HV - TR - B",20],["12343","Trimmers Trimmers Week - HV - TR - C",29],["12344","Trimmers Trimmers Week - HV - TR - D",28],["12345","Trimmers Trimmers Week - HV - TR - E",29],["12346","Trimmers Trimmers Week - HV - TR - F",28],["12347","Trimmers Trimmers Week - HV - TR - G",18],["12348","Trimmers Trimmers Week - HV - TR - H",27],["12401","Men Indoor Week - Nat. Honour - A",0],["12402","Women Indoor Week - Nat. Honour - A",0],["12403","Open League Men Indoor Week - New Team - OL - A",1]];
+
+/* ===================== Etat ===================== */
+var state = {
+  room:null, players:[], pools:[], matches:[], predictions:{}, standings:{}, lastSync:null,
+  me:null, tab:"pronostics",
+  filterGenre:[], filterPools:[], filterDate:"all", filterTeam:"", filterWindow:"14",
+  showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
+  pickerSel:[], pickerSearch:"", syncing:false
+};
+
+/* ===================== Utilitaires ===================== */
+function poolName(id){
+  var p = ALL_POOLS.find(function(x){ return x[0] === id; });
+  return p ? shortPool(p[1]) : id;
+}
+function shortPool(n){ return n.replace(/ (Outdoor|Indoor|Recreatief|Trimmers) Week/,'').replace('Trimmers Trimmers','Trimmers'); }
+function poolGroup(n){
+  var s = shortPool(n), parts = s.split(" - ");
+  return parts[0];
+}
+function genreOf(n){
+  if(/Women|Ladies|Girls/.test(n)) return "F";
+  if(/\bMen\b|Men's|Gentlemen|Boys/.test(n)) return "H";
+  return "X";
+}
+function genreLabel(g){ return g === "F" ? "Dames" : (g === "H" ? "Hommes" : "Mixte"); }
+function stripHtml(h){
+  var d = document.createElement("div");
+  d.innerHTML = String(h == null ? "" : h).replace(/<br\s*\/?>/g, " | ");
+  return d.textContent.replace(/\s+/g, " ").trim();
+}
+function teamName(h){
+  return stripHtml(h).replace(/\s*\|\s*/, " ").replace(/ (Outdoor|Indoor) Semaine/i, "").trim();
+}
+function isoDate(dmy){
+  var m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(dmy || "");
+  return m ? (m[3] + "-" + m[2] + "-" + m[1]) : null;
+}
+function matchKey(poolId, a, b){ return (poolId + "_" + a + "_" + b).replace(/[.#$\[\]\/]/g, "-"); }
+function escapeHtml(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+  });
+}
+function formatDate(d, t){
+  if(!d) return "Date a confirmer";
+  try{
+    var dt = new Date(d + "T00:00:00");
+    var s = dt.toLocaleDateString("fr-FR", {weekday:"short", day:"numeric", month:"short"});
+    if(t) s += " · " + t;
+    return s;
+  }catch(e){ return d; }
+}
+function hasScore(m){ return !(m.scoreA === null || m.scoreA === undefined); }
+function isLocked(m){
+  if(hasScore(m)) return true;
+  if(!m.date) return false;
+  var start = new Date(m.date + "T" + (m.time || "00:00") + ":00");
+  return Date.now() >= start.getTime();
+}
+function todayIso(){ var d = new Date(); return d.toISOString().slice(0,10); }
+function addDaysIso(n){ var d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); }
+function showToast(msg){
+  var t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.classList.remove("show"); }, 2400);
+}
+function getLocal(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function setLocal(k, v){ try{ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} }
+
+/* ===================== hockey.be ===================== */
+/* hockey.be met ses reponses en cache cote serveur, et ce cache garde parfois une
+   liste VIDE pour une requete precise (constate pour la Top Hockey League).
+   On essaie donc plusieurs variantes de dates (= autres entrees de cache) avant
+   d'accepter une reponse vide. */
+function dayIso(offset){ var d = new Date(); d.setDate(d.getDate() + offset); return d.toISOString().slice(0,10); }
+function shiftIso(iso, days){ var d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + days); return d.toISOString().slice(0,10); }
+async function apiGet(poolId, endpoint){
+  var variants = endpoint === "program"
+    ? [[dayIso(-1), SEASON_TO], [dayIso(0), SEASON_TO], [SEASON_FROM, SEASON_TO], [dayIso(-2), shiftIso(SEASON_TO, 1)], [dayIso(-3), shiftIso(SEASON_TO, -1)]]
+    : [[SEASON_FROM, SEASON_TO], [shiftIso(SEASON_FROM, 1), SEASON_TO], [shiftIso(SEASON_FROM, -1), SEASON_TO], [shiftIso(SEASON_FROM, 2), shiftIso(SEASON_TO, 1)], [shiftIso(SEASON_FROM, -2), shiftIso(SEASON_TO, -1)]];
+  var ok = false;
+  for(var i = 0; i < variants.length; i++){
+    var url = API + "?lang=fr&dump=&clubid=&facilityid=&poolid=" + encodeURIComponent(poolId) +
+              "&from=" + variants[i][0] + "&to=" + variants[i][1] + "&endpoint=" + endpoint;
+    try{
+      var r = await fetch(url);
+      if(r.ok){
+        var j = await r.json(); ok = true;
+        if(j.data && j.data.length) return j.data;
+      }
+    }catch(e){}
+    if(i < variants.length - 1) await new Promise(function(res){ setTimeout(res, 400); });
+  }
+  if(ok) return [];
+  throw new Error("hockey.be injoignable");
+}
+
+/* Recupere programme + resultats + classement des poules de la partie et fusionne */
+async function syncFromHockeyBe(){
+  if(!state.pools.length) return 0;
+  state.syncing = true; render();
+  var changes = 0, failed = [];
+  try{
+    for(var i = 0; i < state.pools.length; i++){
+      var pid = state.pools[i];
+      var res;
+      try{ res = await Promise.all([apiGet(pid,"program"), apiGet(pid,"results"), apiGet(pid,"standing")]); }
+      catch(e){ failed.push(poolName(pid)); continue; }
+      var program = res[0], results = res[1], standing = res[2];
+
+      program.forEach(function(r){
+        var dv = stripHtml(r[0]).split(" | ");
+        var a = teamName(r[3]), b = teamName(r[r.length-1]);
+        changes += upsertMatch({pool:pid, teamA:a, teamB:b, date:isoDate(dv[0]), time:(r[1]||"").slice(0,5), venue:dv[1] || null});
+      });
+      results.forEach(function(r){
+        var a = teamName(r[3]), b = teamName(r[r.length-1]);
+        var sc = stripHtml(r[5] || "");
+        var m = /(\d+)\s*-\s*(\d+)/.exec(sc);
+        var status = sc.replace(/(\d+)\s*-\s*(\d+)/, "").trim() || null;
+        changes += upsertMatch({pool:pid, teamA:a, teamB:b, date:isoDate(r[0]), time:(r[1]||"").slice(0,5),
+          scoreA: m ? parseInt(m[1],10) : null, scoreB: m ? parseInt(m[2],10) : null, status: m ? (status || null) : (sc || null), official:true});
+      });
+      state.standings[pid] = standing.map(function(s){
+        return {rank:s[0], team:s[1], j:s[2], g:s[3], p:s[4], n:s[5], bp:s[6], bc:s[7], pts:s[8]};
+      });
+    }
+    state.lastSync = new Date().toISOString();
+    await saveCloud();
+    if(failed.length) showToast("hockey.be n'a pas repondu pour : " + failed.join(", ") + ". Reessayez Actualiser.");
+  }catch(e){
+    showToast("Synchronisation hockey.be impossible");
+  }
+  state.syncing = false;
+  return changes;
+}
+
+function upsertMatch(o){
+  var id = matchKey(o.pool, o.teamA, o.teamB);
+  var m = state.matches.find(function(x){ return x.id === id; });
+  if(!m){
+    m = {id:id, pool:o.pool, teamA:o.teamA, teamB:o.teamB, date:o.date, time:o.time, venue:o.venue || null,
+         scoreA:null, scoreB:null, status:null, manual:false};
+    state.matches.push(m);
+  }
+  var changed = 0;
+  if(o.date && m.date !== o.date){ m.date = o.date; changed = 1; }
+  if(o.time && m.time !== o.time){ m.time = o.time; changed = 1; }
+  if(o.venue && m.venue !== o.venue){ m.venue = o.venue; changed = 1; }
+  if(o.official){
+    if(o.scoreA !== null && !m.manual && (m.scoreA !== o.scoreA || m.scoreB !== o.scoreB)){
+      m.scoreA = o.scoreA; m.scoreB = o.scoreB; changed = 1;
+    }
+    if((o.status || null) !== (m.status || null)){ m.status = o.status; changed = 1; }
+  }
+  return changed;
+}
+
+/* ===================== Firebase ===================== */
+function currentPayload(){
+  return {pools:state.pools, players:state.players, matches:state.matches, predictions:state.predictions,
+          standings:state.standings, lastSync:state.lastSync};
+}
+function roomUrl(code){ return FIREBASE_URL.replace(/\/$/,"") + "/" + ROOMS_PATH + "/" + encodeURIComponent(code) + ".json"; }
+async function fetchRoom(code){
+  var res = await fetch(roomUrl(code));
+  if(!res.ok) throw new Error("http-" + res.status);
+  var data = await res.json();
+  if(data == null) throw new Error("room-not-found");
+  return data;
+}
+function applyRoom(data){
+  state.pools = data.pools || [];
+  state.players = data.players || [];
+  state.matches = data.matches || [];
+  state.predictions = data.predictions || {};
+  state.standings = data.standings || {};
+  state.lastSync = data.lastSync || null;
+}
+/* PATCH : met a jour poules, matchs et classements sans toucher aux joueurs ni aux pronostics */
+async function saveCloud(){
+  if(!state.room) return false;
+  try{
+    var body = {pools:state.pools, matches:state.matches, standings:state.standings, lastSync:state.lastSync};
+    var res = await fetch(roomUrl(state.room), {method:"PATCH", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify(body)});
+    if(!res.ok) throw new Error();
+    return true;
+  }catch(e){ showToast("Sauvegarde impossible (connexion ?)"); return false; }
+}
+/* Ecrit uniquement un pronostic : evite d'ecraser ceux des autres joueurs */
+async function savePrediction(matchId, player, pred){
+  try{
+    var url = FIREBASE_URL.replace(/\/$/,"") + "/" + ROOMS_PATH + "/" + encodeURIComponent(state.room) +
+              "/predictions/" + encodeURIComponent(matchId) + "/" + encodeURIComponent(player) + ".json";
+    var res = await fetch(url, {method:"PUT", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify(pred)});
+    return res.ok;
+  }catch(e){ return false; }
+}
+async function savePlayers(){
+  try{
+    var url = FIREBASE_URL.replace(/\/$/,"") + "/" + ROOMS_PATH + "/" + encodeURIComponent(state.room) + "/players.json";
+    var res = await fetch(url, {method:"PUT", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify(state.players)});
+    return res.ok;
+  }catch(e){ return false; }
+}
+async function refreshCloud(){
+  if(!state.room) return false;
+  try{ applyRoom(await fetchRoom(state.room)); return true; }catch(e){ return false; }
+}
+
+/* ===================== Points ===================== */
+function computePoints(pred, match){
+  if(!pred || !hasScore(match)) return null;
+  if(pred.a === match.scoreA && pred.b === match.scoreB) return 3;
+  var pw = pred.a > pred.b ? "A" : (pred.a < pred.b ? "B" : "T");
+  var aw = match.scoreA > match.scoreB ? "A" : (match.scoreA < match.scoreB ? "B" : "T");
+  return pw === aw ? 1 : 0;
+}
+function playerTotals(){
+  var totals = {};
+  state.players.forEach(function(p){ totals[p] = {points:0, exact:0, correct:0, played:0}; });
+  state.matches.forEach(function(m){
+    if(!hasScore(m)) return;
+    var preds = state.predictions[m.id] || {};
+    Object.keys(preds).forEach(function(p){
+      if(!(p in totals)) totals[p] = {points:0, exact:0, correct:0, played:0};
+      var pts = computePoints(preds[p], m);
+      if(pts === null) return;
+      totals[p].played++; totals[p].points += pts;
+      if(pts === 3) totals[p].exact++; else if(pts === 1) totals[p].correct++;
+    });
+  });
+  return totals;
+}
+
+/* ===================== Filtres ===================== */
+function sortMatches(list){
+  return list.slice().sort(function(a,b){
+    var da = a.date || "9999-99-99", db = b.date || "9999-99-99";
+    if(da !== db) return da < db ? -1 : 1;
+    var ta = a.time || "99:99", tb = b.time || "99:99";
+    return ta < tb ? -1 : (ta > tb ? 1 : 0);
+  });
+}
+function mGenre(m){ var p = ALL_POOLS.find(function(x){ return x[0] === m.pool; }); return p ? genreOf(p[1]) : "X"; }
+function passFilters(m, upcomingMode){
+  if(state.filterGenre.length && state.filterGenre.indexOf(mGenre(m)) === -1) return false;
+  if(state.filterPools.length && state.filterPools.indexOf(m.pool) === -1) return false;
+  if(state.filterDate !== "all" && m.date !== state.filterDate) return false;
+  if(state.filterTeam){
+    var q = state.filterTeam.toLowerCase();
+    if(m.teamA.toLowerCase().indexOf(q) === -1 && m.teamB.toLowerCase().indexOf(q) === -1) return false;
+  }
+  if(upcomingMode && state.filterDate === "all" && state.filterWindow !== "all" && m.date){
+    if(m.date > addDaysIso(parseInt(state.filterWindow,10))) return false;
+  }
+  return true;
+}
+function activeFilterCount(){
+  return state.filterGenre.length + state.filterPools.length + (state.filterDate !== "all" ? 1 : 0) + (state.filterTeam ? 1 : 0);
+}
+function toggleInArray(arr, v){ var i = arr.indexOf(v); if(i === -1) arr.push(v); else arr.splice(i,1); }
+
+function renderFilters(showWindow){
+  var count = activeFilterCount();
+  var html = '<div class="filters-toggle-row">';
+  html += '<button class="btn btn-ghost filters-toggle-btn" data-action="toggle-filters">Filtres' +
+          (count ? ' <span class="filter-count-badge">' + count + '</span>' : '') +
+          ' <span class="chev">' + (state.filtersOpen ? "▴" : "▾") + '</span></button>';
+  if(showWindow){
+    var w = [["7","7 jours"],["14","14 jours"],["30","30 jours"],["all","Toute la saison"]];
+    html += w.map(function(o){
+      return '<button class="filter-chip' + (state.filterWindow === o[0] ? " active" : "") + '" data-action="set-window" data-window="' + o[0] + '">' + o[1] + '</button>';
+    }).join("");
+  }
+  if(count) html += '<button class="btn btn-ghost btn-sm" data-action="clear-filters">Effacer</button>';
+  html += '</div>';
+  if(!state.filtersOpen) return html;
+
+  html += '<div class="filters-panel">';
+  html += '<div class="filter-row"><input type="text" class="inline-input" id="team-filter" placeholder="Equipe ou club (ex: Leopold)" value="' + escapeHtml(state.filterTeam) + '" style="width:240px;"></div>';
+  var dates = [];
+  state.matches.forEach(function(m){ if(m.date && dates.indexOf(m.date) === -1) dates.push(m.date); });
+  dates.sort();
+  html += '<div class="filter-row"><select class="date-select' + (state.filterDate !== "all" ? " active" : "") + '" id="date-filter-select"><option value="all">Toutes les dates</option>' +
+    dates.map(function(d){ return '<option value="' + d + '"' + (state.filterDate === d ? " selected" : "") + '>' + formatDate(d) + '</option>'; }).join("") + '</select></div>';
+  var genres = [];
+  state.pools.forEach(function(pid){ var g = genreOf((ALL_POOLS.find(function(x){return x[0]===pid;})||["",""])[1]); if(genres.indexOf(g) === -1) genres.push(g); });
+  if(genres.length > 1){
+    html += '<div class="filter-row">' + genres.map(function(g){
+      return '<button class="filter-chip' + (state.filterGenre.indexOf(g) !== -1 ? " active" : "") + '" data-action="toggle-genre" data-genre="' + g + '">' + genreLabel(g) + '</button>';
+    }).join("") + '</div>';
+  }
+  if(state.pools.length > 1){
+    html += '<div class="filter-row">' + state.pools.map(function(pid){
+      return '<button class="filter-chip' + (state.filterPools.indexOf(pid) !== -1 ? " active" : "") + '" data-action="toggle-pool" data-pool="' + pid + '">' + escapeHtml(poolName(pid)) + '</button>';
+    }).join("") + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+/* ===================== Rendu ===================== */
+function render(){
+  var app = document.getElementById("app");
+  if(!state.room){
+    app.innerHTML = renderHeader() + '<div class="content">' + renderSetup() + '</div>';
+  } else {
+    app.innerHTML = renderHeader() + renderPlayersRow() + renderTabs() + '<div class="content">' + renderContent() + '</div>';
+  }
+  attachEvents();
+}
+
+function renderHeader(){
+  return '<div class="rink-header">' +
+    '<p class="eyebrow">Pronostics en famille</p>' +
+    '<h1 class="title">Championnat belge<br>de <span>hockey</span></h1>' +
+    '<p class="subtitle">Saison 2026-27 &middot; Matchs et resultats en direct de hockey.be</p>' +
+  '</div>';
+}
+
+function renderPoolPicker(){
+  var q = state.pickerSearch.toLowerCase();
+  var groups = {}, order = [];
+  ALL_POOLS.forEach(function(p){
+    if(p[2] === 0) return;
+    var label = shortPool(p[1]);
+    if(q && label.toLowerCase().indexOf(q) === -1) return;
+    var g = poolGroup(p[1]);
+    if(!groups[g]){ groups[g] = []; order.push(g); }
+    groups[g].push(p);
+  });
+  var html = '<input type="text" class="search-input" id="pool-search" placeholder="Rechercher : U19 Boys, Nat. 1, Top Hockey, Ladies..." value="' + escapeHtml(state.pickerSearch) + '">';
+  html += '<div class="pool-picker">';
+  if(!order.length) html += '<p class="section-hint">Aucune poule ne correspond.</p>';
+  order.forEach(function(g){
+    html += '<div class="pool-group-title" data-action="pick-group" data-group="' + escapeHtml(g) + '">' + escapeHtml(g) + ' &middot; tout cocher</div>';
+    groups[g].forEach(function(p){
+      var on = state.pickerSel.indexOf(p[0]) !== -1;
+      html += '<label class="pool-opt' + (on ? " checked" : "") + '"><input type="checkbox" data-action="pick-pool" data-pool="' + p[0] + '"' + (on ? " checked" : "") + '> ' +
+              escapeHtml(shortPool(p[1]).replace(g + " - ", "")) + ' <span class="points-sub">(' + p[2] + ' matchs)</span></label>';
+    });
+  });
+  html += '</div>';
+  html += '<p class="selected-count">' + state.pickerSel.length + ' poule(s) choisie(s)' + (state.pickerSel.length > 12 ? ' &middot; beaucoup de matchs, la synchronisation sera plus lente' : '') + '</p>';
+  return html;
+}
+
+function renderSetup(){
+  var html = '<h2 class="section-title">Bienvenue</h2>';
+  html += '<p class="section-hint">Creez une partie (une seule personne le fait) en choisissant les championnats a pronostiquer, ou rejoignez une partie existante avec son nom.</p>';
+  html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Creer une nouvelle partie</h2>';
+  html += '<p class="section-hint">1. Choisissez une ou plusieurs poules. 2. Donnez un nom simple a la partie (ex: familledupont). Le calendrier et les resultats sont charges depuis hockey.be.</p>';
+  html += renderPoolPicker();
+  html += '<div class="form-row"><input type="text" class="inline-input" id="create-room-code" placeholder="Nom de la partie" style="width:200px;">' +
+          '<button class="btn btn-primary" data-action="create-room" ' + (state.joinBusy ? "disabled" : "") + '>' + (state.joinBusy ? "Chargement..." : "Creer") + '</button></div></div>';
+  html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Rejoindre une partie existante</h2>';
+  html += '<div class="form-row"><input type="text" class="inline-input" id="join-room-code" placeholder="Nom de la partie" style="width:200px;">' +
+          '<button class="btn" data-action="join-room" ' + (state.joinBusy ? "disabled" : "") + '>Rejoindre</button></div>';
+  if(state.joinError) html += '<p class="section-hint" style="color:var(--red);">' + escapeHtml(state.joinError) + '</p>';
+  html += '</div>';
+  return html;
+}
+
+function renderPlayersRow(){
+  var chips = state.players.map(function(p){
+    return '<button class="chip' + (p === state.me ? " active" : "") + '" data-action="select-player" data-player="' + escapeHtml(p) + '">' + escapeHtml(p) + '</button>';
+  }).join("");
+  var add = state.showAddPlayer
+    ? '<input type="text" id="new-player-name" class="inline-input" placeholder="Prenom" maxlength="24"><button class="btn btn-primary btn-sm" data-action="confirm-add-player">Ajouter</button><button class="btn btn-ghost btn-sm" data-action="cancel-add-player">Annuler</button>'
+    : '<button class="chip-add" data-action="add-player" aria-label="Ajouter un joueur">+</button>';
+  var sync = state.syncing ? "Synchronisation hockey.be en cours..." :
+    (state.lastSync ? "Derniere mise a jour hockey.be : " + new Date(state.lastSync).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "Jamais synchronise");
+  return '<div class="players-row"><span class="players-label">Vous etes</span>' + chips + add + '</div>' +
+    '<div class="room-row"><span class="room-code">Partie : <b>' + escapeHtml(state.room) + '</b> &middot; ' + state.pools.length + ' poule(s)</span>' +
+    '<button class="btn btn-ghost btn-sm" data-action="sync-now"' + (state.syncing ? " disabled" : "") + '>Actualiser</button></div>' +
+    '<div class="sync-line">' + sync + '</div>';
+}
+
+function renderTabs(){
+  var tabs = [{id:"pronostics",label:"Pronos"},{id:"resultats",label:"Classement"},{id:"poules",label:"Poules"},{id:"admin",label:"Gestion"}];
+  return '<div class="tabs">' + tabs.map(function(t){
+    return '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-action="set-tab" data-tab="' + t.id + '">' + t.label + '</button>';
+  }).join("") + '</div>';
+}
+
+function renderContent(){
+  if(state.tab === "pronostics") return renderPronostics();
+  if(state.tab === "resultats") return renderResultats();
+  if(state.tab === "poules") return renderPoules();
+  if(state.tab === "admin") return renderAdmin();
+  return "";
+}
+
+function badges(m){
+  var g = mGenre(m);
+  var cat = g !== "X" ? '<span class="cat-badge cat-' + (g === "F" ? "f" : "h") + '">' + genreLabel(g) + '</span>' : '';
+  return cat + '<span class="pool-badge">' + escapeHtml(poolName(m.pool)) + '</span>' +
+         (m.venue ? '<span class="venue-badge">' + escapeHtml(m.venue) + '</span>' : '');
+}
+
+function renderPronostics(){
+  if(!state.me) return '<div class="empty"><div class="big">Choisissez votre nom</div><p>Cliquez sur "+" en haut pour ajouter les joueurs de la famille.</p></div>';
+  var html = '<h2 class="section-title">Mes pronostics</h2>';
+  html += '<p class="section-hint">Entrez votre score pour chaque match. Les pronostics se ferment au coup d\'envoi. Les resultats arrivent automatiquement de hockey.be. <span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>0 pt</b> faux</span></p>';
+  html += renderFilters(true);
+  var upcoming = sortMatches(state.matches.filter(function(m){ return !hasScore(m) && passFilters(m, true); }));
+  if(!state.matches.length){
+    return html + '<div class="empty"><div class="big">Aucun match</div><p>Cliquez sur "Actualiser" pour charger le calendrier depuis hockey.be.</p></div>';
+  }
+  if(!upcoming.length){
+    return html + '<div class="empty"><div class="big">Aucun match a venir</div><p>Elargissez la periode ou changez de filtre.</p></div>';
+  }
+  upcoming.slice(0, 200).forEach(function(m){ html += renderPredictionCard(m, false); });
+  if(upcoming.length > 200) html += '<p class="section-hint">' + (upcoming.length - 200) + ' autres matchs : utilisez les filtres pour les afficher.</p>';
+  return html;
+}
+
+function renderPredictionCard(m, isDone){
+  var pred = (state.predictions[m.id] || {})[state.me] || {};
+  var locked = isDone || isLocked(m);
+  var status = isDone ? '<span class="match-status status-done">Termine ' + m.scoreA + ' — ' + m.scoreB + '</span>'
+    : (m.status ? '<span class="match-status status-locked">' + escapeHtml(m.status) + '</span>'
+    : (locked ? '<span class="match-status status-locked">En cours / ferme</span>' : '<span class="match-status status-open">A venir</span>'));
+  var val = function(v){ return v === undefined || v === "" ? "" : v; };
+  var inputs = locked
+    ? '<div class="score-inputs"><input class="digit" type="text" value="' + (val(pred.a) === "" ? "-" : pred.a) + '" disabled><span class="vs-dash">:</span><input class="digit" type="text" value="' + (val(pred.b) === "" ? "-" : pred.b) + '" disabled></div>'
+    : '<div class="score-inputs"><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-a" data-match="' + m.id + '" value="' + val(pred.a) + '" placeholder="0"><span class="vs-dash">:</span><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-b" data-match="' + m.id + '" value="' + val(pred.b) + '" placeholder="0"></div>';
+  var actions = locked ? "" : '<div class="match-actions"><span class="save-msg" id="save-' + m.id + '">Enregistre</span><button class="btn btn-primary" data-action="save-pred" data-match="' + m.id + '">Enregistrer</button></div>';
+  var preds = state.predictions[m.id] || {};
+  var others = state.players.filter(function(p){ return p !== state.me; });
+  var tags = "";
+  if(others.length){
+    tags = '<div class="predictions-list">' + others.map(function(p){
+      var pr = preds[p];
+      if(!pr || pr.a === undefined) return '<span class="pred-tag">' + escapeHtml(p) + ': <b>—</b></span>';
+      if(isDone){
+        var pts = computePoints(pr, m);
+        var cls = pts === 3 ? "exact" : (pts === 1 ? "correct" : "wrong");
+        return '<span class="pred-tag ' + cls + '">' + escapeHtml(p) + ': <b>' + pr.a + '-' + pr.b + '</b> (' + pts + ' pt' + (pts === 1 ? "" : "s") + ')</span>';
+      }
+      return '<span class="pred-tag">' + escapeHtml(p) + ': <b>' + pr.a + '-' + pr.b + '</b></span>';
+    }).join("") + '</div>';
+  }
+  return '<div class="match-card"><div class="match-top"><span class="match-meta"><span class="match-date">' + formatDate(m.date, m.time) + '</span>' + badges(m) + '</span>' + status + '</div>' +
+    '<div class="scoreboard"><div class="team team-a">' + escapeHtml(m.teamA) + '</div>' + inputs + '<div class="team team-b">' + escapeHtml(m.teamB) + '</div></div>' +
+    actions + tags + '</div>';
+}
+
+function renderResultats(){
+  var totals = playerTotals();
+  var rows = state.players.map(function(p){ var t = totals[p] || {points:0,exact:0,correct:0,played:0}; return {name:p, points:t.points, exact:t.exact, correct:t.correct, played:t.played}; });
+  rows.sort(function(a,b){ return b.points - a.points || b.exact - a.exact; });
+  var html = '<h2 class="section-title">Classement</h2><p class="section-hint">Classement en direct sur les matchs termines.</p>';
+  if(!rows.length){
+    html += '<div class="empty"><div class="big">Personne pour l\'instant</div><p>Ajoutez des joueurs pour demarrer.</p></div>';
+  } else {
+    html += '<table class="leaderboard"><thead><tr><th></th><th>Joueur</th><th class="num">Pronos</th><th class="num">Exacts</th><th class="num">Bons</th><th class="num">Points</th></tr></thead><tbody>';
+    rows.forEach(function(r, i){
+      var rc = i === 0 ? "r1" : (i === 1 ? "r2" : (i === 2 ? "r3" : ""));
+      html += '<tr><td><span class="rank ' + rc + '">' + (i+1) + '</span></td><td class="player-name">' + escapeHtml(r.name) + '</td><td class="num">' + r.played + '</td><td class="num">' + r.exact + '</td><td class="num">' + r.correct + '</td><td class="num"><span class="points-val">' + r.points + '</span></td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  html += '<h2 class="section-title" style="margin-top:30px;">Matchs joues</h2><p class="section-hint">Detail des pronostics et des points pour chaque match termine (seuls les matchs pronostiques par au moins un joueur sont affiches).</p>';
+  html += renderFilters(false);
+  var done = sortMatches(state.matches.filter(function(m){
+    return hasScore(m) && passFilters(m, false) && Object.keys(state.predictions[m.id] || {}).length;
+  })).reverse();
+  if(!done.length) html += '<div class="empty"><div class="big">Aucun match termine</div><p>Les resultats apparaitront ici des que hockey.be les publie.</p></div>';
+  else done.slice(0, 150).forEach(function(m){ html += renderPredictionCard(m, true); });
+  return html;
+}
+
+function renderPoules(){
+  var html = '<h2 class="section-title">Classements officiels</h2><p class="section-hint">Tels que publies par hockey.be (les points peuvent inclure des bonus de shoot-out).</p>';
+  html += renderFilters(false);
+  var pools = state.filterPools.length ? state.filterPools : state.pools;
+  var q = state.filterTeam.toLowerCase();
+  var any = false;
+  pools.forEach(function(pid){
+    var st = state.standings[pid] || [];
+    if(!st.length) return;
+    if(q && !st.some(function(t){ return t.team.toLowerCase().indexOf(q) !== -1; })) return;
+    any = true;
+    html += '<h2 class="section-title" style="font-size:19px;margin-top:26px;">' + escapeHtml(poolName(pid)) + '</h2>';
+    html += '<table class="leaderboard"><thead><tr><th>#</th><th>Equipe</th><th class="num">J</th><th class="num">G</th><th class="num">N</th><th class="num">P</th><th class="num">Diff</th><th class="num">Pts</th></tr></thead><tbody>';
+    st.forEach(function(t){
+      var diff = t.bp - t.bc;
+      var hl = q && t.team.toLowerCase().indexOf(q) !== -1 ? ' class="team-hl"' : '';
+      html += '<tr' + hl + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name">' + escapeHtml(t.team) + '</td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
+    });
+    html += '</tbody></table>';
+  });
+  if(!any) html += '<div class="empty"><div class="big">Pas encore de classement</div><p>Cliquez sur "Actualiser" pour charger les donnees hockey.be.</p></div>';
+  return html;
+}
+
+function renderAdmin(){
+  var html = '<h2 class="section-title">Gestion de la partie</h2>';
+  html += '<p class="section-hint">Les scores officiels arrivent de hockey.be a chaque ouverture de l\'app et avec le bouton Actualiser. Vous pouvez corriger un score a la main : il ne sera plus ecrase par hockey.be (bouton "Rendre a hockey.be" pour annuler).</p>';
+  html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Poules suivies</h2>';
+  html += '<p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(poolName(p)); }).join(" &middot; ") + '</p>';
+  html += '<details><summary class="btn btn-sm" style="display:inline-block;">Ajouter ou retirer des poules</summary><div style="margin-top:12px;">' + renderPoolPicker() +
+          '<button class="btn btn-primary" data-action="save-pools">Enregistrer les poules</button></div></details></div>';
+  html += renderFilters(false);
+  var sorted = sortMatches(state.matches.filter(function(m){ return passFilters(m, false) && (m.date ? m.date <= addDaysIso(7) : true); })).reverse();
+  if(!sorted.length) return html + '<div class="empty"><div class="big">Aucun match</div><p>Essayez un autre filtre.</p></div>';
+  html += '<p class="section-hint">Matchs joues ou prevus dans les 7 prochains jours (les plus recents en premier).</p><div class="admin-form">';
+  sorted.slice(0, 150).forEach(function(m){
+    var hs = hasScore(m);
+    html += '<div class="admin-match-row"><div class="admin-match-info"><div class="admin-teams-line"><span class="admin-teams">' + escapeHtml(m.teamA) + ' vs ' + escapeHtml(m.teamB) + '</span></div>' +
+      '<div class="admin-meta-line"><span class="admin-date">' + formatDate(m.date, m.time) + '</span>' + badges(m) + (m.manual ? '<span class="pool-badge" style="color:var(--gold);">Saisie manuelle</span>' : '') + '</div></div>' +
+      '<div class="admin-controls"><input class="admin-score-input" type="text" inputmode="numeric" maxlength="2" data-role="final-a" data-match="' + m.id + '" value="' + (hs ? m.scoreA : "") + '" placeholder="-"><span class="vs-dash">:</span>' +
+      '<input class="admin-score-input" type="text" inputmode="numeric" maxlength="2" data-role="final-b" data-match="' + m.id + '" value="' + (hs ? m.scoreB : "") + '" placeholder="-">' +
+      '<button class="btn" data-action="save-final" data-match="' + m.id + '">Valider</button>' +
+      (m.manual ? '<button class="btn btn-ghost" data-action="unmanual" data-match="' + m.id + '">Rendre a hockey.be</button>' : '') + '</div></div>';
+  });
+  html += '</div>';
+  html += '<p class="section-hint" style="margin-top:20px;"><button class="btn btn-ghost btn-sm" data-action="leave-room">Quitter cette partie sur cet appareil</button></p>';
+  html += '<div class="admin-form" style="border-color:var(--red-dark);margin-top:10px;">' +
+    '<h2 class="section-title" style="font-size:19px;color:var(--red);">Supprimer la partie</h2>' +
+    '<p class="section-hint">Supprime definitivement la partie pour tout le monde : joueurs, pronostics et classement. Impossible a annuler. Tapez <b>' + escapeHtml(state.room) + '</b> pour confirmer.</p>' +
+    '<div class="form-row"><input type="text" class="inline-input" id="delete-room-confirm" placeholder="' + escapeHtml(state.room) + '" style="width:200px;">' +
+    '<button class="btn btn-primary" data-action="delete-room">Supprimer definitivement</button></div></div>';
+  return html;
+}
+
+/* ===================== Evenements ===================== */
+function on(sel, ev, fn){ document.getElementById("app").querySelectorAll(sel).forEach(function(el){ el.addEventListener(ev, function(e){ fn(el, e); }); }); }
+function roomCodeFrom(id){ var i = document.getElementById(id); return i ? i.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, "") : ""; }
+
+function attachEvents(){
+  on('[data-action="pick-pool"]', "change", function(el){ toggleInArray(state.pickerSel, el.getAttribute("data-pool")); render(); });
+  on('[data-action="pick-group"]', "click", function(el){
+    var g = el.getAttribute("data-group"), q = state.pickerSearch.toLowerCase();
+    var ids = ALL_POOLS.filter(function(p){ return p[2] > 0 && poolGroup(p[1]) === g && (!q || shortPool(p[1]).toLowerCase().indexOf(q) !== -1); }).map(function(p){ return p[0]; });
+    var allOn = ids.every(function(id){ return state.pickerSel.indexOf(id) !== -1; });
+    ids.forEach(function(id){ var i = state.pickerSel.indexOf(id); if(allOn && i !== -1) state.pickerSel.splice(i,1); if(!allOn && i === -1) state.pickerSel.push(id); });
+    render();
+  });
+  var ps = document.getElementById("pool-search");
+  if(ps){
+    ps.addEventListener("input", function(){
+      state.pickerSearch = ps.value; var pos = ps.selectionStart; render();
+      var n = document.getElementById("pool-search"); if(n){ n.focus(); n.setSelectionRange(pos, pos); }
+    });
+  }
+
+  on('[data-action="create-room"]', "click", async function(){
+    var code = roomCodeFrom("create-room-code");
+    if(!state.pickerSel.length){ state.joinError = null; showToast("Choisissez au moins une poule"); return; }
+    if(!code){ showToast("Choisissez un nom (lettres/chiffres) pour la partie"); return; }
+    state.joinBusy = true; render();
+    try{
+      var existing = null; try{ existing = await fetchRoom(code); }catch(e){}
+      if(existing) throw new Error("room-exists");
+      state.room = code; state.pools = state.pickerSel.slice(); state.players = []; state.matches = []; state.predictions = {}; state.standings = {};
+      await syncFromHockeyBe();
+      setLocal(LOCAL_ROOM_KEY, code);
+      state.joinBusy = false; state.pickerSel = []; render();
+      showToast("Partie creee : " + code + " (" + state.matches.length + " matchs)");
+    }catch(e){
+      state.room = null; state.joinBusy = false;
+      state.joinError = e.message === "room-exists" ? "Ce nom est deja pris, choisissez-en un autre." : "La creation a echoue (" + e.message + ").";
+      render();
+    }
+  });
+
+  on('[data-action="join-room"]', "click", async function(){
+    var code = roomCodeFrom("join-room-code");
+    if(!code){ state.joinError = "Entrez le nom de la partie."; render(); return; }
+    state.joinBusy = true; state.joinError = null; render();
+    try{
+      applyRoom(await fetchRoom(code));
+      state.room = code; setLocal(LOCAL_ROOM_KEY, code);
+      state.joinBusy = false; render(); showToast("Partie rejointe !");
+      syncFromHockeyBe().then(render);
+    }catch(e){ state.joinBusy = false; state.joinError = "Partie introuvable. Verifiez le nom."; render(); }
+  });
+
+  on('[data-action="set-tab"]', "click", function(el){ state.tab = el.getAttribute("data-tab"); render(); });
+  on('[data-action="select-player"]', "click", function(el){ state.me = el.getAttribute("data-player"); setLocal(LOCAL_ME_KEY, state.me); render(); });
+  on('[data-action="sync-now"]', "click", async function(){
+    await refreshCloud();
+    var n = await syncFromHockeyBe(); render();
+    showToast(n ? n + " mise(s) a jour depuis hockey.be" : "Tout est a jour");
+  });
+  on('[data-action="add-player"]', "click", function(){ state.showAddPlayer = true; render(); var i = document.getElementById("new-player-name"); if(i) i.focus(); });
+  on('[data-action="cancel-add-player"]', "click", function(){ state.showAddPlayer = false; render(); });
+  var doAdd = async function(){
+    var i = document.getElementById("new-player-name"), name = i ? i.value.trim() : "";
+    if(!name){ showToast("Entrez un prenom"); return; }
+    await refreshCloud();
+    if(state.players.indexOf(name) !== -1){ showToast(name + " est deja dans la liste"); return; }
+    state.players.push(name); await savePlayers();
+    state.me = name; setLocal(LOCAL_ME_KEY, name); state.showAddPlayer = false; render();
+    showToast(name + " a rejoint la partie");
+  };
+  on('[data-action="confirm-add-player"]', "click", doAdd);
+  var npi = document.getElementById("new-player-name");
+  if(npi) npi.addEventListener("keydown", function(e){ if(e.key === "Enter") doAdd(); });
+
+  on('[data-action="toggle-filters"]', "click", function(){ state.filtersOpen = !state.filtersOpen; render(); });
+  on('[data-action="clear-filters"]', "click", function(){ state.filterGenre = []; state.filterPools = []; state.filterDate = "all"; state.filterTeam = ""; render(); });
+  on('[data-action="set-window"]', "click", function(el){ state.filterWindow = el.getAttribute("data-window"); render(); });
+  on('[data-action="toggle-genre"]', "click", function(el){ toggleInArray(state.filterGenre, el.getAttribute("data-genre")); render(); });
+  on('[data-action="toggle-pool"]', "click", function(el){ toggleInArray(state.filterPools, el.getAttribute("data-pool")); render(); });
+  var ds = document.getElementById("date-filter-select");
+  if(ds) ds.addEventListener("change", function(){ state.filterDate = ds.value; render(); });
+  var tf = document.getElementById("team-filter");
+  if(tf){
+    tf.addEventListener("input", function(){
+      state.filterTeam = tf.value; var pos = tf.selectionStart; render();
+      var n = document.getElementById("team-filter"); if(n){ n.focus(); n.setSelectionRange(pos, pos); }
+    });
+  }
+
+  on('[data-action="save-pred"]', "click", async function(el){
+    var id = el.getAttribute("data-match");
+    var m = state.matches.find(function(x){ return x.id === id; });
+    if(m && isLocked(m)){ showToast("Trop tard : le match a commence"); render(); return; }
+    var a = parseInt(document.querySelector('[data-role="pred-a"][data-match="' + id + '"]').value, 10);
+    var b = parseInt(document.querySelector('[data-role="pred-b"][data-match="' + id + '"]').value, 10);
+    if(isNaN(a) || isNaN(b) || a < 0 || b < 0){ showToast("Entrez un score valide (ex: 3 et 2)"); return; }
+    if(!state.predictions[id]) state.predictions[id] = {};
+    state.predictions[id][state.me] = {a:a, b:b};
+    var ok = await savePrediction(id, state.me, {a:a, b:b});
+    if(!ok){ showToast("Sauvegarde impossible (connexion ?)"); return; }
+    var msg = document.getElementById("save-" + id);
+    if(msg){ msg.classList.add("show"); setTimeout(function(){ msg.classList.remove("show"); }, 1800); }
+  });
+
+  on('[data-action="save-final"]', "click", async function(el){
+    var id = el.getAttribute("data-match");
+    var a = parseInt(document.querySelector('[data-role="final-a"][data-match="' + id + '"]').value, 10);
+    var b = parseInt(document.querySelector('[data-role="final-b"][data-match="' + id + '"]').value, 10);
+    var m = state.matches.find(function(x){ return x.id === id; });
+    if(!m) return;
+    if(isNaN(a) || isNaN(b)){ m.scoreA = null; m.scoreB = null; } else { m.scoreA = a; m.scoreB = b; }
+    m.manual = true;
+    await saveCloud(); render(); showToast("Score enregistre, points mis a jour");
+  });
+  on('[data-action="unmanual"]', "click", async function(el){
+    var m = state.matches.find(function(x){ return x.id === el.getAttribute("data-match"); });
+    if(!m) return;
+    m.manual = false; m.scoreA = null; m.scoreB = null;
+    await syncFromHockeyBe(); render(); showToast("Score repris de hockey.be");
+  });
+  on('[data-action="save-pools"]', "click", async function(){
+    if(!state.pickerSel.length){ showToast("Gardez au moins une poule"); return; }
+    state.pools = state.pickerSel.slice();
+    state.matches = state.matches.filter(function(m){ return state.pools.indexOf(m.pool) !== -1; });
+    Object.keys(state.standings).forEach(function(k){ if(state.pools.indexOf(k) === -1) delete state.standings[k]; });
+    state.filterPools = [];
+    await syncFromHockeyBe(); render(); showToast("Poules mises a jour");
+  });
+  var det = document.querySelector("details");
+  if(det) det.addEventListener("toggle", function(){ if(det.open && !state.pickerSel.length){ state.pickerSel = state.pools.slice(); render(); var d2 = document.querySelector("details"); if(d2) d2.open = true; } });
+  on('[data-action="leave-room"]', "click", function(){ setLocal(LOCAL_ROOM_KEY, null); state.room = null; render(); });
+  on('[data-action="delete-room"]', "click", async function(){
+    var c = document.getElementById("delete-room-confirm");
+    if(!c || c.value.trim().toLowerCase() !== state.room){ showToast("Tapez exactement le nom de la partie pour confirmer"); return; }
+    try{
+      var res = await fetch(roomUrl(state.room), {method:"DELETE"});
+      if(!res.ok) throw new Error();
+    }catch(e){ showToast("Suppression impossible (connexion ?)"); return; }
+    var name = state.room;
+    setLocal(LOCAL_ROOM_KEY, null);
+    state.room = null; state.players = []; state.pools = []; state.matches = []; state.predictions = {}; state.standings = {}; state.lastSync = null; state.me = null;
+    state.tab = "pronostics"; render();
+    showToast("Partie " + name + " supprimee");
+  });
+}
+
+/* ===================== Demarrage ===================== */
+async function init(){
+  document.getElementById("app").innerHTML = '<div class="empty" style="padding-top:120px;"><div class="big">Chargement...</div></div>';
+  state.room = getLocal(LOCAL_ROOM_KEY);
+  state.me = getLocal(LOCAL_ME_KEY);
+  if(state.room && !(await refreshCloud())){ state.room = null; setLocal(LOCAL_ROOM_KEY, null); }
+  if(state.me && state.players.indexOf(state.me) === -1) state.me = null;
+  if(!state.me && state.players.length) state.me = state.players[0];
+  render();
+  if(state.room){
+    var stale = !state.lastSync || (Date.now() - new Date(state.lastSync).getTime()) > 30 * 60 * 1000;
+    if(stale){ await syncFromHockeyBe(); render(); }
+  }
+}
+init();
+
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "visible" && state.room){ refreshCloud().then(render); }
+});
+
+})();
+</script>
+</body>
+</html>
