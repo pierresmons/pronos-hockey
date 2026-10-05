@@ -612,6 +612,11 @@
   .std-pts{font-family:var(--font-mono);font-weight:700;color:var(--ice);}
   .team-hl td{background:rgba(213,38,47,0.10);}
   .filter-row select.date-select{min-width:160px;}
+  .week-nav{display:inline-flex;align-items:stretch;gap:4px;}
+  .week-nav .week-arrow{font-size:16px;line-height:1;padding:4px 11px;}
+  .week-nav .week-arrow[disabled]{opacity:.35;cursor:default;}
+  .week-label{display:inline-flex;flex-direction:column;align-items:center;gap:1px;min-width:132px;}
+  .week-dates{font-size:9.5px;letter-spacing:0.04em;opacity:.75;font-weight:500;}
   @media (max-width:480px){ .tab{font-size:15px;padding:12px 4px;} }
 </style>
 </head>
@@ -638,7 +643,7 @@ var ALL_POOLS = [["11761","Top Hockey Men's League Outdoor Week - Carlsberg Men'
 var state = {
   room:null, players:[], pools:[], matches:[], predictions:{}, standings:{}, lastSync:null,
   me:null, tab:"pronostics",
-  filterGenre:[], filterPools:[], filterDate:"all", filterTeam:"", filterWindow:"14",
+  filterGenre:[], filterPools:[], filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
   pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false
 };
@@ -693,8 +698,24 @@ function isLocked(m){
   var start = new Date(m.date + "T" + (m.time || "00:00") + ":00");
   return Date.now() >= start.getTime();
 }
-function todayIso(){ var d = new Date(); return d.toISOString().slice(0,10); }
-function addDaysIso(n){ var d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); }
+/* Dates en heure locale (evite le decalage UTC autour de minuit) */
+function localIso(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+function todayIso(){ return localIso(new Date()); }
+function addDaysIso(n){ var d = new Date(); d.setDate(d.getDate() + n); return localIso(d); }
+/* Semaine du lundi au dimanche ; offset 0 = semaine actuelle, 1 = suivante... */
+function weekRange(offset){
+  var d = new Date(); d.setHours(12,0,0,0);
+  var dow = (d.getDay() + 6) % 7;            /* lundi = 0 */
+  d.setDate(d.getDate() - dow + 7 * offset);
+  var start = new Date(d), end = new Date(d); end.setDate(end.getDate() + 6);
+  return {start:localIso(start), end:localIso(end), startD:start, endD:end};
+}
+function weekLabel(offset){
+  if(offset === 0) return "Cette semaine";
+  if(offset === 1) return "Semaine prochaine";
+  if(offset === -1) return "Semaine passee";
+  return "Dans " + offset + " semaines";
+}
 function showToast(msg){
   var t = document.getElementById("toast");
   t.textContent = msg; t.classList.add("show");
@@ -888,8 +909,9 @@ function passFilters(m, upcomingMode){
     var q = state.filterTeam.toLowerCase();
     if(m.teamA.toLowerCase().indexOf(q) === -1 && m.teamB.toLowerCase().indexOf(q) === -1) return false;
   }
-  if(upcomingMode && state.filterDate === "all" && state.filterWindow !== "all" && m.date){
-    if(m.date > addDaysIso(parseInt(state.filterWindow,10))) return false;
+  if(upcomingMode && state.filterDate === "all" && state.filterWindow === "week" && m.date){
+    var wr = weekRange(state.weekOffset);
+    if(m.date < wr.start || m.date > wr.end) return false;
   }
   return true;
 }
@@ -905,10 +927,16 @@ function renderFilters(showWindow){
           (count ? ' <span class="filter-count-badge">' + count + '</span>' : '') +
           ' <span class="chev">' + (state.filtersOpen ? "▴" : "▾") + '</span></button>';
   if(showWindow){
-    var w = [["7","7 jours"],["14","14 jours"],["30","30 jours"],["all","Toute la saison"]];
-    html += w.map(function(o){
-      return '<button class="filter-chip' + (state.filterWindow === o[0] ? " active" : "") + '" data-action="set-window" data-window="' + o[0] + '">' + o[1] + '</button>';
-    }).join("");
+    var wk = state.filterWindow === "week";
+    var wr = weekRange(state.weekOffset);
+    var fd = function(x){ return x.toLocaleDateString("fr-FR", {day:"numeric", month:"short"}); };
+    html += '<span class="week-nav' + (wk ? " active" : "") + '">' +
+      '<button class="filter-chip week-arrow" data-action="week-prev" aria-label="Semaine precedente"' + (wk && state.weekOffset <= 0 ? " disabled" : "") + '>\u2039</button>' +
+      '<button class="filter-chip week-label' + (wk ? " active" : "") + '" data-action="week-current">' + weekLabel(state.weekOffset) +
+        '<span class="week-dates">' + fd(wr.startD) + ' \u2013 ' + fd(wr.endD) + '</span></button>' +
+      '<button class="filter-chip week-arrow" data-action="week-next" aria-label="Semaine suivante">\u203A</button>' +
+    '</span>';
+    html += '<button class="filter-chip' + (!wk ? " active" : "") + '" data-action="set-window" data-window="all">Toute la saison</button>';
   }
   if(count) html += '<button class="btn btn-ghost btn-sm" data-action="clear-filters">Effacer</button>';
   html += '</div>';
@@ -1046,7 +1074,7 @@ function renderPronostics(){
     return html + '<div class="empty"><div class="big">Aucun match</div><p>Cliquez sur "Actualiser" pour charger le calendrier depuis hockey.be.</p></div>';
   }
   if(!upcoming.length){
-    return html + '<div class="empty"><div class="big">Aucun match a venir</div><p>Elargissez la periode ou changez de filtre.</p></div>';
+    return html + '<div class="empty"><div class="big">Aucun match a venir</div><p>Passez a la semaine suivante avec la fleche \u203A, ou choisissez "Toute la saison".</p></div>';
   }
   upcoming.slice(0, 200).forEach(function(m){ html += renderPredictionCard(m, false); });
   if(upcoming.length > 200) html += '<p class="section-hint">' + (upcoming.length - 200) + ' autres matchs : utilisez les filtres pour les afficher.</p>';
@@ -1241,6 +1269,9 @@ function attachEvents(){
   on('[data-action="toggle-filters"]', "click", function(){ state.filtersOpen = !state.filtersOpen; render(); });
   on('[data-action="clear-filters"]', "click", function(){ state.filterGenre = []; state.filterPools = []; state.filterDate = "all"; state.filterTeam = ""; render(); });
   on('[data-action="set-window"]', "click", function(el){ state.filterWindow = el.getAttribute("data-window"); render(); });
+  on('[data-action="week-prev"]', "click", function(){ if(state.filterWindow === "week" && state.weekOffset > 0) state.weekOffset--; state.filterWindow = "week"; render(); });
+  on('[data-action="week-next"]', "click", function(){ if(state.filterWindow === "week") state.weekOffset++; state.filterWindow = "week"; render(); });
+  on('[data-action="week-current"]', "click", function(){ state.filterWindow = "week"; state.weekOffset = 0; render(); });
   on('[data-action="toggle-genre"]', "click", function(el){ toggleInArray(state.filterGenre, el.getAttribute("data-genre")); render(); });
   on('[data-action="toggle-pool"]', "click", function(el){ toggleInArray(state.filterPools, el.getAttribute("data-pool")); render(); });
   var ds = document.getElementById("date-filter-select");
