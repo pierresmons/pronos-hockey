@@ -2,7 +2,11 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pronos Hockey">
+<meta name="theme-color" content="#0a1420">
 <title>Pronos Hockey — Championnat belge</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -617,7 +621,54 @@
   .week-nav .week-arrow[disabled]{opacity:.35;cursor:default;}
   .week-label{display:inline-flex;flex-direction:column;align-items:center;gap:1px;min-width:132px;}
   .week-dates{font-size:9.5px;letter-spacing:0.04em;opacity:.75;font-weight:500;}
-  @media (max-width:480px){ .tab{font-size:15px;padding:12px 4px;} }
+  /* ================= Affichage telephone (iPhone, app iOS) ================= */
+  @media (max-width:600px){
+    body{padding-top:env(safe-area-inset-top);}
+    #app{padding-bottom:calc(76px + env(safe-area-inset-bottom));}
+    .rink-header{padding:14px 16px 12px;border-bottom-width:2px;}
+    .rink-header::before,.rink-header::after,.eyebrow,.subtitle{display:none;}
+    h1.title{font-size:23px;line-height:1;letter-spacing:0;}
+    .legend{gap:8px;font-size:10px;}
+    h1.title br{display:none;}
+    .players-row{flex-wrap:nowrap;overflow-x:auto;padding:10px 14px;gap:6px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+    .players-row::-webkit-scrollbar{display:none;}
+    .players-row .chip,.players-row .chip-add{flex-shrink:0;}
+    .players-label{display:none;}
+    .room-row{padding:6px 14px;}
+    .sync-line{padding:0 14px 6px;border-bottom:1px solid var(--line);background:var(--bg);font-size:9.5px;margin-top:-1px;}
+    /* onglets en bas de l'ecran, comme une app iOS */
+    .tabs{position:fixed;top:auto;bottom:0;left:0;right:0;z-index:50;border-top:1px solid var(--line);border-bottom:none;
+          background:rgba(10,20,32,0.96);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+          padding-bottom:env(safe-area-inset-bottom);}
+    .tab{font-size:15px;padding:12px 2px 10px;border-bottom:none;border-top:3px solid transparent;}
+    .tab.active{border-top-color:var(--red);}
+    .content{padding:14px 14px 0;}
+    .section-title{font-size:20px;}
+    .section-hint{font-size:12px;margin-bottom:12px;}
+    .hint-long{display:none;}
+    .filters-toggle-row{gap:6px;margin-bottom:10px;}
+    .week-nav{order:-1;width:100%;}
+    .week-nav .week-label{flex:1;}
+    .week-nav .week-arrow{padding:4px 16px;}
+    .match-card{padding:10px 12px;margin-bottom:10px;}
+    .match-top{margin-bottom:8px;gap:4px;}
+    .match-meta{gap:5px;}
+    .match-date{font-size:10.5px;}
+    .venue-badge{display:none;}
+    .scoreboard{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;}
+    .team{font-size:16px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;}
+    .digit{width:44px;height:44px;font-size:20px;}
+    .match-actions{margin-top:4px;min-height:0;}
+    .match-actions .btn-primary{display:none;}
+    .predictions-list{margin-top:8px;padding-top:8px;}
+    table.leaderboard td{padding:9px 6px;font-size:13px;}
+    table.leaderboard th{padding:0 6px 8px;}
+    .admin-match-row{gap:8px;padding:10px 0;}
+    /* champs de saisie a 16px minimum : evite le zoom automatique d'iOS */
+    input[type=text],.inline-input,.search-input,.date-select,.admin-score-input{font-size:16px;}
+    .inline-input{width:100%;max-width:260px;}
+    .toast{bottom:calc(84px + env(safe-area-inset-bottom));}
+  }
 </style>
 </head>
 <body>
@@ -645,7 +696,7 @@ var state = {
   me:null, tab:"pronostics",
   filterGenre:[], filterPools:[], filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false
 };
 
 /* ===================== Utilitaires ===================== */
@@ -653,6 +704,9 @@ function poolName(id){
   var p = ALL_POOLS.find(function(x){ return x[0] === id; });
   return p ? shortPool(p[1]) : id;
 }
+/* Poules "techniques" de hockey.be : un seul match entre deux equipes nommees
+   (ex. "Reg. 3 - Gantoise U10G-4 - Wolvendael U10G-1"). Masquees par defaut. */
+function isIsolatedPool(n){ return / - [^-]+ [A-Z0-9]+-\d+ - .+ [A-Z0-9]+-\d+$/.test(n); }
 function shortPool(n){ return n.replace(/ (Outdoor|Indoor|Recreatief|Trimmers) Week/,'').replace('Trimmers Trimmers','Trimmers'); }
 function poolGroup(n){
   var s = shortPool(n), parts = s.split(" - ");
@@ -979,7 +1033,7 @@ function render(){
 function renderHeader(){
   return '<div class="rink-header">' +
     '<p class="eyebrow">Pronostics en famille</p>' +
-    '<h1 class="title">Championnat belge<br>de <span>hockey</span></h1>' +
+    '<h1 class="title">Championnat belge <br>de <span>hockey</span></h1>' +
     '<p class="subtitle">Saison 2026-27 &middot; Matchs et resultats en direct de hockey.be</p>' +
   '</div>';
 }
@@ -989,6 +1043,7 @@ function renderPoolPicker(){
   var groups = {}, order = [];
   ALL_POOLS.forEach(function(p){
     if(p[2] === 0) return;
+    if(!state.showIsolated && isIsolatedPool(p[1]) && state.pickerSel.indexOf(p[0]) === -1) return;
     var label = shortPool(p[1]);
     if(q && label.toLowerCase().indexOf(q) === -1) return;
     var g = poolGroup(p[1]);
@@ -1003,10 +1058,12 @@ function renderPoolPicker(){
     groups[g].forEach(function(p){
       var on = state.pickerSel.indexOf(p[0]) !== -1;
       html += '<label class="pool-opt' + (on ? " checked" : "") + '"><input type="checkbox" data-action="pick-pool" data-pool="' + p[0] + '"' + (on ? " checked" : "") + '> ' +
-              escapeHtml(shortPool(p[1]).replace(g + " - ", "")) + ' <span class="points-sub">(' + p[2] + ' matchs)</span></label>';
+              escapeHtml(shortPool(p[1]).replace(g + " - ", "")) + ' <span class="points-sub">(' + p[2] + (p[2] > 1 ? ' matchs' : ' match') + ')</span></label>';
     });
   });
   html += '</div>';
+  var nIso = ALL_POOLS.filter(function(p){ return p[2] > 0 && isIsolatedPool(p[1]); }).length;
+  html += '<label class="pool-opt" style="margin-bottom:6px;"><input type="checkbox" data-action="toggle-isolated"' + (state.showIsolated ? " checked" : "") + '> Afficher aussi les ' + nIso + ' matchs isoles (rencontres uniques hors poule)</label>';
   html += '<p class="selected-count">' + state.pickerSel.length + ' poule(s) choisie(s)' + (state.pickerSel.length > 12 ? ' &middot; beaucoup de matchs, la synchronisation sera plus lente' : '') + '</p>';
   return html;
 }
@@ -1067,7 +1124,7 @@ function badges(m){
 function renderPronostics(){
   if(!state.me) return '<div class="empty"><div class="big">Choisissez votre nom</div><p>Cliquez sur "+" en haut pour ajouter les joueurs de la famille.</p></div>';
   var html = '<h2 class="section-title">Mes pronostics</h2>';
-  html += '<p class="section-hint">Entrez votre score pour chaque match. Les pronostics se ferment au coup d\'envoi. Les resultats arrivent automatiquement de hockey.be. <span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>0 pt</b> faux</span></p>';
+  html += '<p class="section-hint"><span class="hint-long">Entrez votre score pour chaque match : il s\'enregistre tout seul. Les pronostics se ferment au coup d\'envoi et les resultats arrivent automatiquement de hockey.be. </span><span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>0 pt</b> faux</span></p>';
   html += renderFilters(true);
   var upcoming = sortMatches(state.matches.filter(function(m){ return !hasScore(m) && passFilters(m, true); }));
   if(!state.matches.length){
@@ -1196,10 +1253,11 @@ function on(sel, ev, fn){ document.getElementById("app").querySelectorAll(sel).f
 function roomCodeFrom(id){ var i = document.getElementById(id); return i ? i.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, "") : ""; }
 
 function attachEvents(){
+  on('[data-action="toggle-isolated"]', "change", function(el){ state.showIsolated = el.checked; render(); });
   on('[data-action="pick-pool"]', "change", function(el){ toggleInArray(state.pickerSel, el.getAttribute("data-pool")); render(); });
   on('[data-action="pick-group"]', "click", function(el){
     var g = el.getAttribute("data-group"), q = state.pickerSearch.toLowerCase();
-    var ids = ALL_POOLS.filter(function(p){ return p[2] > 0 && poolGroup(p[1]) === g && (!q || shortPool(p[1]).toLowerCase().indexOf(q) !== -1); }).map(function(p){ return p[0]; });
+    var ids = ALL_POOLS.filter(function(p){ return p[2] > 0 && (state.showIsolated || !isIsolatedPool(p[1])) && poolGroup(p[1]) === g && (!q || shortPool(p[1]).toLowerCase().indexOf(q) !== -1); }).map(function(p){ return p[0]; });
     var allOn = ids.every(function(id){ return state.pickerSel.indexOf(id) !== -1; });
     ids.forEach(function(id){ var i = state.pickerSel.indexOf(id); if(allOn && i !== -1) state.pickerSel.splice(i,1); if(!allOn && i === -1) state.pickerSel.push(id); });
     render();
@@ -1284,20 +1342,36 @@ function attachEvents(){
     });
   }
 
-  on('[data-action="save-pred"]', "click", async function(el){
-    var id = el.getAttribute("data-match");
+  /* Enregistrement d'un pronostic : bouton, ou automatiquement des que les deux scores sont saisis */
+  var savePred = async function(id, silent){
     var m = state.matches.find(function(x){ return x.id === id; });
     if(m && isLocked(m)){ showToast("Trop tard : le match a commence"); render(); return; }
     var a = parseInt(document.querySelector('[data-role="pred-a"][data-match="' + id + '"]').value, 10);
     var b = parseInt(document.querySelector('[data-role="pred-b"][data-match="' + id + '"]').value, 10);
-    if(isNaN(a) || isNaN(b) || a < 0 || b < 0){ showToast("Entrez un score valide (ex: 3 et 2)"); return; }
+    if(isNaN(a) || isNaN(b) || a < 0 || b < 0){ if(!silent) showToast("Entrez un score valide (ex: 3 et 2)"); return; }
+    var prev = (state.predictions[id] || {})[state.me];
+    if(silent && prev && prev.a === a && prev.b === b) return;
     if(!state.predictions[id]) state.predictions[id] = {};
     state.predictions[id][state.me] = {a:a, b:b};
     var ok = await savePrediction(id, state.me, {a:a, b:b});
     if(!ok){ showToast("Sauvegarde impossible (connexion ?)"); return; }
     var msg = document.getElementById("save-" + id);
     if(msg){ msg.classList.add("show"); setTimeout(function(){ msg.classList.remove("show"); }, 1800); }
+  };
+  on('[data-action="save-pred"]', "click", function(el){ savePred(el.getAttribute("data-match"), false); });
+  var predTimers = {};
+  on('[data-role="pred-a"], [data-role="pred-b"]', "input", function(el){
+    el.value = el.value.replace(/[^0-9]/g, "").slice(0, 2);
+    var id = el.getAttribute("data-match");
+    /* passe automatiquement au 2e chiffre */
+    if(el.getAttribute("data-role") === "pred-a" && el.value !== ""){
+      var nb = document.querySelector('[data-role="pred-b"][data-match="' + id + '"]');
+      if(nb && nb.value === "") nb.focus();
+    }
+    clearTimeout(predTimers[id]);
+    predTimers[id] = setTimeout(function(){ savePred(id, true); }, 700);
   });
+  on('[data-role="pred-a"], [data-role="pred-b"]', "focus", function(el){ el.select(); });
 
   on('[data-action="save-final"]', "click", async function(el){
     var id = el.getAttribute("data-match");
