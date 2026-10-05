@@ -640,7 +640,7 @@ var state = {
   me:null, tab:"pronostics",
   filterGenre:[], filterPools:[], filterDate:"all", filterTeam:"", filterWindow:"14",
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false
 };
 
 /* ===================== Utilitaires ===================== */
@@ -1138,7 +1138,7 @@ function renderAdmin(){
   html += '<p class="section-hint">Les scores officiels arrivent de hockey.be a chaque ouverture de l\'app et avec le bouton Actualiser. Vous pouvez corriger un score a la main : il ne sera plus ecrase par hockey.be (bouton "Rendre a hockey.be" pour annuler).</p>';
   html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Poules suivies</h2>';
   html += '<p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(poolName(p)); }).join(" &middot; ") + '</p>';
-  html += '<details><summary class="btn btn-sm" style="display:inline-block;">Ajouter ou retirer des poules</summary><div style="margin-top:12px;">' + renderPoolPicker() +
+  html += '<details id="pool-editor"' + (state.poolEditorOpen ? ' open' : '') + '><summary class="btn btn-sm" style="display:inline-block;">Ajouter ou retirer des poules</summary><div style="margin-top:12px;">' + renderPoolPicker() +
           '<button class="btn btn-primary" data-action="save-pools">Enregistrer les poules</button></div></details></div>';
   html += renderFilters(false);
   var sorted = sortMatches(state.matches.filter(function(m){ return passFilters(m, false) && (m.date ? m.date <= addDaysIso(7) : true); })).reverse();
@@ -1195,7 +1195,7 @@ function attachEvents(){
       state.room = code; state.pools = state.pickerSel.slice(); state.players = []; state.matches = []; state.predictions = {}; state.standings = {};
       await syncFromHockeyBe();
       setLocal(LOCAL_ROOM_KEY, code);
-      state.joinBusy = false; state.pickerSel = []; render();
+      state.joinBusy = false; state.pickerSel = []; state.pickerSearch = ""; render();
       showToast("Partie creee : " + code + " (" + state.matches.length + " matchs)");
     }catch(e){
       state.room = null; state.joinBusy = false;
@@ -1289,11 +1289,22 @@ function attachEvents(){
     state.pools = state.pickerSel.slice();
     state.matches = state.matches.filter(function(m){ return state.pools.indexOf(m.pool) !== -1; });
     Object.keys(state.standings).forEach(function(k){ if(state.pools.indexOf(k) === -1) delete state.standings[k]; });
-    state.filterPools = [];
+    state.filterPools = []; state.poolEditorOpen = false; state.pickerSearch = ""; state.pickerSel = [];
     await syncFromHockeyBe(); render(); showToast("Poules mises a jour");
   });
-  var det = document.querySelector("details");
-  if(det) det.addEventListener("toggle", function(){ if(det.open && !state.pickerSel.length){ state.pickerSel = state.pools.slice(); render(); var d2 = document.querySelector("details"); if(d2) d2.open = true; } });
+  /* La fenetre "Ajouter ou retirer des poules" reste ouverte quand l'ecran se redessine
+     (frappe dans la recherche, case cochee...) */
+  var det = document.getElementById("pool-editor");
+  if(det) det.addEventListener("toggle", function(){
+    if(det.open === !!state.poolEditorOpen) return;
+    state.poolEditorOpen = det.open;
+    if(det.open){
+      if(!state.pickerSel.length) state.pickerSel = state.pools.slice();
+      render();
+    } else {
+      state.pickerSearch = "";
+    }
+  });
   on('[data-action="leave-room"]', "click", function(){ setLocal(LOCAL_ROOM_KEY, null); state.room = null; render(); });
   on('[data-action="delete-room"]', "click", async function(){
     var c = document.getElementById("delete-room-confirm");
