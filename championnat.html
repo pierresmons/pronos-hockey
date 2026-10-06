@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 06/10/2026 -->
+<!-- Pronos Hockey championnat - version du 06/10/2026 (filtres ameliores) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -622,6 +622,32 @@
   .week-nav .week-arrow[disabled]{opacity:.35;cursor:default;}
   .week-label{display:inline-flex;flex-direction:column;align-items:center;gap:1px;min-width:132px;}
   .week-dates{font-size:9.5px;letter-spacing:0.04em;opacity:.75;font-weight:500;}
+  .filters-panel .filter-search{width:100%;max-width:420px;border-radius:8px;margin-bottom:6px;}
+  .filter-label{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--ice-faint);margin:10px 0 5px;}
+  .filters-panel .filter-row{margin-bottom:2px;}
+  .filters-panel .date-select{width:100%;max-width:260px;font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;padding:8px 10px;}
+  .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
+  .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
+  .form-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;}
+  .form-chip{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;font-family:var(--font-mono);font-size:11px;font-weight:700;color:#fff;flex-shrink:0;}
+  .form-V{background:var(--green);} .form-N{background:#6b7f92;} .form-D{background:var(--red);}
+  .match-info{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .info-team-name{font-family:var(--font-display);font-size:17px;text-transform:uppercase;color:var(--ice);line-height:1.1;}
+  .team-pos{font-family:var(--font-mono);font-size:10.5px;color:var(--gold);margin-top:3px;}
+  .info-sub{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ice-faint);margin:12px 0 4px;}
+  .info-btn{margin-right:auto;padding:4px 0;border:none;color:var(--gold);font-size:12px;background:none;}
+  .info-btn:hover{color:var(--ice);border:none;}
+  .row-list{padding:4px 14px;}
+  .match-row{padding:8px 0;border-bottom:1px solid var(--line);}
+  .match-row:last-child{border-bottom:none;}
+  .row-meta{font-family:var(--font-mono);font-size:10px;color:var(--ice-faint);text-transform:uppercase;letter-spacing:.04em;}
+  .row-main{display:flex;align-items:center;gap:8px;margin-top:3px;font-size:14px;}
+  .row-team{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .row-a{text-align:right;} .row-b{text-align:left;}
+  .row-score{font-family:var(--font-mono);color:var(--gold);white-space:nowrap;}
+  .row-time{font-family:var(--font-mono);font-size:11px;color:var(--ice-faint);white-space:nowrap;}
+  .team-card{padding:14px 16px;}
   /* ================= Affichage telephone (iPhone, app iOS) ================= */
   @media (max-width:600px){
     body{padding-top:env(safe-area-inset-top);}
@@ -641,7 +667,9 @@
     .tabs{position:fixed;top:auto;bottom:0;left:0;right:0;z-index:50;border-top:1px solid var(--line);border-bottom:none;
           background:rgba(10,20,32,0.96);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
           padding-bottom:env(safe-area-inset-bottom);}
-    .tab{font-size:15px;padding:12px 2px 10px;border-bottom:none;border-top:3px solid transparent;}
+    .tab{font-size:14px;padding:12px 1px 10px;border-bottom:none;border-top:3px solid transparent;letter-spacing:0;}
+    .info-grid{gap:8px;}
+    .row-main{font-size:13px;}
     .tab.active{border-top-color:var(--red);}
     .content{padding:14px 14px 0;}
     .section-title{font-size:20px;}
@@ -649,6 +677,11 @@
     .hint-long{display:none;}
     .filters-toggle-row{gap:6px;margin-bottom:10px;}
     .week-nav{order:-1;width:100%;}
+    .filters-panel{padding:12px 12px 2px;}
+    .filters-panel .filter-row-scroll{margin-left:-12px;margin-right:-12px;padding:0 12px 6px;scrollbar-width:none;}
+    .filters-panel .filter-row-scroll::-webkit-scrollbar{display:none;}
+    .filters-panel .filter-chip{font-size:11px;padding:7px 11px;white-space:nowrap;}
+    .filters-panel .filter-search,.filters-panel .date-select{max-width:none;font-size:16px;}
     .week-nav .week-label{flex:1;}
     .week-nav .week-arrow{padding:4px 16px;}
     .match-card{padding:10px 12px;margin-bottom:10px;}
@@ -659,7 +692,7 @@
     .scoreboard{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;}
     .team{font-size:16px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;}
     .digit{width:44px;height:44px;font-size:20px;}
-    .match-actions{margin-top:4px;min-height:0;}
+    .match-actions{margin-top:4px;min-height:0;justify-content:flex-start;}
     .match-actions .btn-primary{display:none;}
     .predictions-list{margin-top:8px;padding-top:8px;}
     table.leaderboard td{padding:9px 6px;font-size:13px;}
@@ -695,9 +728,9 @@ var ALL_POOLS = [["11761","Top Hockey Men's League Outdoor Week - Carlsberg Men'
 var state = {
   room:null, players:[], pools:[], matches:[], predictions:{}, standings:{}, lastSync:null,
   me:null, tab:"pronostics",
-  filterGenre:[], filterPools:[], filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
+  filterGenre:[], filterPools:[], filterCat:"", filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, extCat:"", extPool:"", extAllCat:false
 };
 
 /* ===================== Utilitaires ===================== */
@@ -708,7 +741,7 @@ function poolName(id){
 /* Poules "techniques" de hockey.be : un seul match entre deux equipes nommees
    (ex. "Reg. 3 - Gantoise U10G-4 - Wolvendael U10G-1"). Masquees par defaut. */
 function isIsolatedPool(n){ return / - [^-]+ [A-Z0-9]+-\d+ - .+ [A-Z0-9]+-\d+$/.test(n); }
-function shortPool(n){ return n.replace(/ (Outdoor|Indoor|Recreatief|Trimmers) Week/,'').replace('Trimmers Trimmers','Trimmers'); }
+function shortPool(n){ return n.replace(/ (Outdoor|Indoor|Recreatief|Trimmers) Week/,'').replace('Trimmers Trimmers','Trimmers').replace("Top Hockey Men's League - Carlsberg Men's Hockey League", "Top League Hommes").replace("Top Hockey Women's League - Belfius Women's Hockey League", "Top League Dames"); }
 function poolGroup(n){
   var s = shortPool(n), parts = s.split(" - ");
   return parts[0];
@@ -957,6 +990,7 @@ function sortMatches(list){
 }
 function mGenre(m){ var p = ALL_POOLS.find(function(x){ return x[0] === m.pool; }); return p ? genreOf(p[1]) : "X"; }
 function passFilters(m, upcomingMode){
+  if(state.filterCat && poolCat(m.pool) !== state.filterCat) return false;
   if(state.filterGenre.length && state.filterGenre.indexOf(mGenre(m)) === -1) return false;
   if(state.filterPools.length && state.filterPools.indexOf(m.pool) === -1) return false;
   if(state.filterDate !== "all" && m.date !== state.filterDate) return false;
@@ -971,7 +1005,7 @@ function passFilters(m, upcomingMode){
   return true;
 }
 function activeFilterCount(){
-  return state.filterGenre.length + state.filterPools.length + (state.filterDate !== "all" ? 1 : 0) + (state.filterTeam ? 1 : 0);
+  return state.filterGenre.length + (state.filterCat && !state.filterPools.length ? 1 : 0) + state.filterPools.length + (state.filterDate !== "all" ? 1 : 0) + (state.filterTeam ? 1 : 0);
 }
 function toggleInArray(arr, v){ var i = arr.indexOf(v); if(i === -1) arr.push(v); else arr.splice(i,1); }
 
@@ -995,27 +1029,42 @@ function renderFilters(showWindow){
   }
   if(count) html += '<button class="btn btn-ghost btn-sm" data-action="clear-filters">Effacer</button>';
   html += '</div>';
+  if(count && !state.filtersOpen){
+    var parts = [];
+    if(state.filterPools.length) parts.push(poolName(state.filterPools[0]).replace(/ - A$/, ""));
+    else if(state.filterCat) parts.push(state.filterCat);
+    if(state.filterTeam) parts.push("\u00ab " + state.filterTeam + " \u00bb");
+    if(state.filterDate !== "all") parts.push(formatDate(state.filterDate));
+    html += '<div class="filter-summary" data-action="toggle-filters">Filtre : ' + escapeHtml(parts.join(" \u00b7 ")) + '</div>';
+  }
   if(!state.filtersOpen) return html;
 
   html += '<div class="filters-panel">';
-  html += '<div class="filter-row"><input type="text" class="inline-input" id="team-filter" placeholder="Equipe ou club (ex: Leopold)" value="' + escapeHtml(state.filterTeam) + '" style="width:240px;"></div>';
+  html += '<input type="search" class="inline-input filter-search" id="team-filter" placeholder="Equipe ou club (ex : Leopold)" value="' + escapeHtml(state.filterTeam) + '" autocomplete="off">';
+  /* Categorie puis poule : deux rangees qui defilent horizontalement sur iPhone */
+  var cats = [];
+  state.pools.forEach(function(pid){ var c = poolCat(pid); if(cats.indexOf(c) === -1) cats.push(c); });
+  cats.sort(function(x,y){ return x.localeCompare(y); });
+  if(cats.length > 1){
+    html += '<div class="filter-label">Categorie</div><div class="filter-row filter-row-scroll">' +
+      '<button class="filter-chip' + (!state.filterCat ? " active" : "") + '" data-action="filter-cat" data-cat="">Toutes</button>' +
+      cats.map(function(c){ return '<button class="filter-chip' + (state.filterCat === c ? " active" : "") + '" data-action="filter-cat" data-cat="' + escapeHtml(c) + '">' + escapeHtml(c) + '</button>'; }).join("") + '</div>';
+  }
+  var catPools = state.pools.filter(function(pid){ return !state.filterCat || poolCat(pid) === state.filterCat; });
+  if(catPools.length > 1 && (state.filterCat || cats.length <= 1)){
+    html += '<div class="filter-label">Poule</div><div class="filter-row filter-row-scroll">' +
+      '<button class="filter-chip' + (!state.filterPools.length ? " active" : "") + '" data-action="filter-pool" data-pool="">Toutes</button>' +
+      catPools.map(function(pid){
+        var lbl = poolName(pid).replace(poolCat(pid) + " - ", "").replace(/ - A$/, "");
+        return '<button class="filter-chip' + (state.filterPools.indexOf(pid) !== -1 ? " active" : "") + '" data-action="filter-pool" data-pool="' + pid + '">' + escapeHtml(lbl) + '</button>';
+      }).join("") + '</div>';
+  }
   var dates = [];
   state.matches.forEach(function(m){ if(m.date && dates.indexOf(m.date) === -1) dates.push(m.date); });
   dates.sort();
-  html += '<div class="filter-row"><select class="date-select' + (state.filterDate !== "all" ? " active" : "") + '" id="date-filter-select"><option value="all">Toutes les dates</option>' +
-    dates.map(function(d){ return '<option value="' + d + '"' + (state.filterDate === d ? " selected" : "") + '>' + formatDate(d) + '</option>'; }).join("") + '</select></div>';
-  var genres = [];
-  state.pools.forEach(function(pid){ var g = genreOf((ALL_POOLS.find(function(x){return x[0]===pid;})||["",""])[1]); if(genres.indexOf(g) === -1) genres.push(g); });
-  if(genres.length > 1){
-    html += '<div class="filter-row">' + genres.map(function(g){
-      return '<button class="filter-chip' + (state.filterGenre.indexOf(g) !== -1 ? " active" : "") + '" data-action="toggle-genre" data-genre="' + g + '">' + genreLabel(g) + '</button>';
-    }).join("") + '</div>';
-  }
-  if(state.pools.length > 1){
-    html += '<div class="filter-row">' + state.pools.map(function(pid){
-      return '<button class="filter-chip' + (state.filterPools.indexOf(pid) !== -1 ? " active" : "") + '" data-action="toggle-pool" data-pool="' + pid + '">' + escapeHtml(poolName(pid)) + '</button>';
-    }).join("") + '</div>';
-  }
+  html += '<div class="filter-label">Jour precis</div><select class="date-select' + (state.filterDate !== "all" ? " active" : "") + '" id="date-filter-select"><option value="all">Tous les jours</option>' +
+    dates.map(function(d){ return '<option value="' + d + '"' + (state.filterDate === d ? " selected" : "") + '>' + formatDate(d) + '</option>'; }).join("") + '</select>';
+  html += '<div class="filters-actions"><button class="btn btn-sm" data-action="toggle-filters">Fermer</button></div>';
   html += '</div>';
   return html;
 }
@@ -1046,7 +1095,7 @@ function renderPoolPicker(){
     if(p[2] === 0) return;
     if(!state.showIsolated && isIsolatedPool(p[1]) && state.pickerSel.indexOf(p[0]) === -1) return;
     var label = shortPool(p[1]);
-    if(q && label.toLowerCase().indexOf(q) === -1) return;
+    if(q && label.toLowerCase().indexOf(q) === -1 && p[1].toLowerCase().indexOf(q) === -1) return;
     var g = poolGroup(p[1]);
     if(!groups[g]){ groups[g] = []; order.push(g); }
     groups[g].push(p);
@@ -1101,7 +1150,7 @@ function renderPlayersRow(){
 }
 
 function renderTabs(){
-  var tabs = [{id:"pronostics",label:"Pronos"},{id:"resultats",label:"Classement"},{id:"poules",label:"Poules"},{id:"admin",label:"Gestion"}];
+  var tabs = [{id:"pronostics",label:"Pronos"},{id:"matchs",label:"Matchs"},{id:"resultats",label:"Classement"},{id:"poules",label:"Poules"},{id:"admin",label:"Gestion"}];
   return '<div class="tabs">' + tabs.map(function(t){
     return '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-action="set-tab" data-tab="' + t.id + '">' + t.label + '</button>';
   }).join("") + '</div>';
@@ -1109,6 +1158,7 @@ function renderTabs(){
 
 function renderContent(){
   if(state.tab === "pronostics") return renderPronostics();
+  if(state.tab === "matchs") return renderMatchs();
   if(state.tab === "resultats") return renderResultats();
   if(state.tab === "poules") return renderPoules();
   if(state.tab === "admin") return renderAdmin();
@@ -1127,7 +1177,8 @@ function renderPronostics(){
   var html = '<h2 class="section-title">Mes pronostics</h2>';
   html += '<p class="section-hint"><span class="hint-long">Entrez votre score pour chaque match : il s\'enregistre tout seul. Les pronostics se ferment au coup d\'envoi et les resultats arrivent automatiquement de hockey.be. </span><span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>0 pt</b> faux</span></p>';
   html += renderFilters(true);
-  var upcoming = sortMatches(state.matches.filter(function(m){ return !hasScore(m) && passFilters(m, true); }));
+  var today = todayIso();
+  var upcoming = sortMatches(state.matches.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today) && passFilters(m, true); }));
   if(!state.matches.length){
     return html + '<div class="empty"><div class="big">Aucun match</div><p>Cliquez sur "Actualiser" pour charger le calendrier depuis hockey.be.</p></div>';
   }
@@ -1149,7 +1200,9 @@ function renderPredictionCard(m, isDone){
   var inputs = locked
     ? '<div class="score-inputs"><input class="digit" type="text" value="' + (val(pred.a) === "" ? "-" : pred.a) + '" disabled><span class="vs-dash">:</span><input class="digit" type="text" value="' + (val(pred.b) === "" ? "-" : pred.b) + '" disabled></div>'
     : '<div class="score-inputs"><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-a" data-match="' + m.id + '" value="' + val(pred.a) + '" placeholder="0"><span class="vs-dash">:</span><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-b" data-match="' + m.id + '" value="' + val(pred.b) + '" placeholder="0"></div>';
-  var actions = locked ? "" : '<div class="match-actions"><span class="save-msg" id="save-' + m.id + '">Enregistre</span><button class="btn btn-primary" data-action="save-pred" data-match="' + m.id + '">Enregistrer</button></div>';
+  var infoBtn = isDone ? "" : '<button class="btn btn-ghost btn-sm info-btn" data-action="toggle-info" data-match="' + m.id + '">' + (state.infoOpen[m.id] ? "Masquer la forme" : "Forme & historique") + '</button>';
+  var actions = locked ? (infoBtn ? '<div class="match-actions">' + infoBtn + '</div>' : "") : '<div class="match-actions">' + infoBtn + '<span class="save-msg" id="save-' + m.id + '">Enregistre</span><button class="btn btn-primary" data-action="save-pred" data-match="' + m.id + '">Enregistrer</button></div>';
+  if(!isDone && state.infoOpen[m.id]) actions += renderMatchInfo(m);
   var preds = state.predictions[m.id] || {};
   var others = state.players.filter(function(p){ return p !== state.me; });
   var tags = "";
@@ -1168,6 +1221,203 @@ function renderPredictionCard(m, isDone){
   return '<div class="match-card"><div class="match-top"><span class="match-meta"><span class="match-date">' + formatDate(m.date, m.time) + '</span>' + badges(m) + '</span>' + status + '</div>' +
     '<div class="scoreboard"><div class="team team-a">' + escapeHtml(m.teamA) + '</div>' + inputs + '<div class="team team-b">' + escapeHtml(m.teamB) + '</div></div>' +
     actions + tags + '</div>';
+}
+
+/* ===================== Recherche, forme et historique ===================== */
+/* SRC = donnees de la recherche "Tout hockey.be" (chargees a la demande, non sauvegardees) */
+var EXT = {matches:[], standings:{}, loaded:{}, loading:0, failed:[]};
+var SRC = null;
+function srcMatches(){ return SRC ? SRC.matches : state.matches; }
+function srcStandings(){ return SRC ? SRC.standings : state.standings; }
+async function loadExtPools(pids){
+  var todo = pids.filter(function(p){ return !EXT.loaded[p]; });
+  if(!todo.length) return;
+  EXT.loading += todo.length; EXT.failed = []; render();
+  var byId = {}; EXT.matches.forEach(function(m){ byId[m.id] = m; });
+  var put = function(o){
+    var id = matchKey(o.pool, o.teamA, o.teamB), m = byId[id];
+    if(!m){ m = byId[id] = {id:id, pool:o.pool, teamA:o.teamA, teamB:o.teamB, scoreA:null, scoreB:null, status:null}; EXT.matches.push(m); }
+    ["date","time","venue","status"].forEach(function(k){ if(o[k]) m[k] = o[k]; });
+    if(o.scoreA !== undefined && o.scoreA !== null){ m.scoreA = o.scoreA; m.scoreB = o.scoreB; }
+  };
+  var queue = todo.slice();
+  var worker = async function(){
+    while(queue.length){
+      var pid = queue.shift();
+      try{
+        var res = await Promise.all([apiGet(pid,"program"), apiGet(pid,"results"), apiGet(pid,"standing")]);
+        res[0].forEach(function(r){ var dv = stripHtml(r[0]).split(" | "); put({pool:pid, teamA:teamName(r[3]), teamB:teamName(r[r.length-1]), date:isoDate(dv[0]), time:(r[1]||"").slice(0,5), venue:dv[1] || null}); });
+        res[1].forEach(function(r){ var sc = stripHtml(r[5] || ""), mm = /(\d+)\s*-\s*(\d+)/.exec(sc);
+          put({pool:pid, teamA:teamName(r[3]), teamB:teamName(r[r.length-1]), date:isoDate(r[0]), time:(r[1]||"").slice(0,5),
+               scoreA: mm ? parseInt(mm[1],10) : null, scoreB: mm ? parseInt(mm[2],10) : null, status: mm ? (sc.replace(/(\d+)\s*-\s*(\d+)/, "").trim() || null) : (sc || null)}); });
+        EXT.standings[pid] = res[2].map(function(t){ return {rank:t[0], team:t[1], j:t[2], g:t[3], p:t[4], n:t[5], bp:t[6], bc:t[7], pts:t[8]}; });
+        EXT.loaded[pid] = true;
+      }catch(e){ EXT.failed.push(poolName(pid)); }
+      EXT.loading--; render();
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  if(EXT.failed.length) showToast("hockey.be n'a pas repondu pour : " + EXT.failed.join(", "));
+}
+function allTeams(){
+  var set = {};
+  srcMatches().forEach(function(m){ set[m.teamA] = 1; set[m.teamB] = 1; });
+  return Object.keys(set).sort(function(a,b){ return a.localeCompare(b); });
+}
+function playedMatchesOf(team){
+  return sortMatches(srcMatches().filter(function(m){ return hasScore(m) && (m.teamA === team || m.teamB === team); })).reverse();
+}
+function resultFor(team, m){
+  var gf = m.teamA === team ? m.scoreA : m.scoreB, ga = m.teamA === team ? m.scoreB : m.scoreA;
+  return gf > ga ? "V" : (gf < ga ? "D" : "N");
+}
+function formChips(team, n){
+  var list = playedMatchesOf(team).slice(0, n || 5);
+  if(!list.length) return '<span class="points-sub">aucun match joue</span>';
+  return list.map(function(m){
+    var r = resultFor(team, m), opp = m.teamA === team ? m.teamB : m.teamA;
+    var gf = m.teamA === team ? m.scoreA : m.scoreB, ga = m.teamA === team ? m.scoreB : m.scoreA;
+    return '<span class="form-chip form-' + r + '" title="' + escapeHtml(formatDate(m.date) + " vs " + opp + " " + gf + "-" + ga) + '">' + r + '</span>';
+  }).join("");
+}
+function standingOf(team, pool){
+  var st = srcStandings()[pool] || [];
+  var norm = function(x){ return String(x).toLowerCase().replace(/\s+/g," ").trim(); };
+  return st.find(function(t){ return norm(t.team) === norm(team); }) || null;
+}
+function teamLine(team, pool){
+  var s = standingOf(team, pool);
+  var pos = s ? '<span class="team-pos">' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.bp + '-' + s.bc + '</span>' : '';
+  return '<div class="info-team"><div class="info-team-name">' + escapeHtml(team) + '</div>' + pos + '<div class="form-row">' + formChips(team, 5) + '</div></div>';
+}
+function matchRow(m, focusTeam){
+  var sc = hasScore(m) ? '<b class="row-score">' + m.scoreA + ' - ' + m.scoreB + '</b>' : '<span class="row-time">' + escapeHtml(m.status || m.time || "") + '</span>';
+  var badge = "";
+  if(focusTeam && hasScore(m)){ var r = resultFor(focusTeam, m); badge = '<span class="form-chip form-' + r + '">' + r + '</span>'; }
+  return '<div class="match-row"><div class="row-meta">' + formatDate(m.date) + ' &middot; ' + escapeHtml(poolName(m.pool)) + '</div>' +
+    '<div class="row-main">' + badge + '<span class="row-team row-a">' + escapeHtml(m.teamA) + '</span>' + sc + '<span class="row-team row-b">' + escapeHtml(m.teamB) + '</span></div></div>';
+}
+function renderMatchInfo(m){
+  var h2h = playedMatchesOf(m.teamA).filter(function(x){ return x.teamA === m.teamB || x.teamB === m.teamB; });
+  var html = '<div class="match-info">';
+  html += '<div class="info-grid">' + teamLine(m.teamA, m.pool) + teamLine(m.teamB, m.pool) + '</div>';
+  html += '<div class="info-sub">Confrontations cette saison</div>';
+  html += h2h.length ? h2h.map(function(x){ return matchRow(x); }).join("") : '<p class="points-sub" style="margin:4px 0;">Pas encore de match entre ces equipes.</p>';
+  html += '<p class="points-sub" style="margin:8px 0 0;">Forme : 5 derniers matchs, le plus recent a gauche (V victoire, N nul, D defaite).</p>';
+  return html + '</div>';
+}
+function poolCat(pid){ var p = ALL_POOLS.find(function(x){ return x[0] === pid; }); return p ? poolGroup(p[1]) : pid; }
+function inSearchScope(m){
+  if(state.searchAll){
+    if(state.extPool) return m.pool === state.extPool;
+    if(state.extCat) return poolCat(m.pool) === state.extCat;
+    return false;
+  }
+  if(state.searchPool) return m.pool === state.searchPool;
+  if(state.searchCat) return poolCat(m.pool) === state.searchCat;
+  return true;
+}
+function renderSearchScope(){
+  var cats = [];
+  state.pools.forEach(function(pid){ var c = poolCat(pid); if(cats.indexOf(c) === -1) cats.push(c); });
+  cats.sort(function(a,b){ return a.localeCompare(b); });
+  if(cats.length < 2 && state.pools.length < 2) return "";
+  var html = '<div class="filter-row filter-row-scroll">';
+  html += '<button class="filter-chip' + (!state.searchCat ? " active" : "") + '" data-action="search-cat" data-cat="">Toutes</button>';
+  html += cats.map(function(c){ return '<button class="filter-chip' + (state.searchCat === c ? " active" : "") + '" data-action="search-cat" data-cat="' + escapeHtml(c) + '">' + escapeHtml(c) + '</button>'; }).join("");
+  html += '</div>';
+  if(state.searchCat){
+    var pools = state.pools.filter(function(pid){ return poolCat(pid) === state.searchCat; });
+    if(pools.length > 1){
+      html += '<div class="filter-row filter-row-scroll"><button class="filter-chip' + (!state.searchPool ? " active" : "") + '" data-action="search-pool" data-pool="">Toutes les poules</button>' +
+        pools.map(function(pid){ return '<button class="filter-chip' + (state.searchPool === pid ? " active" : "") + '" data-action="search-pool" data-pool="' + pid + '">' + escapeHtml(poolName(pid).replace(state.searchCat + " - ", "")) + '</button>'; }).join("") + '</div>';
+    }
+  }
+  return html;
+}
+function extCategories(){
+  var cats = [];
+  ALL_POOLS.forEach(function(p){ if(p[2] > 0 && !isIsolatedPool(p[1])){ var g = poolGroup(p[1]); if(cats.indexOf(g) === -1) cats.push(g); } });
+  var key = function(c){ var m = /^U(\d+)/.exec(c); return m ? "1" + String(100 + parseInt(m[1],10)) + c : "0" + c; };
+  return cats.sort(function(a,b){ return key(a).localeCompare(key(b)); });
+}
+function extPoolsOf(cat){ return ALL_POOLS.filter(function(p){ return p[2] > 0 && !isIsolatedPool(p[1]) && poolGroup(p[1]) === cat; }); }
+function renderExtScope(){
+  var html = '<div class="filter-row"><select class="date-select' + (state.extCat ? " active" : "") + '" id="ext-cat"><option value="">Choisir une categorie...</option>' +
+    extCategories().map(function(c){ return '<option value="' + escapeHtml(c) + '"' + (state.extCat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>'; }).join("") + '</select>';
+  if(state.extCat){
+    var pools = extPoolsOf(state.extCat);
+    html += '<select class="date-select' + (state.extPool ? " active" : "") + '" id="ext-pool"><option value="">Toutes les poules (' + pools.length + ')</option>' +
+      pools.map(function(p){ return '<option value="' + p[0] + '"' + (state.extPool === p[0] ? " selected" : "") + '>' + escapeHtml(shortPool(p[1]).replace(state.extCat + " - ", "")) + '</option>'; }).join("") + '</select>';
+  }
+  html += '</div>';
+  if(EXT.loading) html += '<p class="selected-count">Chargement depuis hockey.be... (' + EXT.loading + ' poule(s) restante(s))</p>';
+  else if(state.extCat && !state.extPool){
+    var missing = extPoolsOf(state.extCat).filter(function(p){ return !EXT.loaded[p[0]]; });
+    if(missing.length) html += '<p class="points-sub" style="margin:0 0 10px;">Choisissez une poule ci-dessus, ou <button class="btn btn-sm" data-action="ext-load-cat">charger les ' + missing.length + ' poules de la categorie</button></p>';
+  }
+  if(state.extPool && EXT.loaded[state.extPool] && state.pools.indexOf(state.extPool) === -1){
+    html += '<p class="points-sub" style="margin:0 0 10px;"><button class="btn btn-sm" data-action="ext-follow" data-pool="' + state.extPool + '">+ Suivre cette poule dans ma partie</button></p>';
+  }
+  return html;
+}
+function renderMatchs(){
+  SRC = state.searchAll ? EXT : null;
+  try{ return renderMatchsInner(); } finally { SRC = null; }
+}
+function renderMatchsInner(){
+  var html = '<h2 class="section-title">Rechercher un match</h2>';
+  html += '<div class="filter-row"><button class="filter-chip' + (!state.searchAll ? " active" : "") + '" data-action="search-mode" data-all="0">Mes poules</button>' +
+          '<button class="filter-chip' + (state.searchAll ? " active" : "") + '" data-action="search-mode" data-all="1">Tout hockey.be</button></div>';
+  if(state.searchAll){
+    html += '<p class="section-hint">Toutes les competitions de hockey.be, chargees a la demande. Choisissez une categorie puis une poule (ou toutes), et tapez une equipe si besoin.</p>';
+    html += renderExtScope();
+    if(!state.extCat) return html + '<div class="empty"><div class="big">Choisissez une categorie</div><p>Par exemple U19 Boys, puis Nat. 2 - A.</p></div>';
+  } else {
+    html += '<p class="section-hint">Choisissez une categorie et/ou tapez une equipe ou un club pour voir resultats, prochains matchs et forme.</p>';
+    html += renderSearchScope();
+  }
+  html += '<div class="filter-row"><input type="text" class="inline-input search-input" id="match-search" list="team-list" placeholder="Ex : Leopold, Racing H-1, Dragons..." value="' + escapeHtml(state.searchQ) + '" autocomplete="off"></div>';
+  var scopeMatches = srcMatches().filter(inSearchScope);
+  var scopeTeams = {}; scopeMatches.forEach(function(m){ scopeTeams[m.teamA] = 1; scopeTeams[m.teamB] = 1; });
+  html += '<datalist id="team-list">' + allTeams().filter(function(t){ return scopeTeams[t]; }).map(function(t){ return '<option value="' + escapeHtml(t) + '">'; }).join("") + '</datalist>';
+  var q = state.searchQ.trim().toLowerCase();
+  if(!q){
+    var today0 = todayIso();
+    var recent = sortMatches(scopeMatches.filter(hasScore)).reverse().slice(0, 15);
+    var nextHtml = "";
+    if(state.searchCat || state.searchPool || state.searchAll){
+      var next = sortMatches(scopeMatches.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today0); })).slice(0, 15);
+      nextHtml = '<h2 class="section-title" style="font-size:18px;margin-top:18px;">Prochains matchs</h2>' +
+        (next.length ? '<div class="admin-form row-list">' + next.map(function(m){ return matchRow(m); }).join("") + '</div>' : '<p class="points-sub">Aucun match a venir.</p>');
+    }
+    html += '<h2 class="section-title" style="font-size:18px;margin-top:18px;">Derniers resultats</h2>';
+    html += recent.length ? '<div class="admin-form row-list">' + recent.map(function(m){ return matchRow(m); }).join("") + '</div>' : '<div class="empty"><p>Aucun resultat pour l\'instant.</p></div>';
+    html += nextHtml;
+    return html;
+  }
+  var hits = scopeMatches.filter(function(m){ return m.teamA.toLowerCase().indexOf(q) !== -1 || m.teamB.toLowerCase().indexOf(q) !== -1; });
+  var teams = allTeams().filter(function(t){ return scopeTeams[t] && t.toLowerCase().indexOf(q) !== -1; });
+  if(!hits.length) return html + '<div class="empty"><div class="big">Aucun match trouve</div><p>' + (state.searchAll ? 'Verifiez l\'orthographe, ou choisissez une autre poule (ou toutes les poules de la categorie).' : 'Verifiez l\'orthographe, choisissez "Toutes" les categories, ou passez en mode "Tout hockey.be".') + '</p></div>';
+  var exact = teams.length === 1 ? teams[0] : teams.find(function(t){ return t.toLowerCase() === q; });
+  if(exact){
+    var pm = scopeMatches.find(function(m){ return m.teamA === exact || m.teamB === exact; });
+    var s = pm ? standingOf(exact, pm.pool) : null;
+    html += '<div class="admin-form team-card"><div class="info-team-name" style="font-size:22px;">' + escapeHtml(exact) + '</div>';
+    if(s) html += '<div class="team-pos">' + escapeHtml(poolName(pm.pool)) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.g + 'V ' + s.n + 'N ' + s.p + 'D &middot; buts ' + s.bp + '-' + s.bc + '</div>';
+    html += '<div class="form-row" style="margin-top:8px;">' + formChips(exact, 8) + '</div></div>';
+  } else if(teams.length > 1){
+    html += '<div class="filter-row">' + teams.slice(0, 12).map(function(t){ return '<button class="filter-chip" data-action="pick-team" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>'; }).join("") + '</div>';
+  }
+  var today = todayIso();
+  var upcoming = sortMatches(hits.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }));
+  var played = sortMatches(hits.filter(function(m){ return hasScore(m) || (m.date && m.date < today); })).reverse();
+  html += '<h2 class="section-title" style="font-size:18px;margin-top:18px;">Resultats (' + played.length + ')</h2>';
+  html += played.length ? '<div class="admin-form row-list">' + played.slice(0, 40).map(function(m){ return matchRow(m, exact); }).join("") + '</div>' : '<p class="points-sub">Aucun resultat pour l\'instant.</p>';
+  html += '<h2 class="section-title" style="font-size:18px;margin-top:18px;">A venir (' + upcoming.length + ')</h2>';
+  html += upcoming.length ? '<div class="admin-form row-list">' + upcoming.slice(0, 20).map(function(m){ return matchRow(m); }).join("") + '</div>' : '<p class="points-sub">Aucun match a venir.</p>';
+  if(upcoming.length > 20) html += '<p class="points-sub">+ ' + (upcoming.length - 20) + ' autres matchs plus tard dans la saison.</p>';
+  return html;
 }
 
 function renderResultats(){
@@ -1198,7 +1448,7 @@ function renderResultats(){
 function renderPoules(){
   var html = '<h2 class="section-title">Classements officiels</h2><p class="section-hint">Tels que publies par hockey.be (les points peuvent inclure des bonus de shoot-out).</p>';
   html += renderFilters(false);
-  var pools = state.filterPools.length ? state.filterPools : state.pools;
+  var pools = state.filterPools.length ? state.filterPools : state.pools.filter(function(pid){ return !state.filterCat || poolCat(pid) === state.filterCat; });
   var q = state.filterTeam.toLowerCase();
   var any = false;
   pools.forEach(function(pid){
@@ -1254,11 +1504,45 @@ function on(sel, ev, fn){ document.getElementById("app").querySelectorAll(sel).f
 function roomCodeFrom(id){ var i = document.getElementById(id); return i ? i.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, "") : ""; }
 
 function attachEvents(){
+  /* garde le choix actif visible dans les rangees qui defilent */
+  document.querySelectorAll(".filter-row-scroll").forEach(function(row){
+    var act = row.querySelector(".filter-chip.active");
+    if(act && act.offsetLeft + act.offsetWidth > row.clientWidth) row.scrollLeft = act.offsetLeft - 12;
+  });
+  on('[data-action="toggle-info"]', "click", function(el){ var id = el.getAttribute("data-match"); state.infoOpen[id] = !state.infoOpen[id]; render(); });
+  on('[data-action="search-mode"]', "click", function(el){ state.searchAll = el.getAttribute("data-all") === "1"; render(); });
+  var ec = document.getElementById("ext-cat");
+  if(ec) ec.addEventListener("change", function(){
+    state.extCat = ec.value; state.extPool = ""; render();
+    if(state.extCat){ var ps = extPoolsOf(state.extCat); if(ps.length <= 8) loadExtPools(ps.map(function(p){ return p[0]; })).then(render); }
+  });
+  var ep = document.getElementById("ext-pool");
+  if(ep) ep.addEventListener("change", function(){
+    state.extPool = ep.value; render();
+    var ids = state.extPool ? [state.extPool] : extPoolsOf(state.extCat).map(function(p){ return p[0]; });
+    loadExtPools(ids).then(render);
+  });
+  on('[data-action="ext-load-cat"]', "click", function(){ loadExtPools(extPoolsOf(state.extCat).map(function(p){ return p[0]; })).then(render); });
+  on('[data-action="ext-follow"]', "click", async function(el){
+    var pid = el.getAttribute("data-pool");
+    if(state.pools.indexOf(pid) === -1) state.pools.push(pid);
+    await syncFromHockeyBe(); render(); showToast("Poule ajoutee a la partie : " + poolName(pid));
+  });
+  on('[data-action="search-cat"]', "click", function(el){ state.searchCat = el.getAttribute("data-cat"); state.searchPool = ""; render(); });
+  on('[data-action="search-pool"]', "click", function(el){ state.searchPool = el.getAttribute("data-pool"); render(); });
+  on('[data-action="pick-team"]', "click", function(el){ state.searchQ = el.getAttribute("data-team"); render(); });
+  var ms = document.getElementById("match-search");
+  if(ms){
+    ms.addEventListener("input", function(){
+      state.searchQ = ms.value; var pos = ms.selectionStart; render();
+      var n = document.getElementById("match-search"); if(n){ n.focus(); try{ n.setSelectionRange(pos, pos); }catch(e){} }
+    });
+  }
   on('[data-action="toggle-isolated"]', "change", function(el){ state.showIsolated = el.checked; render(); });
   on('[data-action="pick-pool"]', "change", function(el){ toggleInArray(state.pickerSel, el.getAttribute("data-pool")); render(); });
   on('[data-action="pick-group"]', "click", function(el){
     var g = el.getAttribute("data-group"), q = state.pickerSearch.toLowerCase();
-    var ids = ALL_POOLS.filter(function(p){ return p[2] > 0 && (state.showIsolated || !isIsolatedPool(p[1])) && poolGroup(p[1]) === g && (!q || shortPool(p[1]).toLowerCase().indexOf(q) !== -1); }).map(function(p){ return p[0]; });
+    var ids = ALL_POOLS.filter(function(p){ return p[2] > 0 && (state.showIsolated || !isIsolatedPool(p[1])) && poolGroup(p[1]) === g && (!q || shortPool(p[1]).toLowerCase().indexOf(q) !== -1 || p[1].toLowerCase().indexOf(q) !== -1); }).map(function(p){ return p[0]; });
     var allOn = ids.every(function(id){ return state.pickerSel.indexOf(id) !== -1; });
     ids.forEach(function(id){ var i = state.pickerSel.indexOf(id); if(allOn && i !== -1) state.pickerSel.splice(i,1); if(!allOn && i === -1) state.pickerSel.push(id); });
     render();
@@ -1326,7 +1610,9 @@ function attachEvents(){
   if(npi) npi.addEventListener("keydown", function(e){ if(e.key === "Enter") doAdd(); });
 
   on('[data-action="toggle-filters"]', "click", function(){ state.filtersOpen = !state.filtersOpen; render(); });
-  on('[data-action="clear-filters"]', "click", function(){ state.filterGenre = []; state.filterPools = []; state.filterDate = "all"; state.filterTeam = ""; render(); });
+  on('[data-action="clear-filters"]', "click", function(){ state.filterGenre = []; state.filterPools = []; state.filterCat = ""; state.filterDate = "all"; state.filterTeam = ""; render(); });
+  on('[data-action="filter-cat"]', "click", function(el){ state.filterCat = el.getAttribute("data-cat"); state.filterPools = []; render(); });
+  on('[data-action="filter-pool"]', "click", function(el){ var p = el.getAttribute("data-pool"); state.filterPools = p ? [p] : []; render(); });
   on('[data-action="set-window"]', "click", function(el){ state.filterWindow = el.getAttribute("data-window"); render(); });
   on('[data-action="week-prev"]', "click", function(){ if(state.filterWindow === "week" && state.weekOffset > 0) state.weekOffset--; state.filterWindow = "week"; render(); });
   on('[data-action="week-next"]', "click", function(){ if(state.filterWindow === "week") state.weekOffset++; state.filterWindow = "week"; render(); });
