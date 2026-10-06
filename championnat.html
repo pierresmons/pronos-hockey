@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 06/10/2026 (Matchs : filtre par semaine) -->
+<!-- Pronos Hockey championnat - version du 06/10/2026 (Matchs : classement) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -630,6 +630,11 @@
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
   #ext-cat,#ext-pool{font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:14px;padding:8px 10px;flex:1;min-width:160px;}
   #match-search{width:100%;max-width:420px;}
+  .std-wrap{padding:6px 10px;overflow-x:auto;}
+  .std-compact td{padding:7px 6px;font-size:13px;}
+  .std-compact th{padding:0 6px 6px;}
+  .std-team{cursor:pointer;}
+  .std-team:hover{color:var(--gold);}
   .live-line{font-family:var(--font-mono);font-size:10.5px;color:var(--green);margin:0 0 10px;display:flex;align-items:center;gap:6px;}
   .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(47,174,102,.25);}
   .form-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;}
@@ -1331,6 +1336,29 @@ function teamLine(team, pool){
   var pos = s ? '<span class="team-pos">' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.bp + '-' + s.bc + '</span>' : '';
   return '<div class="info-team"><div class="info-team-name">' + escapeHtml(team) + '</div>' + pos + '<div class="form-row">' + formChips(team, 5) + '</div></div>';
 }
+function standingsTable(pid, hlTeam){
+  var st = srcStandings()[pid] || [];
+  if(!st.length) return "";
+  var norm = function(x){ return String(x).toLowerCase().replace(/\s+/g," ").trim(); };
+  var html = '<h2 class="section-title" style="font-size:18px;margin-top:18px;">Classement &middot; ' + escapeHtml(poolName(pid).replace(/ - A$/, "")) + '</h2>';
+  html += '<div class="admin-form std-wrap"><table class="leaderboard std-compact"><thead><tr><th>#</th><th>Equipe</th><th class="num">J</th><th class="num">G</th><th class="num">N</th><th class="num">P</th><th class="num">Diff</th><th class="num">Pts</th></tr></thead><tbody>';
+  st.forEach(function(t){
+    var diff = t.bp - t.bc, hl = hlTeam && norm(t.team) === norm(hlTeam);
+    html += '<tr' + (hl ? ' class="team-hl"' : '') + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name"><span class="std-team" data-action="pick-team" data-team="' + escapeHtml(t.team) + '">' + escapeHtml(t.team) + '</span></td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
+  });
+  return html + '</tbody></table></div>';
+}
+function selectedPoolForMatchs(){
+  if(state.searchAll){
+    if(state.extPool) return state.extPool;
+    if(state.extCat){ var ps = extPoolsOf(state.extCat); if(ps.length === 1) return ps[0][0]; }
+    return "";
+  }
+  if(state.searchPool) return state.searchPool;
+  if(state.searchCat){ var mine = state.pools.filter(function(p){ return poolCat(p) === state.searchCat; }); if(mine.length === 1) return mine[0]; }
+  if(state.pools.length === 1) return state.pools[0];
+  return "";
+}
 function matchRow(m, focusTeam){
   var sc = hasScore(m) ? '<b class="row-score">' + m.scoreA + ' - ' + m.scoreB + '</b>' : '<span class="row-time">' + escapeHtml(m.status || m.time || "") + '</span>';
   var badge = "";
@@ -1464,6 +1492,8 @@ function renderMatchsInner(){
     return html + '<div class="empty"><div class="big">Tapez une equipe</div><p>Ou choisissez une categorie pour voir ses derniers resultats et prochains matchs.</p></div>';
   }
   if(!q){
+    var selPool = selectedPoolForMatchs();
+    if(selPool) html += standingsTable(selPool, "");
     var today0 = todayIso();
     var lim = state.mWeekOn ? 80 : 15;
     var recentAll = sortMatches(scopeMatches.filter(hasScore)).reverse();
@@ -1496,6 +1526,7 @@ function renderMatchsInner(){
     html += '<div class="admin-form team-card"><div class="info-team-name" style="font-size:22px;">' + escapeHtml(exact) + '</div>';
     if(s) html += '<div class="team-pos">' + escapeHtml(poolName(pm.pool)) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.g + 'V ' + s.n + 'N ' + s.p + 'D &middot; buts ' + s.bp + '-' + s.bc + '</div>';
     html += '<div class="form-row" style="margin-top:8px;">' + formChips(exact, 8) + '</div></div>';
+    if(pm) html += standingsTable(pm.pool, exact);
   } else if(teams.length > 1){
     html += '<div class="filter-row">' + teams.slice(0, 12).map(function(t){ return '<button class="filter-chip" data-action="pick-team" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>'; }).join("") + '</div>';
   }
