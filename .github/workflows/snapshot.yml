@@ -1,0 +1,84 @@
+# Robot Pronos Hockey : met a jour data/hockey-snapshot.json depuis hockey.be
+#
+# Horaires (heure belge) :
+#   lundi a vendredi : 2h
+#   samedi           : 2h, puis 12h, 14h, 16h, 18h, 20h
+#   dimanche         : 12h, 14h, 17h, 20h
+#
+# GitHub ne connait que l'heure UTC (Belgique = UTC+2 en ete, UTC+1 en hiver).
+# On programme donc les deux heures UTC possibles, et l'etape "Verifier l'heure"
+# ne garde que celle qui correspond a l'heure belge voulue (changement d'heure gere tout seul).
+name: Snapshot hockey.be
+
+on:
+  schedule:
+    - cron: "7 0,1 * * 1-5"                     # lun-ven 2h
+    - cron: "7 0,1,10-19 * * 6"                 # samedi 2h + 12h-20h toutes les 2 h
+    - cron: "7 10,11,12,13,15,16,18,19 * * 0"   # dimanche 12h, 14h, 17h, 20h
+  workflow_dispatch: {}                          # bouton "Run workflow" pour lancer a la main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verifier l'heure belge
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
+        run: |
+          python3 - <<'PY'
+          import os, datetime as dt
+          from zoneinfo import ZoneInfo
+          run = True
+          if os.environ["EVENT"] == "schedule":
+              now = dt.datetime.now(dt.timezone.utc)
+              hours = []
+              for part in os.environ["CRON"].split()[1].split(","):
+                  if "-" in part:
+                      a, b = map(int, part.split("-")); hours += list(range(a, b + 1))
+                  else:
+                      hours.append(int(part))
+              # heure UTC prevue = la plus proche dans le passe (GitHub demarre parfois en retard)
+              cands = [now.replace(hour=h, minute=7, second=0, microsecond=0) for h in hours]
+              cands = [c for c in cands if c <= now] or [min(cands)]
+              planned = max(cands)
+              local = planned.astimezone(ZoneInfo("Europe/Brussels"))
+              wanted = {0: {2}, 1: {2}, 2: {2}, 3: {2}, 4: {2},
+                        5: {2, 12, 14, 16, 18, 20},
+                        6: {12, 14, 17, 20}}[local.weekday()]
+              run = local.hour in wanted
+              print(f"Prevu {planned:%H:%M} UTC = {local:%a %H:%M} heure belge -> {'on lance' if run else 'pas maintenant'}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"run={'true' if run else 'false'}\n")
+          PY
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+      - name: Recuperer hockey.be
+        if: steps.gate.outputs.run == 'true'
+        run: python scripts/snapshot.py
+      - name: Enregistrer si quelque chose a change
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          git config user.name "robot-pronos-hockey"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/hockey-snapshot.json
+          if git diff --cached --quiet; then
+            echo "Rien de neuf"
+          else
+            git commit -m "Snapshot hockey.be $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git pull --rebase
+            git push
+          fi
