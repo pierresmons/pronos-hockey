@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 06/10/2026 (filtres ameliores) -->
+<!-- Pronos Hockey championnat - version du 06/10/2026 (onglet Matchs deplace) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -1150,7 +1150,7 @@ function renderPlayersRow(){
 }
 
 function renderTabs(){
-  var tabs = [{id:"pronostics",label:"Pronos"},{id:"matchs",label:"Matchs"},{id:"resultats",label:"Classement"},{id:"poules",label:"Poules"},{id:"admin",label:"Gestion"}];
+  var tabs = [{id:"pronostics",label:"Pronos"},{id:"resultats",label:"Classement"},{id:"poules",label:"Poules"},{id:"matchs",label:"Matchs"},{id:"admin",label:"Gestion"}];
   return '<div class="tabs">' + tabs.map(function(t){
     return '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-action="set-tab" data-tab="' + t.id + '">' + t.label + '</button>';
   }).join("") + '</div>';
