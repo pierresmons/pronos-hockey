@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 06/10/2026 (robot + direct) -->
+<!-- Pronos Hockey championnat - version du 06/10/2026 (Matchs : filtre par semaine) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -628,6 +628,8 @@
   .filters-panel .date-select{width:100%;max-width:260px;font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;padding:8px 10px;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
+  #ext-cat,#ext-pool{font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:14px;padding:8px 10px;flex:1;min-width:160px;}
+  #match-search{width:100%;max-width:420px;}
   .live-line{font-family:var(--font-mono);font-size:10.5px;color:var(--green);margin:0 0 10px;display:flex;align-items:center;gap:6px;}
   .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(47,174,102,.25);}
   .form-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;}
@@ -732,7 +734,7 @@ var state = {
   me:null, tab:"pronostics",
   filterGenre:[], filterPools:[], filterCat:"", filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, extCat:"", extPool:"", extAllCat:false
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false
 };
 
 /* ===================== Utilitaires ===================== */
@@ -804,6 +806,7 @@ function weekLabel(offset){
   if(offset === 0) return "Cette semaine";
   if(offset === 1) return "Semaine prochaine";
   if(offset === -1) return "Semaine passee";
+  if(offset < 0) return "Il y a " + (-offset) + " semaines";
   return "Dans " + offset + " semaines";
 }
 function showToast(msg){
@@ -1415,6 +1418,24 @@ function mergedExt(){
   Object.keys(state.standings).forEach(function(k){ if((state.standings[k] || []).length) st[k] = state.standings[k]; });
   return {matches: EXT.matches.filter(function(m){ return !mine[m.pool]; }).concat(state.matches), standings: st};
 }
+function inMatchWeek(m){
+  if(!state.mWeekOn) return true;
+  var wr = weekRange(state.mWeekOffset);
+  return !!m.date && m.date >= wr.start && m.date <= wr.end;
+}
+function renderMatchWeekNav(){
+  var wr = weekRange(state.mWeekOffset), on = state.mWeekOn;
+  var fd = function(x){ return x.toLocaleDateString("fr-FR", {day:"numeric", month:"short"}); };
+  return '<div class="filters-toggle-row">' +
+    '<span class="week-nav' + (on ? " active" : "") + '">' +
+      '<button class="filter-chip week-arrow" data-action="mweek-prev" aria-label="Semaine precedente">\u2039</button>' +
+      '<button class="filter-chip week-label' + (on ? " active" : "") + '" data-action="mweek-current">' + (on ? weekLabel(state.mWeekOffset) : "Par semaine") +
+        '<span class="week-dates">' + fd(wr.startD) + ' \u2013 ' + fd(wr.endD) + '</span></button>' +
+      '<button class="filter-chip week-arrow" data-action="mweek-next" aria-label="Semaine suivante">\u203A</button>' +
+    '</span>' +
+    '<button class="filter-chip' + (!on ? " active" : "") + '" data-action="mweek-off">Toute la saison</button>' +
+  '</div>';
+}
 function renderMatchs(){
   SRC = state.searchAll ? mergedExt() : null;
   try{ return renderMatchsInner(); } finally { SRC = null; }
@@ -1431,27 +1452,33 @@ function renderMatchsInner(){
     html += '<p class="section-hint">Choisissez une categorie et/ou tapez une equipe ou un club pour voir resultats, prochains matchs et forme.</p>';
     html += renderSearchScope();
   }
+  html += renderMatchWeekNav();
   html += '<div class="filter-row"><input type="text" class="inline-input search-input" id="match-search" list="team-list" placeholder="Ex : Leopold, Racing H-1, Dragons..." value="' + escapeHtml(state.searchQ) + '" autocomplete="off"></div>';
-  var scopeMatches = srcMatches().filter(inSearchScope);
-  var scopeTeams = {}; scopeMatches.forEach(function(m){ scopeTeams[m.teamA] = 1; scopeTeams[m.teamB] = 1; });
+  var scopeAll = srcMatches().filter(inSearchScope);
+  var scopeMatches = state.mWeekOn ? scopeAll.filter(inMatchWeek) : scopeAll;
+  var scopeTeams = {}; scopeAll.forEach(function(m){ scopeTeams[m.teamA] = 1; scopeTeams[m.teamB] = 1; });
   var qd = state.searchQ.trim().toLowerCase();
   html += '<datalist id="team-list">' + Object.keys(scopeTeams).filter(function(t){ return !qd || t.toLowerCase().indexOf(qd) !== -1; }).sort().slice(0, 60).map(function(t){ return '<option value="' + escapeHtml(t) + '">'; }).join("") + '</datalist>';
   var q = state.searchQ.trim().toLowerCase();
-  if(!q && state.searchAll && !state.extCat){
+  if(!q && state.searchAll && !state.extCat && !state.mWeekOn){
     return html + '<div class="empty"><div class="big">Tapez une equipe</div><p>Ou choisissez une categorie pour voir ses derniers resultats et prochains matchs.</p></div>';
   }
   if(!q){
     var today0 = todayIso();
-    var recent = sortMatches(scopeMatches.filter(hasScore)).reverse().slice(0, 15);
+    var lim = state.mWeekOn ? 80 : 15;
+    var recentAll = sortMatches(scopeMatches.filter(hasScore)).reverse();
+    var recent = recentAll.slice(0, lim);
     var nextHtml = "";
-    if(state.searchCat || state.searchPool || state.searchAll){
-      var next = sortMatches(scopeMatches.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today0); })).slice(0, 15);
-      nextHtml = '<h2 class="section-title" style="font-size:18px;margin-top:18px;">Prochains matchs</h2>' +
+    if(state.searchCat || state.searchPool || state.searchAll || state.mWeekOn){
+      var nextAll = sortMatches(scopeMatches.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today0); }));
+      var next = nextAll.slice(0, lim);
+      nextHtml = '<h2 class="section-title" style="font-size:18px;margin-top:18px;">' + (state.mWeekOn ? 'Matchs a venir (' + nextAll.length + ')' : 'Prochains matchs') + '</h2>' +
         (next.length ? '<div class="admin-form row-list">' + next.map(function(m){ return matchRow(m); }).join("") + '</div>' : '<p class="points-sub">Aucun match a venir.</p>');
     }
-    html += '<h2 class="section-title" style="font-size:18px;margin-top:18px;">Derniers resultats</h2>';
+    html += '<h2 class="section-title" style="font-size:18px;margin-top:18px;">' + (state.mWeekOn ? 'Resultats (' + recentAll.length + ')' : 'Derniers resultats') + '</h2>';
     html += recent.length ? '<div class="admin-form row-list">' + recent.map(function(m){ return matchRow(m); }).join("") + '</div>' : '<div class="empty"><p>Aucun resultat pour l\'instant.</p></div>';
     html += nextHtml;
+    if(state.mWeekOn && (recentAll.length > lim || (typeof nextAll !== "undefined" && nextAll.length > lim))) html += '<p class="points-sub">Liste limitee a ' + lim + ' matchs : choisissez une categorie ou tapez une equipe pour affiner.</p>';
     return html;
   }
   var hits = scopeMatches.filter(function(m){ return m.teamA.toLowerCase().indexOf(q) !== -1 || m.teamB.toLowerCase().indexOf(q) !== -1; });
@@ -1461,7 +1488,7 @@ function renderMatchsInner(){
   if(exact){
     /* classement : la poule ou l'equipe a joue le plus (championnat plutot que coupe) */
     var pm = null, s = null;
-    scopeMatches.forEach(function(m){
+    scopeAll.forEach(function(m){
       if(m.teamA !== exact && m.teamB !== exact) return;
       var st = standingOf(exact, m.pool);
       if(st && (!s || st.j > s.j)){ s = st; pm = m; }
@@ -1573,6 +1600,10 @@ function attachEvents(){
     if(act && act.offsetLeft + act.offsetWidth > row.clientWidth) row.scrollLeft = act.offsetLeft - 12;
   });
   on('[data-action="toggle-info"]', "click", function(el){ var id = el.getAttribute("data-match"); state.infoOpen[id] = !state.infoOpen[id]; render(); });
+  on('[data-action="mweek-prev"]', "click", function(){ if(state.mWeekOn) state.mWeekOffset--; state.mWeekOn = true; render(); });
+  on('[data-action="mweek-next"]', "click", function(){ if(state.mWeekOn) state.mWeekOffset++; state.mWeekOn = true; render(); });
+  on('[data-action="mweek-current"]', "click", function(){ state.mWeekOn = true; state.mWeekOffset = 0; render(); });
+  on('[data-action="mweek-off"]', "click", function(){ state.mWeekOn = false; state.mWeekOffset = 0; render(); });
   on('[data-action="search-mode"]', "click", function(el){ state.searchAll = el.getAttribute("data-all") === "1"; render(); if(state.searchAll) loadSnapshot(false); });
   var ec = document.getElementById("ext-cat");
   if(ec) ec.addEventListener("change", function(){
