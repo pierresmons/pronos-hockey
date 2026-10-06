@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 06/10/2026 (onglet Matchs deplace) -->
+<!-- Pronos Hockey championnat - version du 06/10/2026 (robot + direct) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -628,6 +628,8 @@
   .filters-panel .date-select{width:100%;max-width:260px;font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;padding:8px 10px;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
+  .live-line{font-family:var(--font-mono);font-size:10.5px;color:var(--green);margin:0 0 10px;display:flex;align-items:center;gap:6px;}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(47,174,102,.25);}
   .form-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;}
   .form-chip{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;font-family:var(--font-mono);font-size:11px;font-weight:700;color:#fff;flex-shrink:0;}
   .form-V{background:var(--green);} .form-N{background:#6b7f92;} .form-D{background:var(--red);}
@@ -758,7 +760,7 @@ function stripHtml(h){
   return d.textContent.replace(/\s+/g, " ").trim();
 }
 function teamName(h){
-  return stripHtml(h).replace(/\s*\|\s*/, " ").replace(/ (Outdoor|Indoor) Semaine/i, "").trim();
+  return stripHtml(h).replace(/\s*\|\s*/, " ").replace(/ (Outdoor|Indoor|R\u00e9cr\u00e9atif|Recreatif|Trimmers) Semaine/i, "").trim();
 }
 function isoDate(dmy){
   var m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(dmy || "");
@@ -1227,10 +1229,46 @@ function renderPredictionCard(m, isDone){
 /* SRC = donnees de la recherche "Tout hockey.be" (chargees a la demande, non sauvegardees) */
 var EXT = {matches:[], standings:{}, loaded:{}, loading:0, failed:[]};
 var SRC = null;
+/* Fichier prepare par le robot GitHub (toutes les poules, mis a jour plusieurs fois par jour) */
+var SNAPSHOT_URLS = [
+  "https://raw.githubusercontent.com/pierresmons/pronos-hockey/main/data/hockey-snapshot.json",
+  "data/hockey-snapshot.json"
+];
+var SNAP = {state:"idle", generated:null};
+async function loadSnapshot(force){
+  if(SNAP.state === "loading" || (SNAP.state === "ok" && !force)) return;
+  SNAP.state = "loading"; render();
+  for(var i = 0; i < SNAPSHOT_URLS.length; i++){
+    try{
+      var r = await fetch(SNAPSHOT_URLS[i] + "?t=" + Math.floor(Date.now() / 600000));
+      if(!r.ok) continue;
+      var d = await r.json();
+      if(!d || !d.matches || !d.pools) continue;
+      var pools = d.pools, teams = d.teams;
+      pools.forEach(function(p){ if(!ALL_POOLS.some(function(x){ return x[0] === p[0]; })) ALL_POOLS.push([p[0], p[1], 1]); });
+      var byId = {};
+      EXT.matches = [];
+      d.matches.forEach(function(m){
+        var pid = pools[m[0]][0], a = teams[m[3]], b = teams[m[4]];
+        var o = {id:matchKey(pid, a, b), pool:pid, date:m[1], time:m[2], teamA:a, teamB:b,
+                 scoreA:m[5] === undefined ? null : m[5], scoreB:m[6] === undefined ? null : m[6], status:m[7] || null, venue:m[8] || null};
+        if(!byId[o.id]){ byId[o.id] = o; EXT.matches.push(o); }
+      });
+      EXT.standings = {};
+      Object.keys(d.standings || {}).forEach(function(pid){
+        EXT.standings[pid] = d.standings[pid].map(function(t){ return {rank:t[0], team:t[1], j:t[2], g:t[3], p:t[4], n:t[5], bp:t[6], bc:t[7], pts:t[8]}; });
+      });
+      EXT.loaded = {}; pools.forEach(function(p){ EXT.loaded[p[0]] = true; });
+      SNAP.state = "ok"; SNAP.generated = d.generated; render();
+      return;
+    }catch(e){}
+  }
+  SNAP.state = "error"; render();
+}
 function srcMatches(){ return SRC ? SRC.matches : state.matches; }
 function srcStandings(){ return SRC ? SRC.standings : state.standings; }
-async function loadExtPools(pids){
-  var todo = pids.filter(function(p){ return !EXT.loaded[p]; });
+async function loadExtPools(pids, force){
+  var todo = pids.filter(function(p){ return force || !EXT.loaded[p]; });
   if(!todo.length) return;
   EXT.loading += todo.length; EXT.failed = []; render();
   var byId = {}; EXT.matches.forEach(function(m){ byId[m.id] = m; });
@@ -1251,7 +1289,7 @@ async function loadExtPools(pids){
           put({pool:pid, teamA:teamName(r[3]), teamB:teamName(r[r.length-1]), date:isoDate(r[0]), time:(r[1]||"").slice(0,5),
                scoreA: mm ? parseInt(mm[1],10) : null, scoreB: mm ? parseInt(mm[2],10) : null, status: mm ? (sc.replace(/(\d+)\s*-\s*(\d+)/, "").trim() || null) : (sc || null)}); });
         EXT.standings[pid] = res[2].map(function(t){ return {rank:t[0], team:t[1], j:t[2], g:t[3], p:t[4], n:t[5], bp:t[6], bc:t[7], pts:t[8]}; });
-        EXT.loaded[pid] = true;
+        EXT.loaded[pid] = true; EXT.live = EXT.live || {}; EXT.live[pid] = new Date();
       }catch(e){ EXT.failed.push(poolName(pid)); }
       EXT.loading--; render();
     }
@@ -1311,7 +1349,7 @@ function inSearchScope(m){
   if(state.searchAll){
     if(state.extPool) return m.pool === state.extPool;
     if(state.extCat) return poolCat(m.pool) === state.extCat;
-    return false;
+    return SNAP.state === "ok";
   }
   if(state.searchPool) return m.pool === state.searchPool;
   if(state.searchCat) return poolCat(m.pool) === state.searchCat;
@@ -1343,7 +1381,11 @@ function extCategories(){
 }
 function extPoolsOf(cat){ return ALL_POOLS.filter(function(p){ return p[2] > 0 && !isIsolatedPool(p[1]) && poolGroup(p[1]) === cat; }); }
 function renderExtScope(){
-  var html = '<div class="filter-row"><select class="date-select' + (state.extCat ? " active" : "") + '" id="ext-cat"><option value="">Choisir une categorie...</option>' +
+  var html = "";
+  if(SNAP.state === "loading") html += '<p class="selected-count">Chargement de tout hockey.be...</p>';
+  else if(SNAP.state === "ok") html += '<p class="points-sub" style="margin:0 0 8px;">Donnees hockey.be du ' + new Date(SNAP.generated).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) + ' (mises a jour automatiquement plusieurs fois par jour)</p>';
+  else if(SNAP.state === "error") html += '<p class="points-sub" style="margin:0 0 8px;">Fichier complet indisponible : les poules sont chargees une par une depuis hockey.be.</p>';
+  html += '<div class="filter-row"><select class="date-select' + (state.extCat ? " active" : "") + '" id="ext-cat"><option value="">' + (SNAP.state === "ok" ? "Toutes les categories" : "Choisir une categorie...") + '</option>' +
     extCategories().map(function(c){ return '<option value="' + escapeHtml(c) + '"' + (state.extCat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>'; }).join("") + '</select>';
   if(state.extCat){
     var pools = extPoolsOf(state.extCat);
@@ -1356,13 +1398,25 @@ function renderExtScope(){
     var missing = extPoolsOf(state.extCat).filter(function(p){ return !EXT.loaded[p[0]]; });
     if(missing.length) html += '<p class="points-sub" style="margin:0 0 10px;">Choisissez une poule ci-dessus, ou <button class="btn btn-sm" data-action="ext-load-cat">charger les ' + missing.length + ' poules de la categorie</button></p>';
   }
+  if(state.extPool){
+    var mineP = state.pools.indexOf(state.extPool) !== -1;
+    var liveT = mineP ? (state.lastSync ? new Date(state.lastSync) : null) : (EXT.live && EXT.live[state.extPool]);
+    if(liveT) html += '<p class="live-line"><span class="live-dot"></span>En direct de hockey.be &middot; ' + liveT.toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}) + (mineP ? ' (poule de ta partie)' : '') + '</p>';
+  }
   if(state.extPool && EXT.loaded[state.extPool] && state.pools.indexOf(state.extPool) === -1){
     html += '<p class="points-sub" style="margin:0 0 10px;"><button class="btn btn-sm" data-action="ext-follow" data-pool="' + state.extPool + '">+ Suivre cette poule dans ma partie</button></p>';
   }
   return html;
 }
+function mergedExt(){
+  /* les poules suivies par la partie viennent des donnees en direct de la partie */
+  var mine = {}; state.pools.forEach(function(p){ mine[p] = 1; });
+  var st = {}; Object.keys(EXT.standings).forEach(function(k){ st[k] = EXT.standings[k]; });
+  Object.keys(state.standings).forEach(function(k){ if((state.standings[k] || []).length) st[k] = state.standings[k]; });
+  return {matches: EXT.matches.filter(function(m){ return !mine[m.pool]; }).concat(state.matches), standings: st};
+}
 function renderMatchs(){
-  SRC = state.searchAll ? EXT : null;
+  SRC = state.searchAll ? mergedExt() : null;
   try{ return renderMatchsInner(); } finally { SRC = null; }
 }
 function renderMatchsInner(){
@@ -1370,9 +1424,9 @@ function renderMatchsInner(){
   html += '<div class="filter-row"><button class="filter-chip' + (!state.searchAll ? " active" : "") + '" data-action="search-mode" data-all="0">Mes poules</button>' +
           '<button class="filter-chip' + (state.searchAll ? " active" : "") + '" data-action="search-mode" data-all="1">Tout hockey.be</button></div>';
   if(state.searchAll){
-    html += '<p class="section-hint">Toutes les competitions de hockey.be, chargees a la demande. Choisissez une categorie puis une poule (ou toutes), et tapez une equipe si besoin.</p>';
+    html += '<p class="section-hint">Toutes les competitions de hockey.be. Tapez une equipe directement, ou choisissez une categorie puis une poule.</p>';
     html += renderExtScope();
-    if(!state.extCat) return html + '<div class="empty"><div class="big">Choisissez une categorie</div><p>Par exemple U19 Boys, puis Nat. 2 - A.</p></div>';
+    if(!state.extCat && SNAP.state !== "ok") return html + '<div class="empty"><div class="big">Choisissez une categorie</div><p>Par exemple U19 Boys, puis Nat. 2 - A.</p></div>';
   } else {
     html += '<p class="section-hint">Choisissez une categorie et/ou tapez une equipe ou un club pour voir resultats, prochains matchs et forme.</p>';
     html += renderSearchScope();
@@ -1380,8 +1434,12 @@ function renderMatchsInner(){
   html += '<div class="filter-row"><input type="text" class="inline-input search-input" id="match-search" list="team-list" placeholder="Ex : Leopold, Racing H-1, Dragons..." value="' + escapeHtml(state.searchQ) + '" autocomplete="off"></div>';
   var scopeMatches = srcMatches().filter(inSearchScope);
   var scopeTeams = {}; scopeMatches.forEach(function(m){ scopeTeams[m.teamA] = 1; scopeTeams[m.teamB] = 1; });
-  html += '<datalist id="team-list">' + allTeams().filter(function(t){ return scopeTeams[t]; }).map(function(t){ return '<option value="' + escapeHtml(t) + '">'; }).join("") + '</datalist>';
+  var qd = state.searchQ.trim().toLowerCase();
+  html += '<datalist id="team-list">' + Object.keys(scopeTeams).filter(function(t){ return !qd || t.toLowerCase().indexOf(qd) !== -1; }).sort().slice(0, 60).map(function(t){ return '<option value="' + escapeHtml(t) + '">'; }).join("") + '</datalist>';
   var q = state.searchQ.trim().toLowerCase();
+  if(!q && state.searchAll && !state.extCat){
+    return html + '<div class="empty"><div class="big">Tapez une equipe</div><p>Ou choisissez une categorie pour voir ses derniers resultats et prochains matchs.</p></div>';
+  }
   if(!q){
     var today0 = todayIso();
     var recent = sortMatches(scopeMatches.filter(hasScore)).reverse().slice(0, 15);
@@ -1401,8 +1459,13 @@ function renderMatchsInner(){
   if(!hits.length) return html + '<div class="empty"><div class="big">Aucun match trouve</div><p>' + (state.searchAll ? 'Verifiez l\'orthographe, ou choisissez une autre poule (ou toutes les poules de la categorie).' : 'Verifiez l\'orthographe, choisissez "Toutes" les categories, ou passez en mode "Tout hockey.be".') + '</p></div>';
   var exact = teams.length === 1 ? teams[0] : teams.find(function(t){ return t.toLowerCase() === q; });
   if(exact){
-    var pm = scopeMatches.find(function(m){ return m.teamA === exact || m.teamB === exact; });
-    var s = pm ? standingOf(exact, pm.pool) : null;
+    /* classement : la poule ou l'equipe a joue le plus (championnat plutot que coupe) */
+    var pm = null, s = null;
+    scopeMatches.forEach(function(m){
+      if(m.teamA !== exact && m.teamB !== exact) return;
+      var st = standingOf(exact, m.pool);
+      if(st && (!s || st.j > s.j)){ s = st; pm = m; }
+    });
     html += '<div class="admin-form team-card"><div class="info-team-name" style="font-size:22px;">' + escapeHtml(exact) + '</div>';
     if(s) html += '<div class="team-pos">' + escapeHtml(poolName(pm.pool)) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.g + 'V ' + s.n + 'N ' + s.p + 'D &middot; buts ' + s.bp + '-' + s.bc + '</div>';
     html += '<div class="form-row" style="margin-top:8px;">' + formChips(exact, 8) + '</div></div>';
@@ -1510,17 +1573,21 @@ function attachEvents(){
     if(act && act.offsetLeft + act.offsetWidth > row.clientWidth) row.scrollLeft = act.offsetLeft - 12;
   });
   on('[data-action="toggle-info"]', "click", function(el){ var id = el.getAttribute("data-match"); state.infoOpen[id] = !state.infoOpen[id]; render(); });
-  on('[data-action="search-mode"]', "click", function(el){ state.searchAll = el.getAttribute("data-all") === "1"; render(); });
+  on('[data-action="search-mode"]', "click", function(el){ state.searchAll = el.getAttribute("data-all") === "1"; render(); if(state.searchAll) loadSnapshot(false); });
   var ec = document.getElementById("ext-cat");
   if(ec) ec.addEventListener("change", function(){
     state.extCat = ec.value; state.extPool = ""; render();
-    if(state.extCat){ var ps = extPoolsOf(state.extCat); if(ps.length <= 8) loadExtPools(ps.map(function(p){ return p[0]; })).then(render); }
+    if(state.extCat && SNAP.state !== "ok"){ var ps = extPoolsOf(state.extCat); if(ps.length <= 8) loadExtPools(ps.map(function(p){ return p[0]; })).then(render); }
   });
   var ep = document.getElementById("ext-pool");
   if(ep) ep.addEventListener("change", function(){
     state.extPool = ep.value; render();
-    var ids = state.extPool ? [state.extPool] : extPoolsOf(state.extCat).map(function(p){ return p[0]; });
-    loadExtPools(ids).then(render);
+    if(state.extPool){
+      /* poule choisie : on la recharge en direct (sauf si c'est une poule de la partie, deja a jour) */
+      if(state.pools.indexOf(state.extPool) === -1) loadExtPools([state.extPool], true).then(render);
+    } else {
+      loadExtPools(extPoolsOf(state.extCat).map(function(p){ return p[0]; })).then(render);
+    }
   });
   on('[data-action="ext-load-cat"]', "click", function(){ loadExtPools(extPoolsOf(state.extCat).map(function(p){ return p[0]; })).then(render); });
   on('[data-action="ext-follow"]', "click", async function(el){
@@ -1723,15 +1790,28 @@ async function init(){
   if(!state.me && state.players.length) state.me = state.players[0];
   render();
   if(state.room){
-    var stale = !state.lastSync || (Date.now() - new Date(state.lastSync).getTime()) > 30 * 60 * 1000;
+    var stale = isStale();
     if(stale){ await syncFromHockeyBe(); render(); }
   }
 }
 init();
 
+/* Poules de la partie en direct : mise a jour si les donnees ont plus de 15 minutes,
+   a l'ouverture, au retour dans l'app, et toutes les 5 minutes tant que l'app est ouverte */
+function isStale(){ return !state.lastSync || (Date.now() - new Date(state.lastSync).getTime()) > 15 * 60 * 1000; }
+async function liveTick(){
+  if(!state.room || state.syncing || document.visibilityState !== "visible") return;
+  /* ne pas redessiner l'ecran pendant qu'on tape un score ou une recherche */
+  var ae = document.activeElement;
+  if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+  await refreshCloud();
+  if(isStale()) await syncFromHockeyBe();
+  render();
+}
 document.addEventListener("visibilitychange", function(){
-  if(document.visibilityState === "visible" && state.room){ refreshCloud().then(render); }
+  if(document.visibilityState === "visible" && state.room){ liveTick(); }
 });
+setInterval(liveTick, 5 * 60 * 1000);
 
 })();
 </script>
