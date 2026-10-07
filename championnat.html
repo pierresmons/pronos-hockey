@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 07/10/2026 (effacer les filtres) -->
+<!-- Pronos Hockey championnat - version du 07/10/2026 (suggestions equipes) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -626,6 +626,8 @@
   .filter-label{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--ice-faint);margin:10px 0 5px;}
   .filters-panel .filter-row{margin-bottom:2px;}
   .filters-panel .date-select{width:100%;max-width:260px;font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;padding:8px 10px;}
+  .team-sugg .filter-chip{text-transform:none;letter-spacing:0;font-family:inherit;font-size:14px;}
+  #match-search::-webkit-search-decoration{display:none;}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
@@ -1510,12 +1512,11 @@ function renderMatchsInner(){
     html += renderSearchScope();
   }
   html += renderMatchWeekNav();
-  html += '<div class="filter-row"><input type="text" class="inline-input search-input" id="match-search" list="team-list" placeholder="Ex : Leopold, Racing H-1, Dragons..." value="' + escapeHtml(state.searchQ) + '" autocomplete="off"></div>';
+  html += '<div class="filter-row"><input type="search" class="inline-input search-input" id="match-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Ex : Leopold, Racing H-1, Dragons..." value="' + escapeHtml(state.searchQ) + '"></div>';
   var scopeAll = srcMatches().filter(inSearchScope);
   var scopeMatches = state.mWeekOn ? scopeAll.filter(inMatchWeek) : scopeAll;
   var scopeTeams = {}; scopeAll.forEach(function(m){ scopeTeams[m.teamA] = 1; scopeTeams[m.teamB] = 1; });
   var qd = state.searchQ.trim().toLowerCase();
-  html += '<datalist id="team-list">' + Object.keys(scopeTeams).filter(function(t){ return !qd || t.toLowerCase().indexOf(qd) !== -1; }).sort().slice(0, 60).map(function(t){ return '<option value="' + escapeHtml(t) + '">'; }).join("") + '</datalist>';
   var q = state.searchQ.trim().toLowerCase();
   if(!q && state.searchAll && !state.extCat && !state.mWeekOn){
     return html + '<div class="empty"><div class="big">Tapez une equipe</div><p>Ou choisissez une categorie pour voir ses derniers resultats et prochains matchs.</p></div>';
@@ -1541,7 +1542,10 @@ function renderMatchsInner(){
     return html;
   }
   var hits = scopeMatches.filter(function(m){ return m.teamA.toLowerCase().indexOf(q) !== -1 || m.teamB.toLowerCase().indexOf(q) !== -1; });
-  var teams = allTeams().filter(function(t){ return scopeTeams[t] && t.toLowerCase().indexOf(q) !== -1; });
+  /* suggestions : d'abord les noms qui commencent par la recherche, puis un mot qui commence par elle, puis le reste */
+  var tRank = function(t){ var l = t.toLowerCase(); return l.indexOf(q) === 0 ? 0 : ((" " + l).indexOf(" " + q) !== -1 ? 1 : 2); };
+  var teams = allTeams().filter(function(t){ return scopeTeams[t] && t.toLowerCase().indexOf(q) !== -1; })
+    .sort(function(a, b){ return tRank(a) - tRank(b) || a.localeCompare(b); });
   if(!hits.length){
     /* Pas d'equipe : on cherche dans les noms de categories et de poules (ex : "open", "nat. 2") */
     var nq = function(s){ return s.toLowerCase().replace(/\./g, "").replace(/\s+/g, " "); }, qn = nq(q);
@@ -1574,7 +1578,8 @@ function renderMatchsInner(){
     html += '<div class="form-row" style="margin-top:8px;">' + formChips(exact, 8) + '</div></div>';
     if(pm) html += standingsTable(pm.pool, exact);
   } else if(teams.length > 1){
-    html += '<div class="filter-row">' + teams.slice(0, 12).map(function(t){ return '<button class="filter-chip" data-action="pick-team" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>'; }).join("") + '</div>';
+    html += '<div class="filter-label">Equipes trouvees (' + teams.length + ') &middot; touchez-en une</div><div class="filter-row team-sugg">' + teams.slice(0, 12).map(function(t){ return '<button class="filter-chip" data-action="pick-team" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>'; }).join("") + '</div>' +
+      (teams.length > 12 ? '<p class="points-sub" style="margin:-4px 0 10px;">Tapez quelques lettres de plus pour affiner.</p>' : '');
   }
   var today = todayIso();
   var upcoming = sortMatches(hits.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }));
@@ -1724,6 +1729,7 @@ function attachEvents(){
       state.searchQ = ms.value; var pos = ms.selectionStart; render();
       var n = document.getElementById("match-search"); if(n){ n.focus(); try{ n.setSelectionRange(pos, pos); }catch(e){} }
     });
+    ms.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); ms.blur(); } });
   }
   on('[data-action="toggle-isolated"]', "change", function(el){ state.showIsolated = el.checked; render(); });
   on('[data-action="pick-pool"]', "change", function(el){ toggleInArray(state.pickerSel, el.getAttribute("data-pool")); render(); });
