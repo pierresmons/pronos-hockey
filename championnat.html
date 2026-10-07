@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 07/10/2026 (suggestions equipes v2) -->
+<!-- Pronos Hockey championnat - version du 07/10/2026 (suggestions par club) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -626,7 +626,10 @@
   .filter-label{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--ice-faint);margin:10px 0 5px;}
   .filters-panel .filter-row{margin-bottom:2px;}
   .filters-panel .date-select{width:100%;max-width:260px;font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;padding:8px 10px;}
-  .team-sugg .filter-chip{text-transform:none;letter-spacing:0;font-family:inherit;font-size:14px;}
+  .team-sugg{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-bottom:12px;}
+  .team-sugg .filter-chip{width:100%;margin:0;text-align:center;justify-content:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:6px;padding-right:6px;}
+  .sugg-club{grid-column:1/-1;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:6px 0 -2px;}
+  .sugg-club:first-child{margin-top:0;}
   #match-search::-webkit-search-decoration{display:none;}
   .team-sugg-all{max-height:300px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px;border:1px solid var(--line, #22324a);border-radius:12px;}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
@@ -1496,6 +1499,24 @@ function renderMatchWeekNav(){
     ((state.searchQ || state.searchCat || state.searchPool || state.extCat || state.extPool || on) ? '<button class="btn btn-ghost btn-sm clear-btn" data-action="clear-mfilters">\u2715 Effacer les filtres</button>' : '') +
   '</div>';
 }
+function teamParts(t){
+  var m = /^(.*) ([A-Za-z0-9+]+)-(\d+)$/.exec(t);
+  if(!m) return {club:t, kind:999, num:0, code:""};
+  var code = m[2].toUpperCase(), kind = 900, u = /^U(\d+)([BG])$/.exec(code);
+  var order = {H:0, D:1, G:300, L:301, JL:302, M:303, JM:304, T:305};
+  if(order[code] !== undefined) kind = order[code];
+  else if(u) kind = 10 + (100 - +u[1]) * 2 + (u[2] === "G" ? 1 : 0);
+  return {club:m[1], kind:kind, num:+m[3], code:m[2]};
+}
+function teamSuggHtml(list){
+  var out = "", cur = null;
+  list.forEach(function(t){
+    var tp = teamParts(t);
+    if(tp.club !== cur){ cur = tp.club; out += '<div class="sugg-club">' + escapeHtml(cur) + '</div>'; }
+    out += '<button class="filter-chip" data-action="pick-team" data-team="' + escapeHtml(t) + '" title="' + escapeHtml(t) + '">' + escapeHtml(tp.code ? tp.code + "-" + tp.num : t) + '</button>';
+  });
+  return out;
+}
 function renderMatchs(){
   SRC = state.searchAll ? mergedExt() : null;
   try{ return renderMatchsInner(); } finally { SRC = null; }
@@ -1544,9 +1565,13 @@ function renderMatchsInner(){
   }
   var hits = scopeMatches.filter(function(m){ return m.teamA.toLowerCase().indexOf(q) !== -1 || m.teamB.toLowerCase().indexOf(q) !== -1; });
   /* suggestions : d'abord les noms qui commencent par la recherche, puis un mot qui commence par elle, puis le reste */
+  /* tri des equipes : club (ceux qui commencent par la recherche d'abord), puis type d'equipe dans l'ordre des categories
+     (H, D, U19B, U19G ... U7G, puis G, L, JL, M, JM, T), puis numero */
   var tRank = function(t){ var l = t.toLowerCase(); return l.indexOf(q) === 0 ? 0 : ((" " + l).indexOf(" " + q) !== -1 ? 1 : 2); };
-  var teams = allTeams().filter(function(t){ return scopeTeams[t] && t.toLowerCase().indexOf(q) !== -1; })
-    .sort(function(a, b){ return tRank(a) - tRank(b) || a.localeCompare(b); });
+  var teams = allTeams().filter(function(t){ return scopeTeams[t] && t.toLowerCase().indexOf(q) !== -1; });
+  var clubRank = {}; teams.forEach(function(t){ var c = teamParts(t).club, r = tRank(t); if(clubRank[c] === undefined || r < clubRank[c]) clubRank[c] = r; });
+  teams.sort(function(a, b){ var x = teamParts(a), y = teamParts(b);
+    return clubRank[x.club] - clubRank[y.club] || x.club.localeCompare(y.club) || x.kind - y.kind || x.num - y.num || a.localeCompare(b); });
   if(!hits.length){
     /* Pas d'equipe : on cherche dans les noms de categories et de poules (ex : "open", "nat. 2") */
     var nq = function(s){ return s.toLowerCase().replace(/\./g, "").replace(/\s+/g, " "); }, qn = nq(q);
@@ -1581,7 +1606,7 @@ function renderMatchsInner(){
   } else if(teams.length > 1){
     var showAll = state.teamSuggAll || teams.length <= 12;
     html += '<div class="filter-label">Equipes trouvees (' + teams.length + ') &middot; touchez-en une</div>' +
-      '<div class="filter-row team-sugg' + (showAll && teams.length > 12 ? ' team-sugg-all' : '') + '">' + (showAll ? teams : teams.slice(0, 12)).map(function(t){ return '<button class="filter-chip" data-action="pick-team" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>'; }).join("") + '</div>' +
+      '<div class="team-sugg' + (showAll && teams.length > 12 ? ' team-sugg-all' : '') + '">' + teamSuggHtml(showAll ? teams : teams.slice(0, 12)) + '</div>' +
       (teams.length > 12 ? '<p style="margin:-2px 0 12px;"><button class="btn btn-sm btn-ghost clear-btn" data-action="team-sugg-all">' + (showAll ? 'Reduire la liste' : 'Voir les ' + teams.length + ' equipes') + '</button></p>' : '');
   }
   var today = todayIso();
