@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 06/10/2026 (Matchs : classement) -->
+<!-- Pronos Hockey championnat - version du 07/10/2026 (categories triees v2) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -755,6 +755,34 @@ function poolGroup(n){
   var s = shortPool(n), parts = s.split(" - ");
   return parts[0];
 }
+/* Ordre logique des categories : seniors (du plus haut niveau au plus bas), jeunes (U19 -> U7), coupes, veterans & loisirs (dont Gentlemen), autres */
+var CAT_GROUPS = ["Seniors", "Jeunes", "Coupes", "Veterans & loisirs", "Autres"];
+function catInfo(c){
+  var pad = function(n){ return String(1000 + n).slice(1); };
+  var sex = /Women|Dames|Girls|Ladies/.test(c) ? 1 : (/Gentlemen/.test(c) ? 2 : 0);
+  var m;
+  if(sex === 2 && /^(Open|Fun) League/.test(c)) return {g:3, k:"0" + (/^Open/.test(c) ? "0" : "1")};
+  if(/^Top League/.test(c)) return {g:0, k:"0" + sex};
+  if(/^Belgian League/.test(c)) return {g:0, k:"1" + sex};
+  if(/^Open League/.test(c)) return {g:0, k:"2" + sex};
+  if(/^Fun League/.test(c)) return {g:0, k:"3" + sex};
+  if(c === "Ladies") return {g:3, k:"1"};
+  if(c === "Junior Ladies") return {g:3, k:"2"};
+  if((m = /^(\d+)\+/.exec(c))) return {g:3, k:"3" + pad(+m[1])};
+  if(/^Trimmers/.test(c)) return {g:3, k:"4"};
+  if((m = /^U(\d+)\s*(.*)$/.exec(c))) return {g:1, k:pad(100 - +m[1]) + (/Girls/.test(m[2]) ? "1" : "0")};
+  if(/Cup/.test(c)){
+    var rounds = ["1st round", "1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "final"];
+    var r = rounds.findIndex(function(x){ return c.toLowerCase().indexOf(x.toLowerCase()) !== -1; });
+    var base = c.replace(/\s*(1st round|1\/\d+( finals)?|finals?)\s*$/i, "");
+    var cupOrder = /Dr\. Oetker/.test(c) ? "0" : "1";
+    return {g:2, k:cupOrder + base + " " + pad(r < 0 ? 99 : r)};
+  }
+  return {g:4, k:c};
+}
+function sortCats(cats){
+  return cats.sort(function(a,b){ var x = catInfo(a), y = catInfo(b); return x.g - y.g || x.k.localeCompare(y.k) || a.localeCompare(b); });
+}
 function genreOf(n){
   if(/Women|Ladies|Girls/.test(n)) return "F";
   if(/\bMen\b|Men's|Gentlemen|Boys/.test(n)) return "H";
@@ -1054,7 +1082,7 @@ function renderFilters(showWindow){
   /* Categorie puis poule : deux rangees qui defilent horizontalement sur iPhone */
   var cats = [];
   state.pools.forEach(function(pid){ var c = poolCat(pid); if(cats.indexOf(c) === -1) cats.push(c); });
-  cats.sort(function(x,y){ return x.localeCompare(y); });
+  sortCats(cats);
   if(cats.length > 1){
     html += '<div class="filter-label">Categorie</div><div class="filter-row filter-row-scroll">' +
       '<button class="filter-chip' + (!state.filterCat ? " active" : "") + '" data-action="filter-cat" data-cat="">Toutes</button>' +
@@ -1389,7 +1417,7 @@ function inSearchScope(m){
 function renderSearchScope(){
   var cats = [];
   state.pools.forEach(function(pid){ var c = poolCat(pid); if(cats.indexOf(c) === -1) cats.push(c); });
-  cats.sort(function(a,b){ return a.localeCompare(b); });
+  sortCats(cats);
   if(cats.length < 2 && state.pools.length < 2) return "";
   var html = '<div class="filter-row filter-row-scroll">';
   html += '<button class="filter-chip' + (!state.searchCat ? " active" : "") + '" data-action="search-cat" data-cat="">Toutes</button>';
@@ -1407,8 +1435,7 @@ function renderSearchScope(){
 function extCategories(){
   var cats = [];
   ALL_POOLS.forEach(function(p){ if(p[2] > 0 && !isIsolatedPool(p[1])){ var g = poolGroup(p[1]); if(cats.indexOf(g) === -1) cats.push(g); } });
-  var key = function(c){ var m = /^U(\d+)/.exec(c); return m ? "1" + String(100 + parseInt(m[1],10)) + c : "0" + c; };
-  return cats.sort(function(a,b){ return key(a).localeCompare(key(b)); });
+  return sortCats(cats);
 }
 function extPoolsOf(cat){ return ALL_POOLS.filter(function(p){ return p[2] > 0 && !isIsolatedPool(p[1]) && poolGroup(p[1]) === cat; }); }
 function renderExtScope(){
@@ -1417,7 +1444,7 @@ function renderExtScope(){
   else if(SNAP.state === "ok") html += '<p class="points-sub" style="margin:0 0 8px;">Donnees hockey.be du ' + new Date(SNAP.generated).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) + ' (mises a jour automatiquement plusieurs fois par jour)</p>';
   else if(SNAP.state === "error") html += '<p class="points-sub" style="margin:0 0 8px;">Fichier complet indisponible : les poules sont chargees une par une depuis hockey.be.</p>';
   html += '<div class="filter-row"><select class="date-select' + (state.extCat ? " active" : "") + '" id="ext-cat"><option value="">' + (SNAP.state === "ok" ? "Toutes les categories" : "Choisir une categorie...") + '</option>' +
-    extCategories().map(function(c){ return '<option value="' + escapeHtml(c) + '"' + (state.extCat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>'; }).join("") + '</select>';
+    (function(){ var out = "", cur = -1; extCategories().forEach(function(c){ var g = catInfo(c).g; if(g !== cur){ if(cur !== -1) out += '</optgroup>'; out += '<optgroup label="' + CAT_GROUPS[g] + '">'; cur = g; } out += '<option value="' + escapeHtml(c) + '"' + (state.extCat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>'; }); return out + (cur !== -1 ? '</optgroup>' : ''); })() + '</select>';
   if(state.extCat){
     var pools = extPoolsOf(state.extCat);
     html += '<select class="date-select' + (state.extPool ? " active" : "") + '" id="ext-pool"><option value="">Toutes les poules (' + pools.length + ')</option>' +
