@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 07/10/2026 (suggestions equipes) -->
+<!-- Pronos Hockey championnat - version du 07/10/2026 (suggestions equipes v2) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -628,6 +628,7 @@
   .filters-panel .date-select{width:100%;max-width:260px;font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;padding:8px 10px;}
   .team-sugg .filter-chip{text-transform:none;letter-spacing:0;font-family:inherit;font-size:14px;}
   #match-search::-webkit-search-decoration{display:none;}
+  .team-sugg-all{max-height:300px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px;border:1px solid var(--line, #22324a);border-radius:12px;}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
@@ -742,7 +743,7 @@ var state = {
   me:null, tab:"pronostics",
   filterGenre:[], filterPools:[], filterCat:"", filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false
 };
 
 /* ===================== Utilitaires ===================== */
@@ -1578,8 +1579,10 @@ function renderMatchsInner(){
     html += '<div class="form-row" style="margin-top:8px;">' + formChips(exact, 8) + '</div></div>';
     if(pm) html += standingsTable(pm.pool, exact);
   } else if(teams.length > 1){
-    html += '<div class="filter-label">Equipes trouvees (' + teams.length + ') &middot; touchez-en une</div><div class="filter-row team-sugg">' + teams.slice(0, 12).map(function(t){ return '<button class="filter-chip" data-action="pick-team" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>'; }).join("") + '</div>' +
-      (teams.length > 12 ? '<p class="points-sub" style="margin:-4px 0 10px;">Tapez quelques lettres de plus pour affiner.</p>' : '');
+    var showAll = state.teamSuggAll || teams.length <= 12;
+    html += '<div class="filter-label">Equipes trouvees (' + teams.length + ') &middot; touchez-en une</div>' +
+      '<div class="filter-row team-sugg' + (showAll && teams.length > 12 ? ' team-sugg-all' : '') + '">' + (showAll ? teams : teams.slice(0, 12)).map(function(t){ return '<button class="filter-chip" data-action="pick-team" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>'; }).join("") + '</div>' +
+      (teams.length > 12 ? '<p style="margin:-2px 0 12px;"><button class="btn btn-sm btn-ghost clear-btn" data-action="team-sugg-all">' + (showAll ? 'Reduire la liste' : 'Voir les ' + teams.length + ' equipes') + '</button></p>' : '');
   }
   var today = todayIso();
   var upcoming = sortMatches(hits.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }));
@@ -1722,11 +1725,12 @@ function attachEvents(){
     state.searchAll = true; state.extCat = poolCat(pid); state.extPool = pid; render(); loadSnapshot(false);
     if(state.pools.indexOf(pid) === -1) loadExtPools([pid], true).then(render);
   });
+  on('[data-action="team-sugg-all"]', "click", function(){ state.teamSuggAll = !state.teamSuggAll; render(); });
   on('[data-action="pick-team"]', "click", function(el){ state.searchQ = el.getAttribute("data-team"); render(); });
   var ms = document.getElementById("match-search");
   if(ms){
     ms.addEventListener("input", function(){
-      state.searchQ = ms.value; var pos = ms.selectionStart; render();
+      state.searchQ = ms.value; state.teamSuggAll = false; var pos = ms.selectionStart; render();
       var n = document.getElementById("match-search"); if(n){ n.focus(); try{ n.setSelectionRange(pos, pos); }catch(e){} }
     });
     ms.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); ms.blur(); } });
