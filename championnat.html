@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 07/10/2026 (categories triees v2) -->
+<!-- Pronos Hockey championnat - version du 07/10/2026 (effacer les filtres) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -626,6 +626,7 @@
   .filter-label{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--ice-faint);margin:10px 0 5px;}
   .filters-panel .filter-row{margin-bottom:2px;}
   .filters-panel .date-select{width:100%;max-width:260px;font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;padding:8px 10px;}
+  .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
   #ext-cat,#ext-pool{font-family:var(--font-body);text-transform:none;letter-spacing:0;font-weight:500;font-size:14px;padding:8px 10px;flex:1;min-width:160px;}
@@ -1065,7 +1066,7 @@ function renderFilters(showWindow){
     '</span>';
     html += '<button class="filter-chip' + (!wk ? " active" : "") + '" data-action="set-window" data-window="all">Toute la saison</button>';
   }
-  if(count) html += '<button class="btn btn-ghost btn-sm" data-action="clear-filters">Effacer</button>';
+  if(count || state.weekOffset !== 0 || state.filterWindow !== "week") html += '<button class="btn btn-ghost btn-sm clear-btn" data-action="clear-filters">\u2715 Effacer les filtres</button>';
   html += '</div>';
   if(count && !state.filtersOpen){
     var parts = [];
@@ -1489,6 +1490,7 @@ function renderMatchWeekNav(){
       '<button class="filter-chip week-arrow" data-action="mweek-next" aria-label="Semaine suivante">\u203A</button>' +
     '</span>' +
     '<button class="filter-chip' + (!on ? " active" : "") + '" data-action="mweek-off">Toute la saison</button>' +
+    ((state.searchQ || state.searchCat || state.searchPool || state.extCat || state.extPool || on) ? '<button class="btn btn-ghost btn-sm clear-btn" data-action="clear-mfilters">\u2715 Effacer les filtres</button>' : '') +
   '</div>';
 }
 function renderMatchs(){
@@ -1540,7 +1542,24 @@ function renderMatchsInner(){
   }
   var hits = scopeMatches.filter(function(m){ return m.teamA.toLowerCase().indexOf(q) !== -1 || m.teamB.toLowerCase().indexOf(q) !== -1; });
   var teams = allTeams().filter(function(t){ return scopeTeams[t] && t.toLowerCase().indexOf(q) !== -1; });
-  if(!hits.length) return html + '<div class="empty"><div class="big">Aucun match trouve</div><p>' + (state.searchAll ? 'Verifiez l\'orthographe, ou choisissez une autre poule (ou toutes les poules de la categorie).' : 'Verifiez l\'orthographe, choisissez "Toutes" les categories, ou passez en mode "Tout hockey.be".') + '</p></div>';
+  if(!hits.length){
+    /* Pas d'equipe : on cherche dans les noms de categories et de poules (ex : "open", "nat. 2") */
+    var nq = function(s){ return s.toLowerCase().replace(/\./g, "").replace(/\s+/g, " "); }, qn = nq(q);
+    var myCats = {}; state.pools.forEach(function(pid){ myCats[poolCat(pid)] = 1; });
+    var catHits = extCategories().filter(function(c){ return nq(c).indexOf(qn) !== -1; });
+    Object.keys(myCats).forEach(function(c){ if(nq(c).indexOf(qn) !== -1 && catHits.indexOf(c) === -1) catHits.push(c); });
+    sortCats(catHits);
+    var poolHits = catHits.length ? [] : ALL_POOLS.filter(function(x){ return x[2] > 0 && !isIsolatedPool(x[1]) && nq(shortPool(x[1])).indexOf(qn) !== -1; }).slice(0, 15);
+    if(catHits.length || poolHits.length){
+      html += '<h2 class="section-title" style="font-size:18px;margin-top:6px;">' + (catHits.length ? 'Categories' : 'Poules') + ' contenant &laquo; ' + escapeHtml(state.searchQ.trim()) + ' &raquo;</h2>';
+      html += '<p class="points-sub" style="margin:0 0 8px;">La recherche porte sur les equipes. Touchez une ' + (catHits.length ? 'categorie' : 'poule') + ' pour voir ses matchs' + (catHits.length ? '' : ' et son classement') + '.</p>';
+      html += '<div class="filter-row">' + (catHits.length
+        ? catHits.map(function(c){ return '<button class="filter-chip" data-action="goto-cat" data-cat="' + escapeHtml(c) + '" data-mine="' + (myCats[c] && !state.searchAll ? "1" : "0") + '">' + escapeHtml(c) + (myCats[c] ? ' &#9733;' : '') + '</button>'; }).join("")
+        : poolHits.map(function(x){ return '<button class="filter-chip" data-action="goto-pool" data-pool="' + x[0] + '">' + escapeHtml(shortPool(x[1]).replace(/ - A$/, "")) + '</button>'; }).join("")) + '</div>';
+      return html;
+    }
+    return html + '<div class="empty"><div class="big">Aucun match trouve</div><p>' + (state.searchAll ? 'Verifiez l\'orthographe, ou choisissez une autre poule (ou toutes les poules de la categorie).' : 'Verifiez l\'orthographe, choisissez "Toutes" les categories, ou passez en mode "Tout hockey.be".') + '</p></div>';
+  }
   var exact = teams.length === 1 ? teams[0] : teams.find(function(t){ return t.toLowerCase() === q; });
   if(exact){
     /* classement : la poule ou l'equipe a joue le plus (championnat plutot que coupe) */
@@ -1686,6 +1705,18 @@ function attachEvents(){
   });
   on('[data-action="search-cat"]', "click", function(el){ state.searchCat = el.getAttribute("data-cat"); state.searchPool = ""; render(); });
   on('[data-action="search-pool"]', "click", function(el){ state.searchPool = el.getAttribute("data-pool"); render(); });
+  on('[data-action="goto-cat"]', "click", function(el){
+    var c = el.getAttribute("data-cat"); state.searchQ = "";
+    if(el.getAttribute("data-mine") === "1"){ state.searchCat = c; state.searchPool = ""; render(); return; }
+    state.searchAll = true; state.extCat = c; state.extPool = ""; render(); loadSnapshot(false);
+    if(SNAP.state !== "ok"){ var ps = extPoolsOf(c); if(ps.length <= 8) loadExtPools(ps.map(function(p){ return p[0]; })).then(render); }
+  });
+  on('[data-action="goto-pool"]', "click", function(el){
+    var pid = el.getAttribute("data-pool"); state.searchQ = "";
+    if(state.pools.indexOf(pid) !== -1 && !state.searchAll){ state.searchCat = poolCat(pid); state.searchPool = pid; render(); return; }
+    state.searchAll = true; state.extCat = poolCat(pid); state.extPool = pid; render(); loadSnapshot(false);
+    if(state.pools.indexOf(pid) === -1) loadExtPools([pid], true).then(render);
+  });
   on('[data-action="pick-team"]', "click", function(el){ state.searchQ = el.getAttribute("data-team"); render(); });
   var ms = document.getElementById("match-search");
   if(ms){
@@ -1766,7 +1797,8 @@ function attachEvents(){
   if(npi) npi.addEventListener("keydown", function(e){ if(e.key === "Enter") doAdd(); });
 
   on('[data-action="toggle-filters"]', "click", function(){ state.filtersOpen = !state.filtersOpen; render(); });
-  on('[data-action="clear-filters"]', "click", function(){ state.filterGenre = []; state.filterPools = []; state.filterCat = ""; state.filterDate = "all"; state.filterTeam = ""; render(); });
+  on('[data-action="clear-filters"]', "click", function(){ state.filterGenre = []; state.filterPools = []; state.filterCat = ""; state.filterDate = "all"; state.filterTeam = ""; state.filterWindow = "week"; state.weekOffset = 0; render(); });
+  on('[data-action="clear-mfilters"]', "click", function(){ state.searchQ = ""; state.searchCat = ""; state.searchPool = ""; state.extCat = ""; state.extPool = ""; state.mWeekOn = false; state.mWeekOffset = 0; render(); });
   on('[data-action="filter-cat"]', "click", function(el){ state.filterCat = el.getAttribute("data-cat"); state.filterPools = []; render(); });
   on('[data-action="filter-pool"]', "click", function(el){ var p = el.getAttribute("data-pool"); state.filterPools = p ? [p] : []; render(); });
   on('[data-action="set-window"]', "click", function(el){ state.filterWindow = el.getAttribute("data-window"); render(); });
