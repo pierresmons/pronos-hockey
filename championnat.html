@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 07/10/2026 (suggestions par club) -->
+<!-- Pronos Hockey championnat - version du 07/10/2026 (mes equipes, joker, stats) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -632,6 +632,37 @@
   .sugg-club:first-child{margin-top:0;}
   #match-search::-webkit-search-decoration{display:none;}
   .team-sugg-all{max-height:300px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px;border:1px solid var(--line, #22324a);border-radius:12px;}
+  .tab{position:relative;}
+  .tab-badge{position:absolute;top:3px;right:2px;min-width:18px;height:18px;line-height:18px;padding:0 5px;text-align:center;border-radius:9px;background:var(--red);color:#fff;font-family:var(--font-body);font-size:11px;font-weight:700;vertical-align:2px;letter-spacing:0;}
+  .missing-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:rgba(213,38,47,.12);border:1px solid var(--red-dark);border-radius:12px;padding:10px 12px;margin:0 0 14px;font-size:14px;}
+  .missing-banner b{color:var(--red);font-size:16px;}
+  .joker-btn{border-color:var(--gold);color:var(--gold);}
+  .joker-btn.on{background:var(--gold);color:#1a1205;}
+  .joker-used{font-size:12px;color:var(--ice-faint);}
+  .joker-badge{display:inline-block;font-family:var(--font-mono);font-size:11px;font-weight:700;background:var(--gold);color:#1a1205;border-radius:6px;padding:2px 7px;margin-right:6px;}
+  .fav-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:22px;}
+  .fav-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;}
+  .fav-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .fav-name{font-family:var(--font-display);font-size:22px;letter-spacing:.02em;cursor:pointer;}
+  .fav-name:hover{color:var(--gold);}
+  .fav-star{background:none;border:1px solid var(--line);color:var(--ice-dim);border-radius:10px;padding:6px 10px;font-size:14px;cursor:pointer;white-space:nowrap;}
+  .fav-star.on{color:var(--gold);border-color:var(--gold);}
+  .fav-pos{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:2px 0 6px;}
+  .fav-line{font-size:14px;margin-top:8px;color:var(--ice-dim);display:grid;grid-template-columns:74px 1fr;align-items:start;gap:8px;line-height:1.45;}
+  .fav-v .form-chip{width:22px;height:22px;line-height:22px;font-size:11px;vertical-align:1px;}
+  .fav-line b{color:var(--ice);font-weight:600;}
+  .fav-k{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--ice-faint);padding-top:4px;}
+  .fav-d{color:var(--ice-faint);font-size:12px;}
+  .fav-tip{margin:0 0 14px;}
+  .potw{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:10px 14px;margin:0 0 14px;}
+  .potw-k{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--ice-faint);}
+  .potw-n{font-family:var(--font-display);font-size:22px;color:var(--gold);}
+  .potw-p{margin-left:auto;font-family:var(--font-mono);font-weight:700;}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;}
+  .stat-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;}
+  .stat-name{font-family:var(--font-display);font-size:22px;margin-bottom:4px;}
+  .stat-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--ice-dim);padding:5px 0;border-top:1px solid rgba(255,255,255,.05);}
+  .stat-row b{color:var(--ice);text-align:right;}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
@@ -687,6 +718,7 @@
     .info-grid{gap:8px;}
     .row-main{font-size:13px;}
     .tab.active{border-top-color:var(--red);}
+    .tab-badge{top:-10px;right:4px;min-width:17px;height:17px;line-height:17px;font-size:10px;padding:0 4px;box-shadow:0 0 0 2px var(--bg);}
     .content{padding:14px 14px 0;}
     .section-title{font-size:20px;}
     .section-hint{font-size:12px;margin-bottom:12px;}
@@ -746,7 +778,7 @@ var state = {
   me:null, tab:"pronostics",
   filterGenre:[], filterPools:[], filterCat:"", filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false, favs:{}, onlyMissing:false, lbView:"all"
 };
 
 /* ===================== Utilitaires ===================== */
@@ -967,6 +999,7 @@ function applyRoom(data){
   state.predictions = data.predictions || {};
   state.standings = data.standings || {};
   state.lastSync = data.lastSync || null;
+  state.favs = data.favs || {};
 }
 /* PATCH : met a jour poules, matchs et classements sans toucher aux joueurs ni aux pronostics */
 async function saveCloud(){
@@ -1000,29 +1033,100 @@ async function refreshCloud(){
 }
 
 /* ===================== Points ===================== */
+/* points de base (3 / 1 / 0) ; le joker double ensuite */
 function computePoints(pred, match){
-  if(!pred || !hasScore(match)) return null;
+  var base = basePoints(pred, match);
+  return base === null ? null : base * (pred.j ? 2 : 1);
+}
+function basePoints(pred, match){
+  if(!pred || pred.a === undefined || !hasScore(match)) return null;
   if(pred.a === match.scoreA && pred.b === match.scoreB) return 3;
   var pw = pred.a > pred.b ? "A" : (pred.a < pred.b ? "B" : "T");
   var aw = match.scoreA > match.scoreB ? "A" : (match.scoreA < match.scoreB ? "B" : "T");
   return pw === aw ? 1 : 0;
 }
-function playerTotals(){
+function playerTotals(filterFn){
   var totals = {};
   state.players.forEach(function(p){ totals[p] = {points:0, exact:0, correct:0, played:0}; });
   state.matches.forEach(function(m){
     if(!hasScore(m)) return;
+    if(filterFn && !filterFn(m)) return;
     var preds = state.predictions[m.id] || {};
     Object.keys(preds).forEach(function(p){
       if(!(p in totals)) totals[p] = {points:0, exact:0, correct:0, played:0};
-      var pts = computePoints(preds[p], m);
-      if(pts === null) return;
-      totals[p].played++; totals[p].points += pts;
-      if(pts === 3) totals[p].exact++; else if(pts === 1) totals[p].correct++;
+      var base = basePoints(preds[p], m);
+      if(base === null) return;
+      totals[p].played++; totals[p].points += computePoints(preds[p], m);
+      if(base === 3) totals[p].exact++; else if(base === 1) totals[p].correct++;
     });
   });
   return totals;
 }
+
+
+/* ===================== Mes equipes, pronos manquants, joker ===================== */
+function myFavs(){ return (state.me && state.favs[state.me]) || []; }
+function isFav(t){ return myFavs().indexOf(t) !== -1; }
+async function saveFavs(){
+  try{
+    var url = FIREBASE_URL.replace(/\/$/,"") + "/" + ROOMS_PATH + "/" + encodeURIComponent(state.room) + "/favs/" + encodeURIComponent(state.me) + ".json";
+    var res = await fetch(url, {method:"PUT", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify(myFavs())});
+    return res.ok;
+  }catch(e){ return false; }
+}
+function myPred(m, who){ return (state.predictions[m.id] || {})[who || state.me]; }
+function hasPred(m, who){ var p = myPred(m, who); return !!p && p.a !== undefined; }
+/* matchs de la partie encore ouverts, dans les 7 prochains jours, sans pronostic */
+function missingList(){
+  if(!state.me) return [];
+  var lim = addDaysIso(7);
+  return sortMatches(state.matches.filter(function(m){ return !hasScore(m) && !isLocked(m) && m.date && m.date <= lim && !hasPred(m); }));
+}
+function updateMissingBadge(){
+  var n = missingList().length, b = document.getElementById("missing-badge");
+  if(b){ b.textContent = n; b.style.display = n ? "" : "none"; }
+}
+function weekKey(iso){ var d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return localIso(d); }
+function jokerMatchOf(who, wk){
+  return state.matches.find(function(m){ var p = myPred(m, who); return p && p.j && m.date && weekKey(m.date) === wk; }) || null;
+}
+function kickoff(m){ return m.date ? new Date(m.date + "T" + (m.time || "12:00") + ":00").getTime() : null; }
+/* donnees completes (robot + partie) pour suivre des equipes hors de la partie */
+function withAllData(fn){
+  var keep = SRC; SRC = SNAP.state === "ok" ? mergedExt() : null;
+  try{ return fn(); } finally { SRC = keep; }
+}
+function favCard(t){
+  var today = todayIso();
+  var mine = srcMatches().filter(function(m){ return m.teamA === t || m.teamB === t; });
+  var next = sortMatches(mine.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }))[0];
+  var last = playedMatchesOf(t)[0];
+  var s = null, sp = null;
+  mine.forEach(function(m){ var st = standingOf(t, m.pool); if(st && (!s || st.j > s.j)){ s = st; sp = m.pool; } });
+  var html = '<div class="fav-card"><div class="fav-head"><span class="fav-name" data-action="fav-open" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</span>' +
+    '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733;</button></div>';
+  if(s) html += '<div class="fav-pos">' + escapeHtml(poolName(sp).replace(/ - A$/, "")) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts</div>';
+  html += '<div class="form-row">' + formChips(t, 5) + '</div>';
+  if(last){
+    var gf = last.teamA === t ? last.scoreA : last.scoreB, ga = last.teamA === t ? last.scoreB : last.scoreA, opp = last.teamA === t ? last.teamB : last.teamA;
+    html += '<div class="fav-line"><span class="fav-k">Dernier</span><span class="fav-v"><span class="form-chip form-' + resultFor(t, last) + '">' + resultFor(t, last) + '</span> <b>' + gf + '-' + ga + '</b> vs ' + escapeHtml(opp) + '<br><span class="fav-d">' + formatDate(last.date) + '</span></span></div>';
+  }
+  if(next){
+    var o2 = next.teamA === t ? next.teamB : next.teamA;
+    html += '<div class="fav-line"><span class="fav-k">Prochain</span><span class="fav-v">vs ' + escapeHtml(o2) + '<br><b>' + formatDate(next.date, next.time) + '</b> <span class="fav-d">' + (next.teamA === t ? 'domicile' : 'exterieur') + '</span></span></div>';
+  } else html += '<div class="fav-line"><span class="fav-k">Prochain</span><span class="fav-v fav-d">aucun match prevu</span></div>';
+  return html + '</div>';
+}
+function renderFavBlock(){
+  var favs = myFavs();
+  if(!state.me) return "";
+  if(!favs.length) return '<p class="points-sub fav-tip">Astuce : ouvrez la fiche d\'une equipe et touchez &#9734; pour la suivre ici dans &laquo; Mes equipes &raquo;.</p>';
+  var html = '<h2 class="section-title" style="font-size:18px;margin-top:4px;">Mes equipes &#9733;</h2>';
+  if(SNAP.state === "loading") html += '<p class="points-sub" style="margin:0 0 8px;">Chargement des donnees hockey.be...</p>';
+  html += '<div class="fav-grid">' + withAllData(function(){ return favs.map(favCard).join(""); }) + '</div>';
+  return html;
+}
+
 
 /* ===================== Filtres ===================== */
 function sortMatches(list){
@@ -1197,7 +1301,9 @@ function renderPlayersRow(){
 function renderTabs(){
   var tabs = [{id:"pronostics",label:"Pronos"},{id:"resultats",label:"Classement"},{id:"poules",label:"Poules"},{id:"matchs",label:"Matchs"},{id:"admin",label:"Gestion"}];
   return '<div class="tabs">' + tabs.map(function(t){
-    return '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-action="set-tab" data-tab="' + t.id + '">' + t.label + '</button>';
+    var extra = "";
+    if(t.id === "pronostics"){ var n = missingList().length; extra = '<span class="tab-badge" id="missing-badge"' + (n ? '' : ' style="display:none"') + '>' + n + '</span>'; }
+    return '<button class="tab' + (state.tab === t.id ? " active" : "") + '" data-action="set-tab" data-tab="' + t.id + '">' + t.label + extra + '</button>';
   }).join("") + '</div>';
 }
 
@@ -1220,7 +1326,15 @@ function badges(m){
 function renderPronostics(){
   if(!state.me) return '<div class="empty"><div class="big">Choisissez votre nom</div><p>Cliquez sur "+" en haut pour ajouter les joueurs de la famille.</p></div>';
   var html = '<h2 class="section-title">Mes pronostics</h2>';
-  html += '<p class="section-hint"><span class="hint-long">Entrez votre score pour chaque match : il s\'enregistre tout seul. Les pronostics se ferment au coup d\'envoi et les resultats arrivent automatiquement de hockey.be. </span><span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>0 pt</b> faux</span></p>';
+  html += '<p class="section-hint"><span class="hint-long">Entrez votre score pour chaque match : il s\'enregistre tout seul. Les pronostics se ferment au coup d\'envoi et les resultats arrivent automatiquement de hockey.be. </span><span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>0 pt</b> faux &middot; <b>Joker</b> points x2 sur un match par semaine</span></p>';
+  var miss = missingList();
+  if(state.onlyMissing){
+    html += '<div class="missing-banner"><span><b>' + miss.length + '</b> match' + (miss.length > 1 ? "s" : "") + ' sans pronostic (7 prochains jours)</span><button class="btn btn-sm" data-action="only-missing" data-on="0">Voir tous les matchs</button></div>';
+    if(!miss.length) return html + '<div class="empty"><div class="big">Tout est pronostique</div><p>Bravo, il ne reste aucun match ouvert sans pronostic cette semaine.</p></div>';
+    miss.forEach(function(m){ html += renderPredictionCard(m, false); });
+    return html;
+  }
+  if(miss.length) html += '<div class="missing-banner"><span><b>' + miss.length + '</b> match' + (miss.length > 1 ? "s" : "") + ' a pronostiquer dans les 7 prochains jours</span><button class="btn btn-sm btn-primary" data-action="only-missing" data-on="1">Les voir</button></div>';
   html += renderFilters(true);
   var today = todayIso();
   var upcoming = sortMatches(state.matches.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today) && passFilters(m, true); }));
@@ -1246,7 +1360,18 @@ function renderPredictionCard(m, isDone){
     ? '<div class="score-inputs"><input class="digit" type="text" value="' + (val(pred.a) === "" ? "-" : pred.a) + '" disabled><span class="vs-dash">:</span><input class="digit" type="text" value="' + (val(pred.b) === "" ? "-" : pred.b) + '" disabled></div>'
     : '<div class="score-inputs"><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-a" data-match="' + m.id + '" value="' + val(pred.a) + '" placeholder="0"><span class="vs-dash">:</span><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-b" data-match="' + m.id + '" value="' + val(pred.b) + '" placeholder="0"></div>';
   var infoBtn = isDone ? "" : '<button class="btn btn-ghost btn-sm info-btn" data-action="toggle-info" data-match="' + m.id + '">' + (state.infoOpen[m.id] ? "Masquer la forme" : "Forme & historique") + '</button>';
-  var actions = locked ? (infoBtn ? '<div class="match-actions">' + infoBtn + '</div>' : "") : '<div class="match-actions">' + infoBtn + '<span class="save-msg" id="save-' + m.id + '">Enregistre</span><button class="btn btn-primary" data-action="save-pred" data-match="' + m.id + '">Enregistrer</button></div>';
+  var jokerBtn = "";
+  if(!locked && m.date){
+    var jm = jokerMatchOf(state.me, weekKey(m.date));
+    if(pred.j) jokerBtn = '<button class="btn btn-sm joker-btn on" data-action="toggle-joker" data-match="' + m.id + '">Joker x2 &#10003;</button>';
+    else if(jm && isLocked(jm)) jokerBtn = '<span class="joker-used">Joker de la semaine deja joue</span>';
+    else jokerBtn = '<button class="btn btn-sm joker-btn" data-action="toggle-joker" data-match="' + m.id + '"' + (jm ? ' data-move="1"' : '') + '>Joker x2</button>';
+  }
+  var actions = locked ? (infoBtn ? '<div class="match-actions">' + infoBtn + '</div>' : "") : '<div class="match-actions">' + infoBtn + jokerBtn + '<span class="save-msg" id="save-' + m.id + '">Enregistre</span><button class="btn btn-primary" data-action="save-pred" data-match="' + m.id + '">Enregistrer</button></div>';
+  if(locked && pred.j){
+    var myPts = isDone ? computePoints(pred, m) : null;
+    status = '<span class="joker-badge">Joker x2' + (myPts !== null ? ' &middot; ' + myPts + ' pt' + (myPts === 1 ? "" : "s") : '') + '</span>' + status;
+  }
   if(!isDone && state.infoOpen[m.id]) actions += renderMatchInfo(m);
   var preds = state.predictions[m.id] || {};
   var others = state.players.filter(function(p){ return p !== state.me; });
@@ -1256,10 +1381,11 @@ function renderPredictionCard(m, isDone){
       var pr = preds[p];
       if(!pr || pr.a === undefined) return '<span class="pred-tag">' + escapeHtml(p) + ': <b>—</b></span>';
       if(isDone){
-        var pts = computePoints(pr, m);
-        var cls = pts === 3 ? "exact" : (pts === 1 ? "correct" : "wrong");
-        return '<span class="pred-tag ' + cls + '">' + escapeHtml(p) + ': <b>' + pr.a + '-' + pr.b + '</b> (' + pts + ' pt' + (pts === 1 ? "" : "s") + ')</span>';
+        var pts = computePoints(pr, m), base = basePoints(pr, m);
+        var cls = base === 3 ? "exact" : (base === 1 ? "correct" : "wrong");
+        return '<span class="pred-tag ' + cls + '">' + escapeHtml(p) + ': <b>' + pr.a + '-' + pr.b + '</b> (' + pts + ' pt' + (pts === 1 ? "" : "s") + (pr.j ? ' &middot; joker' : '') + ')</span>';
       }
+      if(isLocked(m) && pr.j) return '<span class="pred-tag">' + escapeHtml(p) + ': <b>' + pr.a + '-' + pr.b + '</b> &middot; joker</span>';
       return '<span class="pred-tag">' + escapeHtml(p) + ': <b>' + pr.a + '-' + pr.b + '</b></span>';
     }).join("") + '</div>';
   }
@@ -1518,11 +1644,14 @@ function teamSuggHtml(list){
   return out;
 }
 function renderMatchs(){
+  if(myFavs().length && SNAP.state === "idle") setTimeout(function(){ loadSnapshot(false); }, 0);
   SRC = state.searchAll ? mergedExt() : null;
   try{ return renderMatchsInner(); } finally { SRC = null; }
 }
 function renderMatchsInner(){
-  var html = '<h2 class="section-title">Rechercher un match</h2>';
+  var html = "";
+  if(!state.searchQ.trim() && !state.searchCat && !state.searchPool && !state.extCat && !state.extPool) html += renderFavBlock();
+  html += '<h2 class="section-title">Rechercher un match</h2>';
   html += '<div class="filter-row"><button class="filter-chip' + (!state.searchAll ? " active" : "") + '" data-action="search-mode" data-all="0">Mes poules</button>' +
           '<button class="filter-chip' + (state.searchAll ? " active" : "") + '" data-action="search-mode" data-all="1">Tout hockey.be</button></div>';
   if(state.searchAll){
@@ -1599,7 +1728,9 @@ function renderMatchsInner(){
       var st = standingOf(exact, m.pool);
       if(st && (!s || st.j > s.j)){ s = st; pm = m; }
     });
-    html += '<div class="admin-form team-card"><div class="info-team-name" style="font-size:22px;">' + escapeHtml(exact) + '</div>';
+    var fv = isFav(exact);
+    html += '<div class="admin-form team-card"><div class="fav-head"><div class="info-team-name" style="font-size:22px;">' + escapeHtml(exact) + '</div>' +
+      (state.me ? '<button class="fav-star' + (fv ? ' on' : '') + '" data-action="toggle-fav" data-team="' + escapeHtml(exact) + '">' + (fv ? '&#9733; Suivie' : '&#9734; Suivre') + '</button>' : '') + '</div>';
     if(s) html += '<div class="team-pos">' + escapeHtml(poolName(pm.pool)) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.g + 'V ' + s.n + 'N ' + s.p + 'D &middot; buts ' + s.bp + '-' + s.bc + '</div>';
     html += '<div class="form-row" style="margin-top:8px;">' + formChips(exact, 8) + '</div></div>';
     if(pm) html += standingsTable(pm.pool, exact);
@@ -1620,11 +1751,54 @@ function renderMatchsInner(){
   return html;
 }
 
-function renderResultats(){
-  var totals = playerTotals();
+function weekFilter(off){ var wr = weekRange(off); return function(m){ return !!m.date && m.date >= wr.start && m.date <= wr.end; }; }
+function rankRows(totals){
   var rows = state.players.map(function(p){ var t = totals[p] || {points:0,exact:0,correct:0,played:0}; return {name:p, points:t.points, exact:t.exact, correct:t.correct, played:t.played}; });
   rows.sort(function(a,b){ return b.points - a.points || b.exact - a.exact; });
+  return rows;
+}
+function playerStats(p){
+  var s = {played:0, exact:0, correct:0, points:0, jokers:0, jokerGain:0, cats:{}, streak:0, best:0};
+  sortMatches(state.matches.filter(hasScore)).forEach(function(m){
+    var pr = myPred(m, p), base = basePoints(pr, m);
+    if(base === null) return;
+    s.played++; s.points += computePoints(pr, m);
+    if(base === 3) s.exact++; else if(base === 1) s.correct++;
+    if(pr.j){ s.jokers++; s.jokerGain += base; }
+    var c = poolCat(m.pool); s.cats[c] = s.cats[c] || {n:0, pts:0}; s.cats[c].n++; s.cats[c].pts += base;
+    if(base > 0){ s.streak++; if(s.streak > s.best) s.best = s.streak; } else s.streak = 0;
+  });
+  var bc = null; Object.keys(s.cats).forEach(function(c){ var x = s.cats[c]; if(x.n >= 3 && (!bc || x.pts / x.n > s.cats[bc].pts / s.cats[bc].n)) bc = c; });
+  s.bestCat = bc;
+  return s;
+}
+function renderStats(){
+  var html = '<h2 class="section-title" style="margin-top:30px;">Statistiques</h2><p class="section-hint">Sur tous les matchs termines que chaque joueur a pronostiques.</p><div class="stats-grid">';
+  state.players.forEach(function(p){
+    var s = playerStats(p), pct = function(x){ return s.played ? Math.round(100 * x / s.played) + "%" : "-"; };
+    html += '<div class="stat-card"><div class="stat-name">' + escapeHtml(p) + '</div>' +
+      '<div class="stat-row"><span>Bons pronos</span><b>' + pct(s.exact + s.correct) + '</b></div>' +
+      '<div class="stat-row"><span>Scores exacts</span><b>' + pct(s.exact) + '</b></div>' +
+      '<div class="stat-row"><span>Moyenne par match</span><b>' + (s.played ? (s.points / s.played).toFixed(2).replace(".", ",") : "-") + ' pt</b></div>' +
+      '<div class="stat-row"><span>Meilleure serie</span><b>' + s.best + ' bon' + (s.best > 1 ? "s" : "") + ' d\'affilee</b></div>' +
+      '<div class="stat-row"><span>Jokers joues</span><b>' + s.jokers + (s.jokers ? ' (+' + s.jokerGain + ' pt' + (s.jokerGain > 1 ? "s" : "") + ')' : '') + '</b></div>' +
+      '<div class="stat-row"><span>Point fort</span><b>' + (s.bestCat ? escapeHtml(s.bestCat) : '<span class="points-sub">3 pronos min.</span>') + '</b></div>' +
+      '</div>';
+  });
+  return html + '</div>';
+}
+function renderResultats(){
+  var view = state.lbView;
+  var totals = view === "all" ? playerTotals() : playerTotals(weekFilter(view === "w0" ? 0 : -1));
+  var rows = rankRows(totals);
   var html = '<h2 class="section-title">Classement</h2><p class="section-hint">Classement en direct sur les matchs termines.</p>';
+  var lw = rankRows(playerTotals(weekFilter(-1)));
+  if(lw.length && lw[0].points > 0){
+    var tops = lw.filter(function(r){ return r.points === lw[0].points && r.exact === lw[0].exact; });
+    html += '<div class="potw"><span class="potw-k">Joueur de la semaine passee</span><span class="potw-n">&#9733; ' + tops.map(function(r){ return escapeHtml(r.name); }).join(" &amp; ") + '</span><span class="potw-p">' + lw[0].points + ' pts</span></div>';
+  }
+  html += '<div class="filter-row">' + [["all","General"],["w0","Cette semaine"],["w-1","Semaine passee"]].map(function(v){
+    return '<button class="filter-chip' + (view === v[0] ? " active" : "") + '" data-action="lb-view" data-view="' + v[0] + '">' + v[1] + '</button>'; }).join("") + '</div>';
   if(!rows.length){
     html += '<div class="empty"><div class="big">Personne pour l\'instant</div><p>Ajoutez des joueurs pour demarrer.</p></div>';
   } else {
@@ -1634,6 +1808,8 @@ function renderResultats(){
       html += '<tr><td><span class="rank ' + rc + '">' + (i+1) + '</span></td><td class="player-name">' + escapeHtml(r.name) + '</td><td class="num">' + r.played + '</td><td class="num">' + r.exact + '</td><td class="num">' + r.correct + '</td><td class="num"><span class="points-val">' + r.points + '</span></td></tr>';
     });
     html += '</tbody></table>';
+    if(view !== "all" && !rows.some(function(r){ return r.played; })) html += '<p class="points-sub">Aucun match pronostique termine sur cette semaine pour l\'instant.</p>';
+    html += renderStats();
   }
   html += '<h2 class="section-title" style="margin-top:30px;">Matchs joues</h2><p class="section-hint">Detail des pronostics et des points pour chaque match termine (seuls les matchs pronostiques par au moins un joueur sont affiches).</p>';
   html += renderFilters(false);
@@ -1750,6 +1926,41 @@ function attachEvents(){
     state.searchAll = true; state.extCat = poolCat(pid); state.extPool = pid; render(); loadSnapshot(false);
     if(state.pools.indexOf(pid) === -1) loadExtPools([pid], true).then(render);
   });
+  on('[data-action="toggle-fav"]', "click", async function(el){
+    if(!state.me){ showToast("Choisissez d'abord votre prenom en haut"); return; }
+    var t = el.getAttribute("data-team"), f = myFavs().slice(), i = f.indexOf(t);
+    if(i === -1) f.push(t); else f.splice(i, 1);
+    state.favs[state.me] = f; render();
+    if(!(await saveFavs())) showToast("Sauvegarde impossible (connexion ?)");
+    else showToast(i === -1 ? t + " ajoutee a Mes equipes" : t + " retiree de Mes equipes");
+  });
+  on('[data-action="fav-open"]', "click", function(el){
+    var t = el.getAttribute("data-team");
+    var inParty = state.matches.some(function(m){ return m.teamA === t || m.teamB === t; });
+    state.searchQ = t; state.searchCat = ""; state.searchPool = ""; state.extCat = ""; state.extPool = "";
+    if(!inParty){ state.searchAll = true; loadSnapshot(false); }
+    render(); window.scrollTo(0, 0);
+  });
+  on('[data-action="only-missing"]', "click", function(el){ state.onlyMissing = el.getAttribute("data-on") === "1"; render(); window.scrollTo(0, 0); });
+  on('[data-action="lb-view"]', "click", function(el){ state.lbView = el.getAttribute("data-view"); render(); });
+  on('[data-action="toggle-joker"]', "click", async function(el){
+    var id = el.getAttribute("data-match"), m = state.matches.find(function(x){ return x.id === id; });
+    if(!m || isLocked(m) || !state.me) return;
+    var pr = myPred(m);
+    if(!pr || pr.a === undefined){ showToast("Entrez d'abord votre score pour ce match"); return; }
+    var saves = [];
+    if(pr.j){ delete pr.j; saves.push([m.id, pr]); }
+    else {
+      var other = jokerMatchOf(state.me, weekKey(m.date));
+      if(other && isLocked(other)){ showToast("Joker deja joue cette semaine"); return; }
+      if(other){ var op = myPred(other); delete op.j; saves.push([other.id, op]); }
+      pr.j = true; saves.push([m.id, pr]);
+    }
+    render();
+    var ok = true;
+    for(var i = 0; i < saves.length; i++) ok = (await savePrediction(saves[i][0], state.me, saves[i][1])) && ok;
+    showToast(!ok ? "Sauvegarde impossible (connexion ?)" : (pr.j ? "Joker pose : points x2 sur " + m.teamA + " - " + m.teamB : "Joker retire"));
+  });
   on('[data-action="team-sugg-all"]', "click", function(){ state.teamSuggAll = !state.teamSuggAll; render(); });
   on('[data-action="pick-team"]', "click", function(el){ state.searchQ = el.getAttribute("data-team"); render(); });
   var ms = document.getElementById("match-search");
@@ -1862,11 +2073,13 @@ function attachEvents(){
     var prev = (state.predictions[id] || {})[state.me];
     if(silent && prev && prev.a === a && prev.b === b) return;
     if(!state.predictions[id]) state.predictions[id] = {};
-    state.predictions[id][state.me] = {a:a, b:b};
-    var ok = await savePrediction(id, state.me, {a:a, b:b});
+    var np = {a:a, b:b}; if(prev && prev.j) np.j = true;
+    state.predictions[id][state.me] = np;
+    var ok = await savePrediction(id, state.me, np);
     if(!ok){ showToast("Sauvegarde impossible (connexion ?)"); return; }
     var msg = document.getElementById("save-" + id);
     if(msg){ msg.classList.add("show"); setTimeout(function(){ msg.classList.remove("show"); }, 1800); }
+    updateMissingBadge();
   };
   on('[data-action="save-pred"]', "click", function(el){ savePred(el.getAttribute("data-match"), false); });
   var predTimers = {};
