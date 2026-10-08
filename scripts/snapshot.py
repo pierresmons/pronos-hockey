@@ -113,12 +113,17 @@ def fetch_pool(pid):
         return pid, [], [], [], str(e)
 
 
+EHL_STATUS = {"ok": None, "info": ""}
+
+
 def add_ehl(pools, matches, standings, t_id, old):
     """Ajoute les poules EHL ; en cas d'echec, reprend celles du snapshot precedent."""
     try:
         res = ehl.collect(get, SEASON_FROM, SEASON_TO, log=lambda *a: print(*a, file=sys.stderr))
+        EHL_STATUS.update(ok=True, info=f"{len(res)} poule(s), {sum(len(r[2]) for r in res)} match(s)")
     except Exception as e:  # noqa
         print("EHL indisponible :", e, file=sys.stderr)
+        EHL_STATUS.update(ok=False, info=f"ehlhockey.tv indisponible : {e}"[:200])
         res = None
     if res is None:
         if old:
@@ -164,6 +169,7 @@ def write(pools, teams, matches, standings, failed, generated=None):
     snap = {
         "generated": generated or now,
         "ehlGenerated": now,
+        "ehlStatus": {"ok": EHL_STATUS["ok"], "info": EHL_STATUS["info"], "at": now},
         "season": [SEASON_FROM, SEASON_TO],
         "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts]",
         "pools": out_pools,
@@ -207,7 +213,8 @@ def main_ehl_only():
     for k, m in matches.items():
         m[0] = remap[m[0]]
     if not add_ehl(pools, matches, standings, t_id, None):
-        raise SystemExit("EHL indisponible : snapshot inchange")
+        print("EHL indisponible : snapshot inchange, nouvel essai au prochain reveil", file=sys.stderr)
+        return
     write(pools, teams, matches, standings, old.get("failed", []), generated=old.get("generated"))
 
 
