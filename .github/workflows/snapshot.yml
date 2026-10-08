@@ -5,16 +5,19 @@
 #   samedi           : 2h, puis 12h, 14h, 16h, 18h, 20h
 #   dimanche         : 12h, 14h, 17h, 20h
 #
-# GitHub ne connait que l'heure UTC (Belgique = UTC+2 en ete, UTC+1 en hiver).
-# On programme donc les deux heures UTC possibles, et l'etape "Verifier l'heure"
-# ne garde que celle qui correspond a l'heure belge voulue (changement d'heure gere tout seul).
+# Euro Hockey League : les jours de match EHL, le robot met aussi a jour l'EHL seule
+# (quelques secondes) toutes les 30 minutes entre 9h et minuit.
+#
+# GitHub lance les taches programmees avec du retard (parfois plusieurs heures) ou en saute.
+# Le robot se reveille donc toutes les heures et ne travaille que si un horaire
+# ci-dessus est passe depuis le dernier snapshot : un retard est rattrape au reveil suivant.
+# Changement d'heure ete/hiver gere tout seul (heure de Bruxelles).
 name: Snapshot hockey.be
 
 on:
   schedule:
-    - cron: "7 0,1 * * 1-5"                     # lun-ven 2h
-    - cron: "7 0,1,10-19 * * 6"                 # samedi 2h + 12h-20h toutes les 2 h
-    - cron: "7 10,11,12,13,15,16,18,19 * * 0"   # dimanche 12h, 14h, 17h, 20h
+    - cron: "23 * * * *"                         # reveil toutes les 30 min (le controle decide)
+    - cron: "53 * * * *"
   workflow_dispatch: {}                          # bouton "Run workflow" pour lancer a la main
 
 permissions:
@@ -29,46 +32,74 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Verifier l'heure belge
+      - uses: actions/checkout@v5
+      - name: Verifier si une mise a jour est due
         id: gate
         env:
           EVENT: ${{ github.event_name }}
-          CRON: ${{ github.event.schedule }}
         run: |
           python3 - <<'PY'
-          import os, datetime as dt
+          import os, json, datetime as dt
           from zoneinfo import ZoneInfo
-          run = True
-          if os.environ["EVENT"] == "schedule":
-              now = dt.datetime.now(dt.timezone.utc)
-              hours = []
-              for part in os.environ["CRON"].split()[1].split(","):
-                  if "-" in part:
-                      a, b = map(int, part.split("-")); hours += list(range(a, b + 1))
-                  else:
-                      hours.append(int(part))
-              # heure UTC prevue = la plus proche dans le passe (GitHub demarre parfois en retard)
-              cands = [now.replace(hour=h, minute=7, second=0, microsecond=0) for h in hours]
-              cands = [c for c in cands if c <= now] or [min(cands)]
-              planned = max(cands)
-              local = planned.astimezone(ZoneInfo("Europe/Brussels"))
-              wanted = {0: {2}, 1: {2}, 2: {2}, 3: {2}, 4: {2},
-                        5: {2, 12, 14, 16, 18, 20},
-                        6: {12, 14, 17, 20}}[local.weekday()]
-              run = local.hour in wanted
-              print(f"Prevu {planned:%H:%M} UTC = {local:%a %H:%M} heure belge -> {'on lance' if run else 'pas maintenant'}")
+          BXL = ZoneInfo("Europe/Brussels")
+          WANTED = {0: [2], 1: [2], 2: [2], 3: [2], 4: [2],
+                    5: [2, 12, 14, 16, 18, 20],
+                    6: [12, 14, 17, 20]}
+          now = dt.datetime.now(BXL)
+          # dernier horaire prevu deja passe (on remonte jusqu'a 7 jours)
+          last_slot = None
+          for back in range(8):
+              day = (now - dt.timedelta(days=back)).date()
+              for h in sorted(WANTED[day.weekday()], reverse=True):
+                  slot = dt.datetime(day.year, day.month, day.day, h, 0, tzinfo=BXL)
+                  if slot <= now:
+                      last_slot = slot; break
+              if last_slot: break
+          try:
+              gen = json.load(open("data/hockey-snapshot.json")).get("generated")
+              gen = dt.datetime.strptime(gen, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+          except Exception:
+              gen = None
+          full = os.environ["EVENT"] != "schedule" or gen is None or gen < last_slot
+          # jour de match EHL : mise a jour rapide de l'EHL seule si la derniere a plus de 25 min
+          ehl = False
+          try:
+              snap = json.load(open("data/hockey-snapshot.json"))
+              eg = snap.get("ehlGenerated") or snap.get("generated")
+              eg = dt.datetime.strptime(eg, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+              today = now.date().isoformat(); yday = (now.date() - dt.timedelta(days=1)).isoformat()
+              pools = snap.get("pools", [])
+              for m in snap.get("matches", []):
+                  if not pools[m[0]][0].startswith("ehl-"):
+                      continue
+                  if m[1] == today or (m[1] == yday and m[5] is None):
+                      ehl = True
+                      break
+              age = (dt.datetime.now(dt.timezone.utc) - eg).total_seconds()
+              ehl = ehl and 9 <= now.hour <= 23 and age > 25 * 60
+              # pas encore de donnees EHL (site EHL en panne au dernier passage) : nouvel essai toutes les 30 min
+              if not any(p[0].startswith("ehl-") for p in pools) and 7 <= now.hour <= 23 and age > 25 * 60:
+                  ehl = True
+          except Exception:
+              ehl = False
+          run = full or ehl
+          print(f"Maintenant {now:%a %d/%m %H:%M}, dernier horaire {last_slot:%a %d/%m %H:%M}, "
+                f"snapshot du {gen.astimezone(BXL):%a %d/%m %H:%M}" if gen else "pas de snapshot",
+                "-> mise a jour complete" if full else ("-> mise a jour EHL" if ehl else "-> deja a jour"))
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"run={'true' if run else 'false'}\n")
+              f.write(f"mode={'full' if full else 'ehl'}\n")
           PY
-      - uses: actions/checkout@v4
-        if: steps.gate.outputs.run == 'true'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.gate.outputs.run == 'true'
         with:
           python-version: "3.12"
       - name: Recuperer hockey.be
         if: steps.gate.outputs.run == 'true'
-        run: python scripts/snapshot.py
+        env:
+          MODE: ${{ steps.gate.outputs.mode }}
+        run: |
+          if [ "$MODE" = "ehl" ]; then python scripts/snapshot.py --ehl-only; else python scripts/snapshot.py; fi
       - name: Enregistrer si quelque chose a change
         if: steps.gate.outputs.run == 'true'
         run: |
