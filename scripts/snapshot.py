@@ -6,6 +6,10 @@ data/hockey-snapshot.json, lu par l'onglet Matchs de l'app.
 
 Lance automatiquement par GitHub Actions (.github/workflows/snapshot.yml).
 Python standard uniquement, aucune dependance.
+
+Ajoute aussi les matchs de l'Euro Hockey League (ehlhockey.tv), voir ehl.py.
+  python scripts/snapshot.py             -> tout (hockey.be + EHL)
+  python scripts/snapshot.py --ehl-only  -> seulement l'EHL (rapide, pendant les week-ends EHL)
 """
 import datetime as dt
 import html
@@ -17,6 +21,9 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import ehl  # noqa: E402
 
 PAGE = "https://hockey.be/fr/competition/calendrier-resultats-et-classements/"
 API = "https://hockey.be/wp-json/sportlink-api/cached"
@@ -106,7 +113,107 @@ def fetch_pool(pid):
         return pid, [], [], [], str(e)
 
 
+def add_ehl(pools, matches, standings, t_id, old):
+    """Ajoute les poules EHL ; en cas d'echec, reprend celles du snapshot precedent."""
+    try:
+        res = ehl.collect(get, SEASON_FROM, SEASON_TO, log=lambda *a: print(*a, file=sys.stderr))
+    except Exception as e:  # noqa
+        print("EHL indisponible :", e, file=sys.stderr)
+        res = None
+    if res is None:
+        if old:
+            opools = old.get("pools", [])
+            oteams = old.get("teams", [])
+            for i, p in enumerate(opools):
+                if p[0].startswith("ehl-"):
+                    pools.append(p)
+            for om in old.get("matches", []):
+                p = opools[om[0]] if om[0] < len(opools) else None
+                if p and p[0].startswith("ehl-"):
+                    pi = next(i for i, x in enumerate(pools) if x[0] == p[0])
+                    a, b = oteams[om[3]], oteams[om[4]]
+                    matches[(p[0], a, b)] = [pi, om[1], om[2], t_id(a), t_id(b)] + om[5:]
+            for pid, st in old.get("standings", {}).items():
+                if pid.startswith("ehl-"):
+                    standings[pid] = st
+        return False
+    for pid, name, ms, st, venue in res:
+        pools.append([pid, name])
+        pi = len(pools) - 1
+        for m in ms:
+            status = None
+            if m["so"]:
+                status = "Shoot-out : " + (m["a"] if m["so"] == "A" else m["b"])
+            matches[(pid, m["a"], m["b"])] = [pi, m["date"], m["time"], t_id(m["a"]), t_id(m["b"]), m["sa"], m["sb"], status, venue]
+        if st:
+            standings[pid] = st
+    return True
+
+
+def write(pools, teams, matches, standings, failed, generated=None):
+    used = sorted({m[0] for m in matches.values()})
+    remap = {old_i: new_i for new_i, old_i in enumerate(used)}
+    out_pools = [pools[i] for i in used]
+    # on ne garde que les equipes utilisees (le mode --ehl-only repart d'un index existant)
+    out_matches = sorted(([remap[m[0]]] + m[1:] for m in matches.values()), key=lambda m: (m[1] or "9999", m[2] or "", m[0]))
+    used_t = sorted({m[3] for m in out_matches} | {m[4] for m in out_matches})
+    tmap = {o: n for n, o in enumerate(used_t)}
+    for m in out_matches:
+        m[3], m[4] = tmap[m[3]], tmap[m[4]]
+    now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    snap = {
+        "generated": generated or now,
+        "ehlGenerated": now,
+        "season": [SEASON_FROM, SEASON_TO],
+        "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts]",
+        "pools": out_pools,
+        "teams": [teams[i] for i in used_t],
+        "matches": out_matches,
+        "standings": {p[0]: standings[p[0]] for p in out_pools if p[0] in standings},
+        "failed": failed,
+    }
+    if len(out_matches) < 100:
+        raise SystemExit(f"Seulement {len(out_matches)} matchs : hockey.be semble indisponible, snapshot non ecrit")
+    os.makedirs(os.path.dirname(OUT) or ".", exist_ok=True)
+    with open(OUT, "w", encoding="utf-8") as f:
+        json.dump(snap, f, ensure_ascii=False, separators=(",", ":"))
+    n_ehl = sum(1 for p in out_pools if p[0].startswith("ehl-"))
+    print(f"OK : {len(out_pools)} poules (dont {n_ehl} EHL), {len(out_matches)} matchs, {len(snap['teams'])} equipes, "
+          f"{len(failed)} echec(s), {os.path.getsize(OUT) // 1024} Ko", file=sys.stderr)
+
+
+def main_ehl_only():
+    """Remplace seulement la partie EHL du snapshot existant (quelques secondes)."""
+    old = json.load(open(OUT, encoding="utf-8"))
+    teams = list(old["teams"])
+    tidx = {t: i for i, t in enumerate(teams)}
+
+    def t_id(name):
+        if name not in tidx:
+            tidx[name] = len(teams)
+            teams.append(name)
+        return tidx[name]
+
+    pools = [p for p in old["pools"]]
+    matches = {}
+    for om in old["matches"]:
+        pid = pools[om[0]][0]
+        if not pid.startswith("ehl-"):
+            matches[(pid, teams[om[3]], teams[om[4]])] = list(om)
+    standings = {k: v for k, v in old.get("standings", {}).items() if not k.startswith("ehl-")}
+    keep = [i for i, p in enumerate(pools) if not p[0].startswith("ehl-")]
+    remap = {o: n for n, o in enumerate(keep)}
+    pools = [pools[i] for i in keep]
+    for k, m in matches.items():
+        m[0] = remap[m[0]]
+    if not add_ehl(pools, matches, standings, t_id, None):
+        raise SystemExit("EHL indisponible : snapshot inchange")
+    write(pools, teams, matches, standings, old.get("failed", []), generated=old.get("generated"))
+
+
 def main():
+    if "--ehl-only" in sys.argv:
+        return main_ehl_only()
     previous = None
     old = None
     if os.path.exists(OUT):
@@ -115,7 +222,7 @@ def main():
             previous = old.get("pools")
         except Exception:
             pass
-    pools = pool_list(previous)
+    pools = [p for p in pool_list(previous) if not p[0].startswith("ehl-")]
     print(f"{len(pools)} poules a recuperer", file=sys.stderr)
 
     teams, tidx = [], {}
@@ -168,28 +275,8 @@ def main():
             if pid in old.get("standings", {}):
                 standings[pid] = old["standings"][pid]
 
-    # On ne garde que les poules qui ont au moins un match
-    used = sorted({m[0] for m in matches.values()})
-    remap = {old_i: new_i for new_i, old_i in enumerate(used)}
-    out_pools = [pools[i] for i in used]
-    out_matches = sorted(([remap[m[0]]] + m[1:] for m in matches.values()), key=lambda m: (m[1] or "9999", m[2] or "", m[0]))
-    snap = {
-        "generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "season": [SEASON_FROM, SEASON_TO],
-        "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts]",
-        "pools": out_pools,
-        "teams": teams,
-        "matches": out_matches,
-        "standings": {p[0]: standings[p[0]] for p in out_pools if p[0] in standings},
-        "failed": failed,
-    }
-    if len(out_matches) < 100:
-        raise SystemExit(f"Seulement {len(out_matches)} matchs : hockey.be semble indisponible, snapshot non ecrit")
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(snap, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"OK : {len(out_pools)} poules, {len(out_matches)} matchs, {len(teams)} equipes, {len(failed)} echec(s), "
-          f"{os.path.getsize(OUT) // 1024} Ko", file=sys.stderr)
+    add_ehl(pools, matches, standings, t_id, old)
+    write(pools, teams, matches, standings, failed)
 
 
 if __name__ == "__main__":
