@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 07/10/2026 (mes equipes, joker, stats) -->
+<!-- Pronos Hockey championnat - version du 07/10/2026 (mes equipes, joker, stats, rappels iPhone) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -1128,6 +1128,46 @@ function renderFavBlock(){
 }
 
 
+
+/* ===================== Rappels (app iPhone) ===================== */
+/* l'app iPhone expose window.webkit.messageHandlers.notif ; elle programme elle-meme les notifications */
+function notifBridge(){ try{ return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.notif; }catch(e){ return null; } }
+function notifOn(k){ return getLocal("hb-notif-" + k) !== "0"; }
+var lastNotifSig = "";
+function scheduleNotifs(){
+  var br = notifBridge();
+  if(!br || !state.room || !state.me) return;
+  var now = Date.now(), horizon = now + 8 * 864e5, items = [];
+  var fmt = function(m){ return m.teamA + " - " + m.teamB; };
+  if(notifOn("fav") && myFavs().length){
+    var src = SNAP.state === "ok" ? mergedExt().matches : state.matches, seen = {};
+    src.forEach(function(m){
+      if(seen[m.id] || hasScore(m) || !m.time || !(isFav(m.teamA) || isFav(m.teamB))) return;
+      var at = kickoff(m) - 3600e3;
+      if(at > now && at < horizon){ seen[m.id] = 1; items.push({id:"fav-" + m.id, at:at, title:"Match dans 1 h", body:fmt(m) + " a " + m.time + (m.venue ? " - " + m.venue : "")}); }
+    });
+  }
+  if(notifOn("miss")){
+    /* un seul rappel par jour : 2 h avant le premier match pas encore pronostique */
+    var byDay = {};
+    state.matches.forEach(function(m){
+      if(hasScore(m) || isLocked(m) || !m.date || !m.time || hasPred(m)) return;
+      (byDay[m.date] = byDay[m.date] || []).push(m);
+    });
+    Object.keys(byDay).forEach(function(d){
+      var list = sortMatches(byDay[d]), first = list[0], at = kickoff(first) - 2 * 3600e3;
+      if(at > now && at < horizon) items.push({id:"miss-" + d, at:at, title:"Pronostic" + (list.length > 1 ? "s" : "") + " a faire",
+        body: list.length > 1 ? list.length + " matchs pas encore pronostiques aujourd'hui, le premier a " + first.time + " (" + fmt(first) + ")" : fmt(first) + " a " + first.time + " : pas encore de pronostic"});
+    });
+  }
+  items.sort(function(a, b){ return a.at - b.at; });
+  items = items.slice(0, 60);
+  var sig = JSON.stringify(items);
+  if(sig === lastNotifSig) return;
+  lastNotifSig = sig;
+  try{ br.postMessage({items:items}); }catch(e){}
+}
+
 /* ===================== Filtres ===================== */
 function sortMatches(list){
   return list.slice().sort(function(a,b){
@@ -1227,6 +1267,7 @@ function render(){
     app.innerHTML = renderHeader() + renderPlayersRow() + renderTabs() + '<div class="content">' + renderContent() + '</div>';
   }
   attachEvents();
+  scheduleNotifs();
 }
 
 function renderHeader(){
@@ -1866,6 +1907,13 @@ function renderAdmin(){
       (m.manual ? '<button class="btn btn-ghost" data-action="unmanual" data-match="' + m.id + '">Rendre a hockey.be</button>' : '') + '</div></div>';
   });
   html += '</div>';
+  html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Rappels sur l\'iPhone</h2>';
+  if(notifBridge()){
+    html += '<p class="section-hint">Notifications de l\'app Pronos Hockey de cet iPhone, pour ' + escapeHtml(state.me || "le joueur choisi") + '. Elles sont recalculees a chaque ouverture de l\'app : ouvrez-la de temps en temps pour que les nouveaux matchs soient pris en compte.</p>' +
+      '<label class="pool-opt"><input type="checkbox" data-action="notif-set" data-k="fav"' + (notifOn("fav") ? " checked" : "") + '> Match de mes equipes &#9733; : 1 h avant</label>' +
+      '<label class="pool-opt"><input type="checkbox" data-action="notif-set" data-k="miss"' + (notifOn("miss") ? " checked" : "") + '> Pronostic oublie : 2 h avant le premier match du jour</label>';
+  } else html += '<p class="section-hint">Les rappels (match de mes equipes dans 1 h, pronostic oublie) fonctionnent uniquement dans l\'app iPhone Pronos Hockey installee avec Xcode, pas dans Safari.</p>';
+  html += '</div>';
   html += '<p class="section-hint" style="margin-top:20px;"><button class="btn btn-ghost btn-sm" data-action="leave-room">Quitter cette partie sur cet appareil</button></p>';
   html += '<div class="admin-form" style="border-color:var(--red-dark);margin-top:10px;">' +
     '<h2 class="section-title" style="font-size:19px;color:var(--red);">Supprimer la partie</h2>' +
@@ -1941,6 +1989,7 @@ function attachEvents(){
     if(!inParty){ state.searchAll = true; loadSnapshot(false); }
     render(); window.scrollTo(0, 0);
   });
+  on('[data-action="notif-set"]', "change", function(el){ setLocal("hb-notif-" + el.getAttribute("data-k"), el.checked ? "1" : "0"); lastNotifSig = ""; scheduleNotifs(); });
   on('[data-action="only-missing"]', "click", function(el){ state.onlyMissing = el.getAttribute("data-on") === "1"; render(); window.scrollTo(0, 0); });
   on('[data-action="lb-view"]', "click", function(el){ state.lbView = el.getAttribute("data-view"); render(); });
   on('[data-action="toggle-joker"]', "click", async function(el){
@@ -2079,7 +2128,7 @@ function attachEvents(){
     if(!ok){ showToast("Sauvegarde impossible (connexion ?)"); return; }
     var msg = document.getElementById("save-" + id);
     if(msg){ msg.classList.add("show"); setTimeout(function(){ msg.classList.remove("show"); }, 1800); }
-    updateMissingBadge();
+    updateMissingBadge(); scheduleNotifs();
   };
   on('[data-action="save-pred"]', "click", function(el){ savePred(el.getAttribute("data-match"), false); });
   var predTimers = {};
