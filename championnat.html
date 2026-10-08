@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 07/10/2026 (mes equipes, joker, stats, rappels iPhone) -->
+<!-- Pronos Hockey championnat - version du 07/10/2026 (EHL) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -784,6 +784,10 @@ var state = {
 /* ===================== Utilitaires ===================== */
 function poolName(id){
   var p = ALL_POOLS.find(function(x){ return x[0] === id; });
+  if(!p && /^ehl-/.test(id)){
+    var k = id.split("-");
+    return "EHL " + (k[1] === "w" ? "Women" : "Men") + " - " + (k[2] || "").toUpperCase() + (k[3] ? " - Pool " + k[3].toUpperCase() : "");
+  }
   return p ? shortPool(p[1]) : id;
 }
 /* Poules "techniques" de hockey.be : un seul match entre deux equipes nommees
@@ -810,6 +814,7 @@ function catInfo(c){
   if((m = /^(\d+)\+/.exec(c))) return {g:3, k:"3" + pad(+m[1])};
   if(/^Trimmers/.test(c)) return {g:3, k:"4"};
   if((m = /^U(\d+)\s*(.*)$/.exec(c))) return {g:1, k:pad(100 - +m[1]) + (/Girls/.test(m[2]) ? "1" : "0")};
+  if(/^EHL/.test(c)) return {g:2, k:"!" + sex};
   if(/Cup/.test(c)){
     var rounds = ["1st round", "1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "final"];
     var r = rounds.findIndex(function(x){ return c.toLowerCase().indexOf(x.toLowerCase()) !== -1; });
@@ -924,8 +929,22 @@ async function syncFromHockeyBe(){
   state.syncing = true; render();
   var changes = 0, failed = [];
   try{
+    if(state.pools.some(function(p){ return /^ehl-/.test(p); })){
+      await loadSnapshot(true);
+      if(SNAP.state !== "ok") failed.push("Euro Hockey League");
+    }
     for(var i = 0; i < state.pools.length; i++){
       var pid = state.pools[i];
+      if(/^ehl-/.test(pid)){
+        if(SNAP.state !== "ok") continue;
+        EXT.matches.forEach(function(m){
+          if(m.pool !== pid) return;
+          changes += upsertMatch({pool:pid, teamA:m.teamA, teamB:m.teamB, date:m.date, time:m.time, venue:m.venue,
+            scoreA:m.scoreA, scoreB:m.scoreB, status:m.status, official:true});
+        });
+        state.standings[pid] = EXT.standings[pid] || [];
+        continue;
+      }
       var res;
       try{ res = await Promise.all([apiGet(pid,"program"), apiGet(pid,"results"), apiGet(pid,"standing")]); }
       catch(e){ failed.push(poolName(pid)); continue; }
@@ -1279,6 +1298,7 @@ function renderHeader(){
 }
 
 function renderPoolPicker(){
+  if(SNAP.state === "idle") setTimeout(function(){ loadSnapshot(false); }, 0);
   var q = state.pickerSearch.toLowerCase();
   var groups = {}, order = [];
   ALL_POOLS.forEach(function(p){
@@ -1290,7 +1310,8 @@ function renderPoolPicker(){
     if(!groups[g]){ groups[g] = []; order.push(g); }
     groups[g].push(p);
   });
-  var html = '<input type="text" class="search-input" id="pool-search" placeholder="Rechercher : U19 Boys, Nat. 1, Top Hockey, Ladies..." value="' + escapeHtml(state.pickerSearch) + '">';
+  sortCats(order);
+  var html = '<input type="text" class="search-input" id="pool-search" placeholder="Rechercher : U19 Boys, Nat. 1, EHL, Ladies..." value="' + escapeHtml(state.pickerSearch) + '">';
   html += '<div class="pool-picker">';
   if(!order.length) html += '<p class="section-hint">Aucune poule ne correspond.</p>';
   order.forEach(function(g){
@@ -1445,9 +1466,15 @@ var SNAPSHOT_URLS = [
   "data/hockey-snapshot.json"
 ];
 var SNAP = {state:"idle", generated:null};
-async function loadSnapshot(force){
-  if(SNAP.state === "loading" || (SNAP.state === "ok" && !force)) return;
-  SNAP.state = "loading"; render();
+function loadSnapshot(force){
+  if(SNAP.state === "loading") return SNAP.promise;
+  if(SNAP.state === "ok" && !force) return Promise.resolve();
+  SNAP.promise = loadSnapshotNow();
+  return SNAP.promise;
+}
+async function loadSnapshotNow(){
+  var wasOk = SNAP.state === "ok";
+  SNAP.state = "loading"; if(!wasOk) render();
   for(var i = 0; i < SNAPSHOT_URLS.length; i++){
     try{
       var r = await fetch(SNAPSHOT_URLS[i] + "?t=" + Math.floor(Date.now() / 600000));
@@ -1455,7 +1482,12 @@ async function loadSnapshot(force){
       var d = await r.json();
       if(!d || !d.matches || !d.pools) continue;
       var pools = d.pools, teams = d.teams;
-      pools.forEach(function(p){ if(!ALL_POOLS.some(function(x){ return x[0] === p[0]; })) ALL_POOLS.push([p[0], p[1], 1]); });
+      var cnt = {}; d.matches.forEach(function(m){ cnt[m[0]] = (cnt[m[0]] || 0) + 1; });
+      pools.forEach(function(p, i){
+        var ex = ALL_POOLS.find(function(x){ return x[0] === p[0]; });
+        if(!ex) ALL_POOLS.push([p[0], p[1], cnt[i] || 1]);
+        else if(/^ehl-/.test(p[0])){ ex[1] = p[1]; ex[2] = cnt[i] || ex[2]; }
+      });
       var byId = {};
       EXT.matches = [];
       d.matches.forEach(function(m){
@@ -2205,6 +2237,7 @@ async function init(){
   state.me = getLocal(LOCAL_ME_KEY);
   if(state.room && !(await refreshCloud())){ state.room = null; setLocal(LOCAL_ROOM_KEY, null); }
   if(state.me && state.players.indexOf(state.me) === -1) state.me = null;
+  if(state.pools.some(function(p){ return /^ehl-/.test(p); })) loadSnapshot(false);
   if(!state.me && state.players.length) state.me = state.players[0];
   render();
   if(state.room){
