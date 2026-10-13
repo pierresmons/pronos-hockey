@@ -213,7 +213,12 @@ def main_ehl_only():
     for k, m in matches.items():
         m[0] = remap[m[0]]
     if not add_ehl(pools, matches, standings, t_id, None):
-        print("EHL indisponible : snapshot inchange, nouvel essai au prochain reveil", file=sys.stderr)
+        # on note seulement l'echec (visible dans le fichier) ; ehlGenerated ne bouge pas -> nouvel essai au prochain reveil
+        print("EHL indisponible : seul le statut est mis a jour, nouvel essai au prochain reveil", file=sys.stderr)
+        now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        old["ehlStatus"] = {"ok": False, "info": EHL_STATUS["info"], "at": now}
+        with open(OUT, "w", encoding="utf-8") as f:
+            json.dump(old, f, ensure_ascii=False, separators=(",", ":"))
         return
     write(pools, teams, matches, standings, old.get("failed", []), generated=old.get("generated"))
 
