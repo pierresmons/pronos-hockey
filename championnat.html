@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 13/10/2026 (invitation WhatsApp, SMS, QR code) -->
+<!-- Pronos Hockey championnat - version du 13/10/2026 (lisibilite iPhone) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -698,6 +698,23 @@
   .welcome-or{color:var(--ice-faint);font-size:13px;margin:18px 0 8px;}
   .welcome-new{display:flex;gap:8px;}
   .welcome-new input{flex:1;min-width:0;}
+  .match-card .match-top{flex-wrap:nowrap;margin-bottom:4px;}
+  .match-card .match-sub{margin-bottom:10px;}
+  .fix-scores summary{cursor:pointer;list-style:none;display:flex;flex-direction:column;gap:2px;}
+  .fix-scores summary::-webkit-details-marker{display:none;}
+  .fix-scores summary .section-title{margin:0;}
+  .fix-scores summary .section-title::after{content:" \25BE";color:var(--ice-faint);}
+  .fix-scores[open] summary .section-title::after{content:" \25B4";}
+  .fix-sub{font-size:12px;color:var(--ice-faint);}
+  .stats-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr)) !important;}
+  .stat-card{cursor:pointer;}
+  .stat-card.open{grid-column:1/-1;}
+  .stat-name{display:flex;justify-content:space-between;align-items:center;}
+  .stat-chev{font-size:12px;color:var(--ice-faint);}
+  .stat-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;text-align:center;margin-top:4px;}
+  .stat-mini b{display:block;font-family:var(--font-mono);font-size:15px;color:var(--ice);}
+  .stat-mini span{font-size:10px;color:var(--ice-faint);text-transform:uppercase;letter-spacing:.04em;}
+  .stat-more{margin-top:8px;}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
@@ -743,7 +760,14 @@
     .players-row::-webkit-scrollbar{display:none;}
     .players-row .chip,.players-row .chip-add{flex-shrink:0;}
     .players-label{display:none;}
-    .room-row{padding:6px 14px;}
+    .room-row{padding:6px 14px;gap:8px;}
+    .room-code{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+    .room-code .pool-count{display:none;}
+    .room-actions .btn-sm{padding:5px 10px;}
+    h1.title{font-size:clamp(18px,5.6vw,23px);}
+    .rink-header{padding:10px 16px 9px;}
+    .players-row{padding:8px 14px;}
+    .chip{padding:6px 12px;}
     .sync-line{padding:0 14px 6px;border-bottom:1px solid var(--line);background:var(--bg);font-size:9.5px;margin-top:-1px;}
     /* onglets en bas de l'ecran, comme une app iOS */
     .tabs{position:fixed;top:auto;bottom:0;left:0;right:0;z-index:50;border-top:1px solid var(--line);border-bottom:none;
@@ -1376,7 +1400,7 @@ function renderFilters(showWindow){
     '</span>';
     html += '<button class="filter-chip' + (!wk ? " active" : "") + '" data-action="set-window" data-window="all">Toute la saison</button>';
   }
-  if(count || state.weekOffset !== 0 || state.filterWindow !== "week") html += '<button class="btn btn-ghost btn-sm clear-btn" data-action="clear-filters">\u2715 Effacer les filtres</button>';
+  if(count || (showWindow && (state.weekOffset !== 0 || state.filterWindow !== "week"))) html += '<button class="btn btn-ghost btn-sm clear-btn" data-action="clear-filters">\u2715 Effacer les filtres</button>';
   html += '</div>';
   if(count && !state.filtersOpen){
     var parts = [];
@@ -1498,7 +1522,7 @@ function renderPlayersRow(){
   var sync = state.syncing ? "Synchronisation hockey.be en cours..." :
     (state.lastSync ? "Derniere mise a jour hockey.be : " + new Date(state.lastSync).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "Jamais synchronise");
   return '<div class="players-row"><span class="players-label">Vous etes</span>' + chips + add + '</div>' +
-    '<div class="room-row"><span class="room-code">Partie : <b>' + escapeHtml(state.room) + '</b> &middot; ' + state.pools.length + ' poule(s)</span>' +
+    '<div class="room-row"><span class="room-code">Partie : <b>' + escapeHtml(state.room) + '</b><span class="pool-count"> &middot; ' + state.pools.length + ' poule(s)</span></span>' +
     '<span class="room-actions"><button class="btn btn-sm invite-pill" data-action="invite">+ Inviter</button><button class="btn btn-ghost btn-sm" data-action="sync-now"' + (state.syncing ? " disabled" : "") + '>Actualiser</button></span></div>' +
     '<div class="sync-line">' + sync + '</div>' + staleBanner();
 }
@@ -1521,9 +1545,10 @@ function renderContent(){
   return "";
 }
 
-function badges(m){
+function badges(m, compact){
   var g = mGenre(m);
-  var cat = g !== "X" ? '<span class="cat-badge cat-' + (g === "F" ? "f" : "h") + '">' + genreLabel(g) + '</span>' : '';
+  var implied = /Men|Women|Boys|Girls|Ladies|Gentlemen|Dames|Hommes/i.test(poolName(m.pool));
+  var cat = g !== "X" && !(compact && implied) ? '<span class="cat-badge cat-' + (g === "F" ? "f" : "h") + '">' + genreLabel(g) + '</span>' : '';
   return cat + '<span class="pool-badge">' + escapeHtml(poolName(m.pool)) + '</span>' +
          (m.venue ? '<span class="venue-badge">' + escapeHtml(m.venue) + '</span>' : '');
 }
@@ -1566,7 +1591,7 @@ function renderPredictionCard(m, isDone){
     ? '<div class="score-inputs final-score"><input class="digit" type="text" value="' + m.scoreA + '" disabled><span class="vs-dash">:</span><input class="digit" type="text" value="' + m.scoreB + '" disabled></div>'
     : locked
     ? '<div class="score-inputs"><input class="digit" type="text" value="' + (val(pred.a) === "" ? "-" : pred.a) + '" disabled><span class="vs-dash">:</span><input class="digit" type="text" value="' + (val(pred.b) === "" ? "-" : pred.b) + '" disabled></div>'
-    : '<div class="score-inputs"><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-a" data-match="' + m.id + '" value="' + val(pred.a) + '" placeholder="0"><span class="vs-dash">:</span><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-b" data-match="' + m.id + '" value="' + val(pred.b) + '" placeholder="0"></div>';
+    : '<div class="score-inputs"><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-a" data-match="' + m.id + '" value="' + val(pred.a) + '" placeholder="–"><span class="vs-dash">:</span><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-b" data-match="' + m.id + '" value="' + val(pred.b) + '" placeholder="–"></div>';
   var infoBtn = isDone ? "" : '<button class="btn btn-ghost btn-sm info-btn" data-action="toggle-info" data-match="' + m.id + '">' + (state.infoOpen[m.id] ? "Masquer la forme" : "Forme & historique") + '</button>';
   var jokerBtn = "";
   if(!locked && m.date){
@@ -1599,7 +1624,7 @@ function renderPredictionCard(m, isDone){
       return '<span class="pred-tag">' + escapeHtml(p) + ': <b>' + pr.a + '-' + pr.b + '</b></span>';
     }).join("") + '</div>';
   }
-  return '<div class="match-card"><div class="match-top"><span class="match-meta"><span class="match-date">' + formatDate(m.date, m.time) + '</span>' + badges(m) + '</span>' + status + '</div>' +
+  return '<div class="match-card"><div class="match-top"><span class="match-date">' + formatDate(m.date, m.time) + '</span>' + status + '</div><div class="match-meta match-sub">' + badges(m, true) + '</div>' +
     '<div class="scoreboard"><div class="team team-a">' + escapeHtml(m.teamA) + '</div>' + inputs + '<div class="team team-b">' + escapeHtml(m.teamB) + '</div></div>' +
     actions + tags + '</div>';
 }
@@ -1994,17 +2019,18 @@ function playerStats(p){
   return s;
 }
 function renderStats(){
-  var html = '<h2 class="section-title" style="margin-top:30px;">Statistiques</h2><p class="section-hint">Sur tous les matchs termines que chaque joueur a pronostiques.</p><div class="stats-grid">';
+  var html = '<h2 class="section-title" style="margin-top:30px;">Statistiques</h2><p class="section-hint">Touchez un joueur pour le detail.</p><div class="stats-grid">';
   state.players.forEach(function(p){
     var s = playerStats(p), pct = function(x){ return s.played ? Math.round(100 * x / s.played) + "%" : "-"; };
-    html += '<div class="stat-card"><div class="stat-name">' + escapeHtml(p) + '</div>' +
-      '<div class="stat-row"><span>Bons pronos</span><b>' + pct(s.exact + s.correct) + '</b></div>' +
-      '<div class="stat-row"><span>Scores exacts</span><b>' + pct(s.exact) + '</b></div>' +
-      '<div class="stat-row"><span>Moyenne par match</span><b>' + (s.played ? (s.points / s.played).toFixed(2).replace(".", ",") : "-") + ' pt</b></div>' +
+    var open = !!(state.statOpen || {})[p];
+    html += '<div class="stat-card' + (open ? ' open' : '') + '" data-action="stat-toggle" data-player="' + escapeHtml(p) + '"><div class="stat-name">' + escapeHtml(p) + '<span class="stat-chev">' + (open ? '&#9652;' : '&#9662;') + '</span></div>' +
+      '<div class="stat-mini"><div><b>' + pct(s.exact + s.correct) + '</b><span>bons</span></div><div><b>' + pct(s.exact) + '</b><span>exacts</span></div><div><b>' + (s.played ? (s.points / s.played).toFixed(1).replace(".", ",") : "-") + '</b><span>pts/match</span></div></div>';
+    if(open) html += '<div class="stat-more">' +
+      '<div class="stat-row"><span>Pronos joues</span><b>' + s.played + '</b></div>' +
       '<div class="stat-row"><span>Meilleure serie</span><b>' + s.best + ' bon' + (s.best > 1 ? "s" : "") + ' d\'affilee</b></div>' +
       '<div class="stat-row"><span>Jokers joues</span><b>' + s.jokers + (s.jokers ? ' (+' + s.jokerGain + ' pt' + (s.jokerGain > 1 ? "s" : "") + ')' : '') + '</b></div>' +
-      '<div class="stat-row"><span>Point fort</span><b>' + (s.bestCat ? escapeHtml(s.bestCat) : '<span class="points-sub">3 pronos min.</span>') + '</b></div>' +
-      '</div>';
+      '<div class="stat-row"><span>Point fort</span><b>' + (s.bestCat ? escapeHtml(s.bestCat) : '<span class="points-sub">3 pronos min.</span>') + '</b></div></div>';
+    html += '</div>';
   });
   return html + '</div>';
 }
@@ -2068,7 +2094,7 @@ function renderPoules(){
 
 function renderAdmin(){
   var html = '<h2 class="section-title">Gestion de la partie</h2>';
-  html += '<p class="section-hint">Les scores officiels arrivent de hockey.be a chaque ouverture de l\'app et avec le bouton Actualiser. Vous pouvez corriger un score a la main : il ne sera plus ecrase par hockey.be (bouton "Rendre a hockey.be" pour annuler).</p>';
+
   html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Inviter quelqu\'un</h2>' +
     '<p class="section-hint">Par WhatsApp, SMS, e-mail ou QR code : la personne arrive directement dans la partie et n\'a qu\'a choisir son prenom.</p>' +
     '<button class="btn btn-primary" data-action="invite">+ Inviter quelqu\'un</button></div>';
@@ -2076,10 +2102,11 @@ function renderAdmin(){
   html += '<p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(poolName(p)); }).join(" &middot; ") + '</p>';
   html += '<details id="pool-editor"' + (state.poolEditorOpen ? ' open' : '') + '><summary class="btn btn-sm" style="display:inline-block;">Ajouter ou retirer des poules</summary><div style="margin-top:12px;">' + renderPoolPicker() +
           '<button class="btn btn-primary" data-action="save-pools">Enregistrer les poules</button></div></details></div>';
-  html += renderFilters(false);
   var sorted = sortMatches(state.matches.filter(function(m){ return passFilters(m, false) && (m.date ? m.date <= addDaysIso(7) : true); })).reverse();
-  if(!sorted.length) return html + '<div class="empty"><div class="big">Aucun match</div><p>Essayez un autre filtre.</p></div>';
-  html += '<p class="section-hint">Matchs joues ou prevus dans les 7 prochains jours (les plus recents en premier).</p><div class="admin-form">';
+  html += '<details class="admin-form fix-scores" id="fix-scores"' + (state.fixOpen ? ' open' : '') + '><summary><span class="section-title" style="font-size:19px;">Corriger un score</span><span class="fix-sub">Rarement utile : hockey.be envoie les scores tout seul</span></summary>';
+  html += '<p class="section-hint" style="margin-top:10px;">Un score corrige a la main n\'est plus ecrase par hockey.be (bouton "Rendre a hockey.be" pour annuler). Matchs joues ou prevus dans les 7 prochains jours.</p>';
+  html += renderFilters(false);
+  if(!sorted.length) html += '<p class="points-sub">Aucun match : essayez un autre filtre.</p>';
   sorted.slice(0, 150).forEach(function(m){
     var hs = hasScore(m);
     html += '<div class="admin-match-row"><div class="admin-match-info"><div class="admin-teams-line"><span class="admin-teams">' + escapeHtml(m.teamA) + ' vs ' + escapeHtml(m.teamB) + '</span></div>' +
@@ -2089,7 +2116,7 @@ function renderAdmin(){
       '<button class="btn" data-action="save-final" data-match="' + m.id + '">Valider</button>' +
       (m.manual ? '<button class="btn btn-ghost" data-action="unmanual" data-match="' + m.id + '">Rendre a hockey.be</button>' : '') + '</div></div>';
   });
-  html += '</div>';
+  html += '</details>';
   html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Rappels sur l\'iPhone</h2>';
   if(notifBridge()){
     html += '<p class="section-hint">Notifications de l\'app Pronos Hockey de cet iPhone, pour ' + escapeHtml(state.me || "le joueur choisi") + '. Elles sont recalculees a chaque ouverture de l\'app : ouvrez-la de temps en temps pour que les nouveaux matchs soient pris en compte.</p>' +
@@ -2240,6 +2267,9 @@ function attachEvents(){
     }
   });
 
+  var fx = document.getElementById("fix-scores");
+  if(fx) fx.addEventListener("toggle", function(){ state.fixOpen = fx.open; });
+  on('[data-action="stat-toggle"]', "click", function(el){ var p = el.getAttribute("data-player"); state.statOpen = state.statOpen || {}; state.statOpen[p] = !state.statOpen[p]; render(); });
   on('[data-action="invite"]', "click", function(){ state.inviteOpen = true; render(); });
   on('[data-action="invite-close"]', "click", function(){ state.inviteOpen = false; render(); });
   on('[data-action="invite-copy"]', "click", function(){ copyInvite(); });
