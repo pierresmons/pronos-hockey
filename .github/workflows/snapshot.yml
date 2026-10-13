@@ -5,6 +5,8 @@
 #   samedi           : 2h, puis 12h, 14h, 16h, 18h, 20h
 #   dimanche         : 12h, 14h, 17h, 20h
 #
+# A chaque passage, l'EHL est mise a jour EN PREMIER (quelques secondes) et enregistree tout de suite :
+# meme si la longue lecture de hockey.be echoue ou traine, les scores EHL sont en ligne.
 # Euro Hockey League : les jours de match EHL, le robot met aussi a jour l'EHL seule
 # (quelques secondes) toutes les 30 minutes entre 9h et minuit.
 #
@@ -94,17 +96,29 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         with:
           python-version: "3.12"
-      - name: Recuperer hockey.be
+      - name: EHL (rapide, toujours en premier)
         if: steps.gate.outputs.run == 'true'
-        env:
-          MODE: ${{ steps.gate.outputs.mode }}
-        run: |
-          if [ "$MODE" = "ehl" ]; then python scripts/snapshot.py --ehl-only; else python scripts/snapshot.py; fi
-      - name: Enregistrer si quelque chose a change
+        continue-on-error: true
+        run: python scripts/snapshot.py --ehl-only
+      - name: Enregistrer l'EHL
         if: steps.gate.outputs.run == 'true'
         run: |
           git config user.name "robot-pronos-hockey"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/hockey-snapshot.json
+          if git diff --cached --quiet; then
+            echo "Rien de neuf pour l'EHL"
+          else
+            git commit -m "EHL $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git pull --rebase
+            git push
+          fi
+      - name: Recuperer hockey.be
+        if: steps.gate.outputs.run == 'true' && steps.gate.outputs.mode == 'full'
+        run: python scripts/snapshot.py
+      - name: Enregistrer hockey.be
+        if: steps.gate.outputs.run == 'true' && steps.gate.outputs.mode == 'full'
+        run: |
           git add data/hockey-snapshot.json
           if git diff --cached --quiet; then
             echo "Rien de neuf"
