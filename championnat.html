@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 07/10/2026 (EHL) -->
+<!-- Pronos Hockey championnat - version du 07/10/2026 (score final et pronos de tous) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -663,6 +663,7 @@
   .stat-name{font-family:var(--font-display);font-size:22px;margin-bottom:4px;}
   .stat-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--ice-dim);padding:5px 0;border-top:1px solid rgba(255,255,255,.05);}
   .stat-row b{color:var(--ice);text-align:right;}
+  .final-score .digit{color:var(--gold);border-color:var(--gold);opacity:1;-webkit-text-fill-color:var(--gold);}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
@@ -1414,11 +1415,13 @@ function renderPronostics(){
 function renderPredictionCard(m, isDone){
   var pred = (state.predictions[m.id] || {})[state.me] || {};
   var locked = isDone || isLocked(m);
-  var status = isDone ? '<span class="match-status status-done">Termine ' + m.scoreA + ' — ' + m.scoreB + '</span>'
+  var status = isDone ? '<span class="match-status status-done">Termine' + (m.status && /shoot/i.test(m.status) ? ' &middot; ' + escapeHtml(m.status) : '') + '</span>'
     : (m.status ? '<span class="match-status status-locked">' + escapeHtml(m.status) + '</span>'
     : (locked ? '<span class="match-status status-locked">En cours / ferme</span>' : '<span class="match-status status-open">A venir</span>'));
   var val = function(v){ return v === undefined || v === "" ? "" : v; };
-  var inputs = locked
+  var inputs = isDone
+    ? '<div class="score-inputs final-score"><input class="digit" type="text" value="' + m.scoreA + '" disabled><span class="vs-dash">:</span><input class="digit" type="text" value="' + m.scoreB + '" disabled></div>'
+    : locked
     ? '<div class="score-inputs"><input class="digit" type="text" value="' + (val(pred.a) === "" ? "-" : pred.a) + '" disabled><span class="vs-dash">:</span><input class="digit" type="text" value="' + (val(pred.b) === "" ? "-" : pred.b) + '" disabled></div>'
     : '<div class="score-inputs"><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-a" data-match="' + m.id + '" value="' + val(pred.a) + '" placeholder="0"><span class="vs-dash">:</span><input class="digit" type="text" inputmode="numeric" maxlength="2" data-role="pred-b" data-match="' + m.id + '" value="' + val(pred.b) + '" placeholder="0"></div>';
   var infoBtn = isDone ? "" : '<button class="btn btn-ghost btn-sm info-btn" data-action="toggle-info" data-match="' + m.id + '">' + (state.infoOpen[m.id] ? "Masquer la forme" : "Forme & historique") + '</button>';
@@ -1436,7 +1439,9 @@ function renderPredictionCard(m, isDone){
   }
   if(!isDone && state.infoOpen[m.id]) actions += renderMatchInfo(m);
   var preds = state.predictions[m.id] || {};
-  var others = state.players.filter(function(p){ return p !== state.me; });
+  /* match termine : les pronos de tout le monde (le joueur choisi en premier) ; sinon ceux des autres */
+  var others = isDone ? [state.me].concat(state.players.filter(function(p){ return p !== state.me; })).filter(function(p){ return p && state.players.indexOf(p) !== -1; })
+                      : state.players.filter(function(p){ return p !== state.me; });
   var tags = "";
   if(others.length){
     tags = '<div class="predictions-list">' + others.map(function(p){
