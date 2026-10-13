@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 07/10/2026 (score final et pronos de tous) -->
+<!-- Pronos Hockey championnat - version du 13/10/2026 (alerte donnees en retard, lien d invitation) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -664,6 +664,13 @@
   .stat-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--ice-dim);padding:5px 0;border-top:1px solid rgba(255,255,255,.05);}
   .stat-row b{color:var(--ice);text-align:right;}
   .final-score .digit{color:var(--gold);border-color:var(--gold);opacity:1;-webkit-text-fill-color:var(--gold);}
+  .stale-banner{display:flex;flex-direction:column;gap:6px;margin:8px 16px 4px;padding:10px 12px;border:1px solid var(--red-dark);background:rgba(213,38,47,.12);border-radius:12px;font-size:13px;color:var(--ice-dim);}
+  .stale-banner b{color:var(--red);font-size:14px;}
+  .stale-banner .stale-sub{font-size:12px;color:var(--ice-faint);}
+  .stale-banner .btn{align-self:flex-start;text-decoration:none;}
+  .stale-text{color:var(--red) !important;}
+  .room-actions{display:flex;gap:4px;}
+  .invite-url{flex:1;min-width:0;font-size:13px;}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
@@ -1188,6 +1195,64 @@ function scheduleNotifs(){
   try{ br.postMessage({items:items}); }catch(e){}
 }
 
+
+/* ===================== Invitation ===================== */
+function inviteUrl(){ return location.origin + location.pathname + "?partie=" + encodeURIComponent(state.room); }
+async function shareInvite(){
+  var url = inviteUrl(), text = "Rejoins notre partie de pronos hockey \"" + state.room + "\" : ouvre ce lien puis choisis ton prenom.";
+  try{
+    if(navigator.share){ await navigator.share({title:"Pronos hockey", text:text, url:url}); return; }
+  }catch(e){ if(e && e.name === "AbortError") return; }
+  try{ await navigator.clipboard.writeText(text + " " + url); showToast("Lien copie : collez-le dans WhatsApp"); }
+  catch(e){ window.prompt("Copiez ce lien d'invitation :", url); }
+}
+/* lien ?partie=nom : rejoint la partie directement */
+async function joinFromLink(){
+  var code = "";
+  try{ code = (new URLSearchParams(location.search).get("partie") || "").trim().toLowerCase().replace(/[^a-z0-9-]/g, ""); }catch(e){}
+  if(!code) return false;
+  try{ history.replaceState(null, "", location.pathname); }catch(e){}
+  if(code === state.room) return false;
+  try{
+    applyRoom(await fetchRoom(code));
+    state.room = code; setLocal(LOCAL_ROOM_KEY, code);
+    state.me = null; setLocal(LOCAL_ME_KEY, null);
+    state.invited = true;
+    return true;
+  }catch(e){ showToast("Partie \"" + code + "\" introuvable : verifiez le lien"); return false; }
+}
+
+/* ===================== Donnees en retard ===================== */
+var ROBOT_URL = "https://github.com/pierresmons/pronos-hockey/actions/workflows/snapshot.yml";
+function agoLabel(t){
+  var min = Math.round((Date.now() - t) / 60000);
+  if(min < 90) return "il y a " + min + " min";
+  var hrs = Math.round(min / 60);
+  if(hrs < 36) return "il y a " + hrs + " h";
+  return "depuis le " + new Date(t).toLocaleString("fr-FR", {weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
+}
+/* problemes du fichier du robot : hockey.be pas relu depuis plus de 26 h ; EHL pas relue depuis 75 min un jour de match EHL */
+function robotIssues(){
+  if(!SNAP.generated) return [];
+  var out = [], now = Date.now(), gen = new Date(SNAP.generated).getTime(), eg = new Date(SNAP.ehlGenerated || SNAP.generated).getTime();
+  if(now - gen > 26 * 3600e3) out.push("hockey.be (toutes les poules) : derniere mise a jour " + agoLabel(gen));
+  var today = todayIso(), yday = addDaysIso(-1);
+  var ehlDay = EXT.matches.some(function(m){ return /^ehl-/.test(m.pool) && (m.date === today || (m.date === yday && !hasScore(m))); });
+  var ehlLive = EXT.matches.some(function(m){ return /^ehl-/.test(m.pool) && m.date === today && kickoff(m) && kickoff(m) < now; });
+  if(ehlDay && ehlLive && now - eg > 75 * 60e3){
+    var why = SNAP.ehlStatus && SNAP.ehlStatus.ok === false ? " (site de l'EHL indisponible)" : "";
+    out.push("EHL : derniers scores " + agoLabel(eg) + why);
+  }
+  return out;
+}
+function staleBanner(){
+  var iss = robotIssues();
+  if(!iss.length) return "";
+  return '<div class="stale-banner"><b>Donnees en retard</b><span>' + iss.map(escapeHtml).join("<br>") + '</span>' +
+    '<span class="stale-sub">Les poules de votre partie hors EHL restent a jour : l\'app les lit elle-meme sur hockey.be.</span>' +
+    '<a class="btn btn-sm" href="' + ROBOT_URL + '" target="_blank" rel="noopener">Relancer le robot (GitHub)</a></div>';
+}
+
 /* ===================== Filtres ===================== */
 function sortMatches(list){
   return list.slice().sort(function(a,b){
@@ -1357,8 +1422,8 @@ function renderPlayersRow(){
     (state.lastSync ? "Derniere mise a jour hockey.be : " + new Date(state.lastSync).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) : "Jamais synchronise");
   return '<div class="players-row"><span class="players-label">Vous etes</span>' + chips + add + '</div>' +
     '<div class="room-row"><span class="room-code">Partie : <b>' + escapeHtml(state.room) + '</b> &middot; ' + state.pools.length + ' poule(s)</span>' +
-    '<button class="btn btn-ghost btn-sm" data-action="sync-now"' + (state.syncing ? " disabled" : "") + '>Actualiser</button></div>' +
-    '<div class="sync-line">' + sync + '</div>';
+    '<span class="room-actions"><button class="btn btn-ghost btn-sm" data-action="invite">Inviter</button><button class="btn btn-ghost btn-sm" data-action="sync-now"' + (state.syncing ? " disabled" : "") + '>Actualiser</button></span></div>' +
+    '<div class="sync-line">' + sync + '</div>' + staleBanner();
 }
 
 function renderTabs(){
@@ -1387,7 +1452,8 @@ function badges(m){
 }
 
 function renderPronostics(){
-  if(!state.me) return '<div class="empty"><div class="big">Choisissez votre nom</div><p>Cliquez sur "+" en haut pour ajouter les joueurs de la famille.</p></div>';
+  if(!state.me) return '<div class="empty"><div class="big">' + (state.invited ? 'Bienvenue dans la partie ' + escapeHtml(state.room) + ' !' : 'Choisissez votre nom') + '</div><p>' +
+    (state.players.length ? 'Touchez votre prenom en haut, ou ajoutez-vous avec "+" si vous n\'y etes pas encore.' : 'Ajoutez-vous avec "+" en haut.') + '</p></div>';
   var html = '<h2 class="section-title">Mes pronostics</h2>';
   html += '<p class="section-hint"><span class="hint-long">Entrez votre score pour chaque match : il s\'enregistre tout seul. Les pronostics se ferment au coup d\'envoi et les resultats arrivent automatiquement de hockey.be. </span><span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>0 pt</b> faux &middot; <b>Joker</b> points x2 sur un match par semaine</span></p>';
   var miss = missingList();
@@ -1506,7 +1572,7 @@ async function loadSnapshotNow(){
         EXT.standings[pid] = d.standings[pid].map(function(t){ return {rank:t[0], team:t[1], j:t[2], g:t[3], p:t[4], n:t[5], bp:t[6], bc:t[7], pts:t[8]}; });
       });
       EXT.loaded = {}; pools.forEach(function(p){ EXT.loaded[p[0]] = true; });
-      SNAP.state = "ok"; SNAP.generated = d.generated; render();
+      SNAP.state = "ok"; SNAP.generated = d.generated; SNAP.ehlGenerated = d.ehlGenerated || d.generated; SNAP.ehlStatus = d.ehlStatus || null; SNAP.checked = Date.now(); render();
       return;
     }catch(e){}
   }
@@ -1652,7 +1718,7 @@ function extPoolsOf(cat){ return ALL_POOLS.filter(function(p){ return p[2] > 0 &
 function renderExtScope(){
   var html = "";
   if(SNAP.state === "loading") html += '<p class="selected-count">Chargement de tout hockey.be...</p>';
-  else if(SNAP.state === "ok") html += '<p class="points-sub" style="margin:0 0 8px;">Donnees hockey.be du ' + new Date(SNAP.generated).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) + ' (mises a jour automatiquement plusieurs fois par jour)</p>';
+  else if(SNAP.state === "ok") html += '<p class="points-sub' + (robotIssues().length ? ' stale-text' : '') + '" style="margin:0 0 8px;">Donnees hockey.be du ' + new Date(SNAP.generated).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) + ' (mises a jour automatiquement plusieurs fois par jour)</p>';
   else if(SNAP.state === "error") html += '<p class="points-sub" style="margin:0 0 8px;">Fichier complet indisponible : les poules sont chargees une par une depuis hockey.be.</p>';
   html += '<div class="filter-row"><select class="date-select' + (state.extCat ? " active" : "") + '" id="ext-cat"><option value="">' + (SNAP.state === "ok" ? "Toutes les categories" : "Choisir une categorie...") + '</option>' +
     (function(){ var out = "", cur = -1; extCategories().forEach(function(c){ var g = catInfo(c).g; if(g !== cur){ if(cur !== -1) out += '</optgroup>'; out += '<optgroup label="' + CAT_GROUPS[g] + '">'; cur = g; } out += '<option value="' + escapeHtml(c) + '"' + (state.extCat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>'; }); return out + (cur !== -1 ? '</optgroup>' : ''); })() + '</select>';
@@ -1926,6 +1992,9 @@ function renderPoules(){
 function renderAdmin(){
   var html = '<h2 class="section-title">Gestion de la partie</h2>';
   html += '<p class="section-hint">Les scores officiels arrivent de hockey.be a chaque ouverture de l\'app et avec le bouton Actualiser. Vous pouvez corriger un score a la main : il ne sera plus ecrase par hockey.be (bouton "Rendre a hockey.be" pour annuler).</p>';
+  html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Inviter quelqu\'un</h2>' +
+    '<p class="section-hint">Envoyez ce lien (WhatsApp, SMS, e-mail) : en l\'ouvrant, la personne rejoint directement la partie <b>' + escapeHtml(state.room) + '</b> et n\'a plus qu\'a choisir ou ajouter son prenom.</p>' +
+    '<div class="form-row"><input type="text" class="inline-input invite-url" readonly value="' + escapeHtml(inviteUrl()) + '"><button class="btn btn-primary" data-action="invite">Partager le lien</button></div></div>';
   html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Poules suivies</h2>';
   html += '<p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(poolName(p)); }).join(" &middot; ") + '</p>';
   html += '<details id="pool-editor"' + (state.poolEditorOpen ? ' open' : '') + '><summary class="btn btn-sm" style="display:inline-block;">Ajouter ou retirer des poules</summary><div style="margin-top:12px;">' + renderPoolPicker() +
@@ -2094,6 +2163,8 @@ function attachEvents(){
     }
   });
 
+  on('[data-action="invite"]', "click", function(){ shareInvite(); });
+  on('.invite-url', "focus", function(el){ el.select(); });
   on('[data-action="join-room"]', "click", async function(){
     var code = roomCodeFrom("join-room-code");
     if(!code){ state.joinError = "Entrez le nom de la partie."; render(); return; }
@@ -2241,9 +2312,10 @@ async function init(){
   state.room = getLocal(LOCAL_ROOM_KEY);
   state.me = getLocal(LOCAL_ME_KEY);
   if(state.room && !(await refreshCloud())){ state.room = null; setLocal(LOCAL_ROOM_KEY, null); }
+  var joined = await joinFromLink();
   if(state.me && state.players.indexOf(state.me) === -1) state.me = null;
   if(state.pools.some(function(p){ return /^ehl-/.test(p); })) loadSnapshot(false);
-  if(!state.me && state.players.length) state.me = state.players[0];
+  if(!state.me && state.players.length && !joined) state.me = state.players[0];
   render();
   if(state.room){
     var stale = isStale();
@@ -2262,6 +2334,7 @@ async function liveTick(){
   if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
   await refreshCloud();
   if(isStale()) await syncFromHockeyBe();
+  if(SNAP.state === "ok" && Date.now() - (SNAP.checked || 0) > 15 * 60e3) await loadSnapshot(true);
   render();
 }
 document.addEventListener("visibilitychange", function(){
