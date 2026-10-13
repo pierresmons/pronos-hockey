@@ -1225,7 +1225,9 @@ function scheduleNotifs(){
 
 /* ===================== Invitation ===================== */
 var QR_LIBS = ["https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js", "https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"];
-function inviteUrl(){ return location.origin + location.pathname + "?partie=" + encodeURIComponent(state.room) + (state.me ? "&de=" + encodeURIComponent(state.me) : ""); }
+/* toujours l'adresse publique (GitHub Pages), meme si l'app est ouverte depuis un fichier sur l'ordinateur */
+var PUBLIC_APP_URL = "https://pierresmons.github.io/pronos-hockey/championnat.html";
+function inviteUrl(){ return PUBLIC_APP_URL + "?partie=" + encodeURIComponent(state.room) + (state.me ? "&de=" + encodeURIComponent(state.me) : ""); }
 function inviteText(){ return (state.me ? state.me + " t'invite" : "Tu es invite(e)") + " a jouer aux pronos hockey avec nous ! Ouvre ce lien et choisis ton prenom : "; }
 function renderInviteSheet(){
   if(!state.inviteOpen) return "";
