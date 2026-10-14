@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 13/10/2026 (lisibilite iPhone) -->
+<!-- Pronos Hockey championnat - version du 13/10/2026 (filtre outdoor / indoor) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -715,6 +715,9 @@
   .stat-mini b{display:block;font-family:var(--font-mono);font-size:15px;color:var(--ice);}
   .stat-mini span{font-size:10px;color:var(--ice-faint);text-transform:uppercase;letter-spacing:.04em;}
   .stat-more{margin-top:8px;}
+  .surf-switch{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px;margin:0 0 12px;max-width:340px;}
+  .surf-btn{flex:1;border:none;background:transparent;color:var(--ice-dim);font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:8px 6px;border-radius:999px;cursor:pointer;}
+  .surf-btn.active{background:var(--gold);color:#1a1205;font-weight:700;}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
@@ -837,7 +840,7 @@ var state = {
   me:null, tab:"pronostics",
   filterGenre:[], filterPools:[], filterCat:"", filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false, favs:{}, onlyMissing:false, lbView:"all"
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false, favs:{}, onlyMissing:false, lbView:"all", surf:""
 };
 
 /* ===================== Utilitaires ===================== */
@@ -852,14 +855,25 @@ function poolName(id){
 /* Poules "techniques" de hockey.be : un seul match entre deux equipes nommees
    (ex. "Reg. 3 - Gantoise U10G-4 - Wolvendael U10G-1"). Masquees par defaut. */
 function isIsolatedPool(n){ return / - [^-]+ [A-Z0-9]+-\d+ - .+ [A-Z0-9]+-\d+$/.test(n); }
-function shortPool(n){ return n.replace(/ (Outdoor|Indoor|Recreatief|Trimmers) Week/,'').replace('Trimmers Trimmers','Trimmers').replace("Top Hockey Men's League - Carlsberg Men's Hockey League", "Top League Hommes").replace("Top Hockey Women's League - Belfius Women's Hockey League", "Top League Dames"); }
+/* indoor : on garde la mention "Indoor" (sinon "U19 Boys - Nat. 1 - A" indoor et outdoor auraient le meme nom),
+   et les noms neerlandais Heren / Dames deviennent Men / Women */
+function shortPool(n){
+  if(/ Indoor Week/.test(n)) return n.replace(/^Heren /, "Men ").replace(/^Dames /, "Women ").replace(/ Indoor Week/, " Indoor");
+  return n.replace(/ (Outdoor|Recreatief|Trimmers) Week/,'').replace('Trimmers Trimmers','Trimmers').replace("Top Hockey Men's League - Carlsberg Men's Hockey League", "Top League Hommes").replace("Top Hockey Women's League - Belfius Women's Hockey League", "Top League Dames");
+}
 function poolGroup(n){
   var s = shortPool(n), parts = s.split(" - ");
   return parts[0];
 }
 /* Ordre logique des categories : seniors (du plus haut niveau au plus bas), jeunes (U19 -> U7), coupes, veterans & loisirs (dont Gentlemen), autres */
-var CAT_GROUPS = ["Seniors", "Jeunes", "Coupes", "Veterans & loisirs", "Autres"];
+var CAT_GROUPS = ["Seniors", "Jeunes", "Coupes", "Veterans & loisirs", "Indoor", "Autres"];
 function catInfo(c){
+  /* indoor : un groupe a part, range comme l'outdoor (seniors, puis jeunes de U19 a U7) */
+  if(/ Indoor$/.test(c)){
+    if(/^(Men|Women)$/.test(c.replace(/ Indoor$/, ""))) return {g:4, k:"00" + (/^Women/.test(c) ? "1" : "0")};
+    var bi = catInfo(c.replace(/ Indoor$/, ""));
+    return {g:4, k:String(bi.g) + bi.k};
+  }
   var pad = function(n){ return String(1000 + n).slice(1); };
   var sex = /Women|Dames|Girls|Ladies/.test(c) ? 1 : (/Gentlemen/.test(c) ? 2 : 0);
   var m;
@@ -881,14 +895,14 @@ function catInfo(c){
     var cupOrder = /Dr\. Oetker/.test(c) ? "0" : "1";
     return {g:2, k:cupOrder + base + " " + pad(r < 0 ? 99 : r)};
   }
-  return {g:4, k:c};
+  return {g:5, k:c};
 }
 function sortCats(cats){
   return cats.sort(function(a,b){ var x = catInfo(a), y = catInfo(b); return x.g - y.g || x.k.localeCompare(y.k) || a.localeCompare(b); });
 }
 function genreOf(n){
-  if(/Women|Ladies|Girls/.test(n)) return "F";
-  if(/\bMen\b|Men's|Gentlemen|Boys/.test(n)) return "H";
+  if(/Women|Ladies|Girls|^Dames /.test(n)) return "F";
+  if(/\bMen\b|Men's|Gentlemen|Boys|^Heren /.test(n)) return "H";
   return "X";
 }
 function genreLabel(g){ return g === "F" ? "Dames" : (g === "H" ? "Hommes" : "Mixte"); }
@@ -1352,6 +1366,18 @@ function staleBanner(){
     '<a class="btn btn-sm" href="' + ROBOT_URL + '" target="_blank" rel="noopener">Relancer le robot (GitHub)</a></div>';
 }
 
+
+/* ===================== Outdoor / Indoor ===================== */
+function isIndoorPid(pid){ return / Indoor( |$)/.test(poolName(pid)); }
+function surfOk(pid){ return !state.surf || (state.surf === "in") === isIndoorPid(pid); }
+/* bouton Outdoor / Indoor : affiche seulement s'il y a les deux sortes de poules (ou si un choix est deja fait) */
+function surfaceSwitch(pids){
+  var hasIn = pids.some(isIndoorPid), hasOut = pids.some(function(p){ return !isIndoorPid(p); });
+  if(!(hasIn && hasOut) && !state.surf) return "";
+  return '<div class="surf-switch" role="tablist">' + [["", "Tout"], ["out", "Outdoor"], ["in", "Indoor"]].map(function(o){
+    return '<button class="surf-btn' + (state.surf === o[0] ? " active" : "") + '" data-action="set-surf" data-surf="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
+}
+
 /* ===================== Filtres ===================== */
 function sortMatches(list){
   return list.slice().sort(function(a,b){
@@ -1363,6 +1389,7 @@ function sortMatches(list){
 }
 function mGenre(m){ var p = ALL_POOLS.find(function(x){ return x[0] === m.pool; }); return p ? genreOf(p[1]) : "X"; }
 function passFilters(m, upcomingMode){
+  if(!surfOk(m.pool)) return false;
   if(state.filterCat && poolCat(m.pool) !== state.filterCat) return false;
   if(state.filterGenre.length && state.filterGenre.indexOf(mGenre(m)) === -1) return false;
   if(state.filterPools.length && state.filterPools.indexOf(m.pool) === -1) return false;
@@ -1384,7 +1411,7 @@ function toggleInArray(arr, v){ var i = arr.indexOf(v); if(i === -1) arr.push(v)
 
 function renderFilters(showWindow){
   var count = activeFilterCount();
-  var html = '<div class="filters-toggle-row">';
+  var html = surfaceSwitch(state.pools) + '<div class="filters-toggle-row">';
   html += '<button class="btn btn-ghost filters-toggle-btn" data-action="toggle-filters">Filtres' +
           (count ? ' <span class="filter-count-badge">' + count + '</span>' : '') +
           ' <span class="chev">' + (state.filtersOpen ? "▴" : "▾") + '</span></button>';
@@ -1416,14 +1443,14 @@ function renderFilters(showWindow){
   html += '<input type="search" class="inline-input filter-search" id="team-filter" placeholder="Equipe ou club (ex : Leopold)" value="' + escapeHtml(state.filterTeam) + '" autocomplete="off">';
   /* Categorie puis poule : deux rangees qui defilent horizontalement sur iPhone */
   var cats = [];
-  state.pools.forEach(function(pid){ var c = poolCat(pid); if(cats.indexOf(c) === -1) cats.push(c); });
+  state.pools.forEach(function(pid){ if(!surfOk(pid)) return; var c = poolCat(pid); if(cats.indexOf(c) === -1) cats.push(c); });
   sortCats(cats);
   if(cats.length > 1){
     html += '<div class="filter-label">Categorie</div><div class="filter-row filter-row-scroll">' +
       '<button class="filter-chip' + (!state.filterCat ? " active" : "") + '" data-action="filter-cat" data-cat="">Toutes</button>' +
       cats.map(function(c){ return '<button class="filter-chip' + (state.filterCat === c ? " active" : "") + '" data-action="filter-cat" data-cat="' + escapeHtml(c) + '">' + escapeHtml(c) + '</button>'; }).join("") + '</div>';
   }
-  var catPools = state.pools.filter(function(pid){ return !state.filterCat || poolCat(pid) === state.filterCat; });
+  var catPools = state.pools.filter(function(pid){ return surfOk(pid) && (!state.filterCat || poolCat(pid) === state.filterCat); });
   if(catPools.length > 1 && (state.filterCat || cats.length <= 1)){
     html += '<div class="filter-label">Poule</div><div class="filter-row filter-row-scroll">' +
       '<button class="filter-chip' + (!state.filterPools.length ? " active" : "") + '" data-action="filter-pool" data-pool="">Toutes</button>' +
@@ -1470,6 +1497,7 @@ function renderPoolPicker(){
   var groups = {}, order = [];
   ALL_POOLS.forEach(function(p){
     if(p[2] === 0) return;
+    if(!surfOk(p[0]) && state.pickerSel.indexOf(p[0]) === -1) return;
     if(!state.showIsolated && isIsolatedPool(p[1]) && state.pickerSel.indexOf(p[0]) === -1) return;
     var label = shortPool(p[1]);
     if(q && label.toLowerCase().indexOf(q) === -1 && p[1].toLowerCase().indexOf(q) === -1) return;
@@ -1478,7 +1506,8 @@ function renderPoolPicker(){
     groups[g].push(p);
   });
   sortCats(order);
-  var html = '<input type="text" class="search-input" id="pool-search" placeholder="Rechercher : U19 Boys, Nat. 1, EHL, Ladies..." value="' + escapeHtml(state.pickerSearch) + '">';
+  var html = surfaceSwitch(ALL_POOLS.filter(function(p){ return p[2] > 0; }).map(function(p){ return p[0]; }));
+  html += '<input type="text" class="search-input" id="pool-search" placeholder="Rechercher : U19 Boys, Nat. 1, EHL, Ladies..." value="' + escapeHtml(state.pickerSearch) + '">';
   html += '<div class="pool-picker">';
   if(!order.length) html += '<p class="section-hint">Aucune poule ne correspond.</p>';
   order.forEach(function(g){
@@ -1784,6 +1813,7 @@ function renderMatchInfo(m){
 }
 function poolCat(pid){ var p = ALL_POOLS.find(function(x){ return x[0] === pid; }); return p ? poolGroup(p[1]) : pid; }
 function inSearchScope(m){
+  if(!surfOk(m.pool)) return false;
   if(state.searchAll){
     if(state.extPool) return m.pool === state.extPool;
     if(state.extCat) return poolCat(m.pool) === state.extCat;
@@ -1795,7 +1825,7 @@ function inSearchScope(m){
 }
 function renderSearchScope(){
   var cats = [];
-  state.pools.forEach(function(pid){ var c = poolCat(pid); if(cats.indexOf(c) === -1) cats.push(c); });
+  state.pools.forEach(function(pid){ if(!surfOk(pid)) return; var c = poolCat(pid); if(cats.indexOf(c) === -1) cats.push(c); });
   sortCats(cats);
   if(cats.length < 2 && state.pools.length < 2) return "";
   var html = '<div class="filter-row filter-row-scroll">';
@@ -1813,7 +1843,7 @@ function renderSearchScope(){
 }
 function extCategories(){
   var cats = [];
-  ALL_POOLS.forEach(function(p){ if(p[2] > 0 && !isIsolatedPool(p[1])){ var g = poolGroup(p[1]); if(cats.indexOf(g) === -1) cats.push(g); } });
+  ALL_POOLS.forEach(function(p){ if(p[2] > 0 && !isIsolatedPool(p[1]) && surfOk(p[0])){ var g = poolGroup(p[1]); if(cats.indexOf(g) === -1) cats.push(g); } });
   return sortCats(cats);
 }
 function extPoolsOf(cat){ return ALL_POOLS.filter(function(p){ return p[2] > 0 && !isIsolatedPool(p[1]) && poolGroup(p[1]) === cat; }); }
@@ -1900,6 +1930,7 @@ function renderMatchsInner(){
   html += '<h2 class="section-title">Rechercher un match</h2>';
   html += '<div class="filter-row"><button class="filter-chip' + (!state.searchAll ? " active" : "") + '" data-action="search-mode" data-all="0">Mes poules</button>' +
           '<button class="filter-chip' + (state.searchAll ? " active" : "") + '" data-action="search-mode" data-all="1">Tout hockey.be</button></div>';
+  html += surfaceSwitch(state.searchAll ? ALL_POOLS.filter(function(p){ return p[2] > 0; }).map(function(p){ return p[0]; }) : state.pools);
   if(state.searchAll){
     html += '<p class="section-hint">Toutes les competitions de hockey.be. Tapez une equipe directement, ou choisissez une categorie puis une poule.</p>';
     html += renderExtScope();
@@ -2071,7 +2102,7 @@ function renderResultats(){
 function renderPoules(){
   var html = '<h2 class="section-title">Classements officiels</h2><p class="section-hint">Tels que publies par hockey.be (les points peuvent inclure des bonus de shoot-out).</p>';
   html += renderFilters(false);
-  var pools = state.filterPools.length ? state.filterPools : state.pools.filter(function(pid){ return !state.filterCat || poolCat(pid) === state.filterCat; });
+  var pools = (state.filterPools.length ? state.filterPools : state.pools.filter(function(pid){ return !state.filterCat || poolCat(pid) === state.filterCat; })).filter(surfOk);
   var q = state.filterTeam.toLowerCase();
   var any = false;
   pools.forEach(function(pid){
@@ -2270,6 +2301,17 @@ function attachEvents(){
   var fx = document.getElementById("fix-scores");
   if(fx) fx.addEventListener("toggle", function(){ state.fixOpen = fx.open; });
   on('[data-action="stat-toggle"]', "click", function(el){ var p = el.getAttribute("data-player"); state.statOpen = state.statOpen || {}; state.statOpen[p] = !state.statOpen[p]; render(); });
+  on('[data-action="set-surf"]', "click", function(el){
+    state.surf = el.getAttribute("data-surf"); setLocal("hb-surface", state.surf || null);
+    /* on oublie les choix de categorie / poule qui ne correspondent plus */
+    if(state.filterCat && !state.pools.some(function(p){ return surfOk(p) && poolCat(p) === state.filterCat; })) state.filterCat = "";
+    state.filterPools = state.filterPools.filter(surfOk);
+    if(state.searchCat && !state.pools.some(function(p){ return surfOk(p) && poolCat(p) === state.searchCat; })){ state.searchCat = ""; state.searchPool = ""; }
+    if(state.searchPool && !surfOk(state.searchPool)) state.searchPool = "";
+    if(state.extCat && extCategories().indexOf(state.extCat) === -1){ state.extCat = ""; state.extPool = ""; }
+    if(state.extPool && !surfOk(state.extPool)) state.extPool = "";
+    render();
+  });
   on('[data-action="invite"]', "click", function(){ state.inviteOpen = true; render(); });
   on('[data-action="invite-close"]', "click", function(){ state.inviteOpen = false; render(); });
   on('[data-action="invite-copy"]', "click", function(){ copyInvite(); });
@@ -2435,6 +2477,7 @@ async function init(){
   document.getElementById("app").innerHTML = '<div class="empty" style="padding-top:120px;"><div class="big">Chargement...</div></div>';
   state.room = getLocal(LOCAL_ROOM_KEY);
   state.me = getLocal(LOCAL_ME_KEY);
+  state.surf = getLocal("hb-surface") || "";
   if(state.room && !(await refreshCloud())){ state.room = null; setLocal(LOCAL_ROOM_KEY, null); }
   var joined = await joinFromLink();
   if(state.me && state.players.indexOf(state.me) === -1) state.me = null;
