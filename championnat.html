@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 15/10/2026 (pronos de saison + interrupteur) -->
+<!-- Pronos Hockey championnat - version du 15/10/2026 (buts marques/encaisses) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -2049,10 +2049,10 @@ function standingsTable(pid, hlTeam){
   if(!st.length) return "";
   var norm = function(x){ return String(x).toLowerCase().replace(/\s+/g," ").trim(); };
   var html = '<h2 class="section-title" style="font-size:18px;margin-top:18px;">Classement &middot; ' + escapeHtml(poolName(pid).replace(/ - A$/, "")) + '</h2>';
-  html += '<div class="admin-form std-wrap"><table class="leaderboard std-compact"><thead><tr><th>#</th><th>Equipe</th><th class="num">J</th><th class="num">G</th><th class="num">N</th><th class="num">P</th><th class="num">Diff</th><th class="num">Pts</th></tr></thead><tbody>';
+  html += '<div class="admin-form std-wrap"><table class="leaderboard std-compact"><thead><tr><th>#</th><th>Equipe</th><th class="num">J</th><th class="num">G</th><th class="num">N</th><th class="num">P</th><th class="num" title="Buts marques">BM</th><th class="num" title="Buts encaisses">BE</th><th class="num">Diff</th><th class="num">Pts</th></tr></thead><tbody>';
   st.forEach(function(t){
     var diff = t.bp - t.bc, hl = hlTeam && norm(t.team) === norm(hlTeam);
-    html += '<tr' + (hl ? ' class="team-hl"' : '') + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name"><span class="std-team" data-action="pick-team" data-team="' + escapeHtml(t.team) + '">' + escapeHtml(t.team) + '</span></td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
+    html += '<tr' + (hl ? ' class="team-hl"' : '') + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name"><span class="std-team" data-action="pick-team" data-team="' + escapeHtml(t.team) + '">' + escapeHtml(t.team) + '</span></td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + t.bp + '</td><td class="num">' + t.bc + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
   });
   return html + '</tbody></table></div>';
 }
@@ -2385,7 +2385,7 @@ function renderResultats(){
 }
 
 function renderPoules(){
-  var html = '<h2 class="section-title">Classements officiels</h2><p class="section-hint">Tels que publies par hockey.be (les points peuvent inclure des bonus de shoot-out).</p>';
+  var html = '<h2 class="section-title">Classements officiels</h2><p class="section-hint">Tels que publies par hockey.be (les points peuvent inclure des bonus de shoot-out). BM : buts marques, BE : buts encaisses.</p>';
   html += renderFilters(false);
   var pools = (state.filterPools.length ? state.filterPools : state.pools.filter(function(pid){ return !state.filterCat || poolCat(pid) === state.filterCat; })).filter(surfOk);
   var q = state.filterTeam.toLowerCase();
@@ -2396,11 +2396,11 @@ function renderPoules(){
     if(q && !st.some(function(t){ return t.team.toLowerCase().indexOf(q) !== -1; })) return;
     any = true;
     html += '<h2 class="section-title" style="font-size:19px;margin-top:26px;">' + escapeHtml(poolName(pid)) + '</h2>';
-    html += '<table class="leaderboard"><thead><tr><th>#</th><th>Equipe</th><th class="num">J</th><th class="num">G</th><th class="num">N</th><th class="num">P</th><th class="num">Diff</th><th class="num">Pts</th></tr></thead><tbody>';
+    html += '<table class="leaderboard"><thead><tr><th>#</th><th>Equipe</th><th class="num">J</th><th class="num">G</th><th class="num">N</th><th class="num">P</th><th class="num" title="Buts marques">BM</th><th class="num" title="Buts encaisses">BE</th><th class="num">Diff</th><th class="num">Pts</th></tr></thead><tbody>';
     st.forEach(function(t){
       var diff = t.bp - t.bc;
       var hl = q && t.team.toLowerCase().indexOf(q) !== -1 ? ' class="team-hl"' : '';
-      html += '<tr' + hl + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name">' + escapeHtml(t.team) + '</td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
+      html += '<tr' + hl + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name">' + escapeHtml(t.team) + '</td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + t.bp + '</td><td class="num">' + t.bc + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
     });
     html += '</tbody></table>';
   });
