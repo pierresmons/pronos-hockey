@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 13/10/2026 (saisie express) -->
+<!-- Pronos Hockey championnat - version du 15/10/2026 (pronos de saison + interrupteur) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -634,6 +634,33 @@
   .team-sugg-all{max-height:300px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px;border:1px solid var(--line, #22324a);border-radius:12px;}
   .tab{position:relative;}
   .tab-badge{position:absolute;top:3px;right:2px;min-width:18px;height:18px;line-height:18px;padding:0 5px;text-align:center;border-radius:9px;background:var(--red);color:#fff;font-family:var(--font-body);font-size:11px;font-weight:700;vertical-align:2px;letter-spacing:0;}
+  .season-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 14px;}
+  .season-box > summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700;}
+  .season-box > summary::-webkit-details-marker{display:none;}
+  .season-box .sb-count{font-size:12px;font-weight:600;color:var(--gold);white-space:nowrap;}
+  .sq{border-top:1px solid var(--line);padding:10px 0;display:flex;flex-direction:column;gap:6px;}
+  .sq:first-of-type{border-top:none;}
+  .sq-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .sq-label{font-weight:700;font-size:15px;}
+  .sq-meta{font-size:12px;color:var(--muted);}
+  .sq-select{width:100%;max-width:340px;font-size:16px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);}
+  .sq-select.done{border-color:var(--green, #3bb273);}
+  .sq-picks{display:flex;flex-wrap:wrap;gap:6px;font-size:13px;}
+  .sq-pick{background:rgba(255,255,255,.06);border-radius:999px;padding:3px 10px;}
+  .sq-pick.ok{background:rgba(59,178,115,.22);}
+  .sq-pick.ko{opacity:.65;}
+  .sq-answer{font-size:13px;}
+  .sq-answer b{color:var(--gold);}
+  .sq-admin{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+  .sq-admin .sq-select{max-width:220px;font-size:14px;padding:6px 8px;}
+  .sq-admin input[type=date]{font-size:14px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);}
+  .sw{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;margin:4px 0 6px;}
+  .sw input{position:absolute;opacity:0;width:1px;height:1px;}
+  .sw-track{flex:none;width:44px;height:26px;border-radius:999px;background:rgba(255,255,255,.18);position:relative;transition:background .2s;}
+  .sw-track::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s;}
+  .sw input:checked + .sw-track{background:var(--red);}
+  .sw input:checked + .sw-track::after{transform:translateX(18px);}
+  .sq-types{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 0;}
   .missing-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:rgba(213,38,47,.12);border:1px solid var(--red-dark);border-radius:12px;padding:10px 12px;margin:0 0 14px;font-size:14px;}
   .missing-banner b{color:var(--red);font-size:16px;}
   .joker-btn{border-color:var(--gold);color:var(--gold);}
@@ -867,7 +894,7 @@ var state = {
   me:null, tab:"pronostics",
   filterGenre:[], filterPools:[], filterCat:"", filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false, favs:{}, onlyMissing:false, lbView:"all", surf:"", express:false
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false, favs:{}, onlyMissing:false, lbView:"all", surf:"", express:false, seasonQ:{}, seasonPicks:{}, seasonOpen:{}, seasonOn:true
 };
 
 /* ===================== Utilitaires ===================== */
@@ -1119,6 +1146,9 @@ function applyRoom(data){
   state.standings = data.standings || {};
   state.lastSync = data.lastSync || null;
   state.favs = data.favs || {};
+  state.seasonQ = data.seasonQ || {};
+  state.seasonPicks = data.seasonPicks || {};
+  state.seasonOn = !(data.settings && data.settings.seasonOn === false);
 }
 /* PATCH : met a jour poules, matchs et classements sans toucher aux joueurs ni aux pronostics */
 async function saveCloud(){
@@ -1182,6 +1212,161 @@ function playerTotals(filterFn){
   return totals;
 }
 
+
+
+/* ===================== Pronos de saison ===================== */
+/* seasonQ/<id> = {type, pool, label, deadline, points, answer, created} ; seasonPicks/<id>/<joueur> = equipe */
+var SEASON_TYPES = [["champion","Champion"],["dernier","Dernier du classement"],["attaque","Meilleure attaque"],["defense","Meilleure defense"]];
+var SEASON_PTS = 10;
+function seasonTypeLabel(t){ var x = SEASON_TYPES.find(function(s){ return s[0] === t; }); return x ? x[1] : t; }
+function fbSet(path, value){
+  var url = FIREBASE_URL.replace(/\/$/,"") + "/" + ROOMS_PATH + "/" + encodeURIComponent(state.room) + "/" + path.split("/").map(encodeURIComponent).join("/") + ".json";
+  return fetch(url, value === null ? {method:"DELETE"} : {method:"PUT", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify(value)})
+    .then(function(r){ return r.ok; }).catch(function(){ return false; });
+}
+function seasonList(){
+  return Object.keys(state.seasonQ || {}).map(function(id){ var q = state.seasonQ[id]; q.id = id; return q; })
+    .sort(function(a, b){ return (a.deadline || "").localeCompare(b.deadline || "") || (a.created || 0) - (b.created || 0); });
+}
+function seasonTitle(q){ return q.type === "custom" ? q.label : seasonTypeLabel(q.type); }
+function seasonPoolLabel(q){ return q.pool ? poolName(q.pool) : "Toutes les poules de la partie"; }
+function seasonLocked(q){ return !!q.deadline && todayIso() > q.deadline; }
+function seasonPicksOf(q){ return (state.seasonPicks || {})[q.id] || {}; }
+function poolTeams(pid){
+  var set = {};
+  var add = function(t){ if(t) set[t] = 1; };
+  if(pid){
+    (state.standings[pid] || []).forEach(function(t){ add(t.team); });
+    state.matches.forEach(function(m){ if(m.pool === pid){ add(m.teamA); add(m.teamB); } });
+  } else {
+    state.pools.forEach(function(x){ (state.standings[x] || []).forEach(function(t){ add(t.team); }); });
+    state.matches.forEach(function(m){ add(m.teamA); add(m.teamB); });
+  }
+  return Object.keys(set).sort(function(a, b){ return a.localeCompare(b); });
+}
+function poolFinished(pid){
+  var ms = state.matches.filter(function(m){ return m.pool === pid; });
+  return ms.length > 0 && ms.every(hasScore);
+}
+/* reponse suggeree d'apres le classement (null si rien a proposer) */
+function seasonSuggest(q){
+  if(q.type === "custom" || !q.pool) return null;
+  var st = (state.standings[q.pool] || []).slice().sort(function(a, b){ return a.rank - b.rank; });
+  if(!st.length) return null;
+  var best;
+  if(q.type === "champion") best = st.filter(function(t){ return t.rank === st[0].rank; });
+  else if(q.type === "dernier") best = st.filter(function(t){ return t.rank === st[st.length - 1].rank; });
+  else if(q.type === "attaque"){ var mx = Math.max.apply(null, st.map(function(t){ return t.bp; })); best = st.filter(function(t){ return t.bp === mx; }); }
+  else if(q.type === "defense"){ var mn = Math.min.apply(null, st.map(function(t){ return t.bc; })); best = st.filter(function(t){ return t.bc === mn; }); }
+  if(!best || !best.length) return null;
+  return {teams:best.map(function(t){ return t.team; }), finished:poolFinished(q.pool)};
+}
+function seasonTotals(){
+  var tot = {};
+  seasonList().forEach(function(q){
+    if(!q.answer) return;
+    var picks = seasonPicksOf(q);
+    Object.keys(picks).forEach(function(pl){
+      tot[pl] = tot[pl] || {pts:0, good:0};
+      if(picks[pl] === q.answer){ tot[pl].pts += (q.points || SEASON_PTS); tot[pl].good++; }
+    });
+  });
+  return tot;
+}
+function seasonTodo(){
+  if(!state.me) return [];
+  return seasonList().filter(function(q){ return !seasonLocked(q) && !q.answer && !seasonPicksOf(q)[state.me]; });
+}
+function teamOptions(teams, sel, empty){
+  return (empty ? '<option value="">' + empty + '</option>' : '') + teams.map(function(t){
+    return '<option value="' + escapeHtml(t) + '"' + (t === sel ? " selected" : "") + '>' + escapeHtml(t) + '</option>'; }).join("");
+}
+function seasonPicksHtml(q){
+  var picks = seasonPicksOf(q), names = Object.keys(picks);
+  if(!names.length) return '<div class="sq-meta">Personne n\'a repondu.</div>';
+  return '<div class="sq-picks">' + names.sort().map(function(pl){
+    var cls = q.answer ? (picks[pl] === q.answer ? " ok" : " ko") : "";
+    return '<span class="sq-pick' + cls + '"><b>' + escapeHtml(pl) + '</b> ' + escapeHtml(picks[pl]) + (q.answer && picks[pl] === q.answer ? ' &#10003; +' + (q.points || SEASON_PTS) : '') + '</span>';
+  }).join("") + '</div>';
+}
+/* une question cote joueur : choix tant que c'est ouvert, sinon les reponses de tout le monde */
+function seasonQuestionHtml(q){
+  var mine = seasonPicksOf(q)[state.me] || "", locked = seasonLocked(q) || !!q.answer;
+  var html = '<div class="sq"><div class="sq-top"><span class="sq-label">' + escapeHtml(seasonTitle(q)) + '</span><span class="sq-meta">' + (q.points || SEASON_PTS) + ' pts</span></div>' +
+    '<div class="sq-meta">' + escapeHtml(seasonPoolLabel(q)) + ' &middot; ' + (locked ? 'ferme' : 'reponse possible jusqu\'au ' + formatDate(q.deadline)) + '</div>';
+  if(!locked){
+    html += state.me ? '<select class="sq-select' + (mine ? " done" : "") + '" data-action="season-pick" data-q="' + q.id + '">' + teamOptions(poolTeams(q.pool), mine, "Choisir une equipe...") + '</select>' : '';
+    var n = Object.keys(seasonPicksOf(q)).length;
+    html += '<div class="sq-meta">' + n + ' reponse' + (n > 1 ? "s" : "") + ' (visibles a la cloture)</div>';
+  } else {
+    if(q.answer) html += '<div class="sq-answer">Bonne reponse : <b>' + escapeHtml(q.answer) + '</b></div>';
+    else html += '<div class="sq-meta">En attente du resultat final.</div>';
+    html += seasonPicksHtml(q);
+  }
+  return html + '</div>';
+}
+function renderSeasonBox(){
+  if(!state.seasonOn) return "";
+  var qs = seasonList();
+  if(!qs.length) return "";
+  var open = qs.filter(function(q){ return !seasonLocked(q) && !q.answer; });
+  if(!open.length) return "";
+  var todo = seasonTodo().length;
+  return '<details class="season-box" id="season-box"' + (todo || state.seasonBoxOpen ? ' open' : '') + '><summary><span>&#127942; Pronos de saison</span><span class="sb-count">' +
+    (todo ? todo + ' a faire' : 'tout est rempli') + ' &#9662;</span></summary>' + open.map(seasonQuestionHtml).join("") + '</details>';
+}
+function renderSeasonResults(){
+  if(!state.seasonOn) return "";
+  var qs = seasonList();
+  if(!qs.length) return "";
+  var html = '<h2 class="section-title" style="margin-top:30px;">Pronos de saison</h2><p class="section-hint">' + SEASON_PTS + ' points par bonne reponse, ajoutes au classement general. Les reponses des autres s\'affichent a la cloture.</p><div class="admin-form">';
+  html += qs.map(seasonQuestionHtml).join("");
+  return html + '</div>';
+}
+function renderSeasonAdmin(){
+  var html = '<div class="admin-form"><label class="sw"><h2 class="section-title" style="font-size:19px;margin:0;">Pronos de saison</h2>' +
+    '<input type="checkbox" data-action="season-on"' + (state.seasonOn ? " checked" : "") + '><span class="sw-track"></span></label>';
+  if(!state.seasonOn) return html + '<p class="section-hint">Masques pour tous les joueurs : pas d\'encadre dans Pronos, pas de colonne Saison, et leurs points ne comptent pas dans le classement. Les questions et les reponses deja donnees sont conservees.</p></div>';
+  html += '<p class="section-hint">Questions sur toute la saison, ' + SEASON_PTS + ' points par bonne reponse. Chacun repond jusqu\'a la date limite ; la bonne reponse est proposee d\'apres le classement et validee ici (utile en cas de play-offs).</p>';
+  var pools = state.pools.slice();
+  pools.sort(function(a, b){ return poolName(a).localeCompare(poolName(b)); });
+  var defDl = addDaysIso(14);
+  var selPool = state.seasonPool && pools.indexOf(state.seasonPool) !== -1 ? state.seasonPool : (pools[0] || "");
+  var taken = {};
+  seasonList().forEach(function(q){ if(q.pool) taken[q.pool + "|" + q.type] = 1; });
+  html += '<div class="filter-label">Questions classiques</div><select class="sq-select" id="sq-pool">' + pools.map(function(pid){
+    return '<option value="' + escapeHtml(pid) + '"' + (pid === selPool ? " selected" : "") + '>' + escapeHtml(poolName(pid)) + '</option>'; }).join("") + '</select>';
+  html += '<div class="sq-types">' + SEASON_TYPES.map(function(t){
+    var dis = taken[selPool + "|" + t[0]];
+    return '<label class="pool-opt"><input type="checkbox" class="sq-type" value="' + t[0] + '"' + (dis ? " disabled" : " checked") + '> ' + t[1] + (dis ? ' <span class="points-sub">(deja posee)</span>' : '') + '</label>'; }).join("") + '</div>';
+  html += '<div class="sq-admin"><span class="sq-meta">Reponses jusqu\'au</span><input type="date" id="sq-dl" value="' + defDl + '"><button class="btn btn-primary btn-sm" data-action="season-add">Ajouter</button></div>';
+  html += '<div class="filter-label" style="margin-top:14px;">Question libre</div><div class="sq-admin"><input type="text" class="inline-input" id="sq-label" placeholder="Ex : equipe qui marque le plus contre nous" style="flex:1;min-width:200px;">' +
+    '<select class="sq-select" id="sq-cpool"><option value="">Toutes les poules</option>' + pools.map(function(pid){ return '<option value="' + escapeHtml(pid) + '">' + escapeHtml(poolName(pid)) + '</option>'; }).join("") + '</select>' +
+    '<input type="date" id="sq-cdl" value="' + defDl + '"><button class="btn btn-sm" data-action="season-add-custom">Ajouter</button></div>';
+  var qs = seasonList();
+  if(qs.length){
+    html += '<div class="filter-label" style="margin-top:16px;">Questions posees (' + qs.length + ')</div>';
+    qs.forEach(function(q){
+      var sg = seasonSuggest(q), n = Object.keys(seasonPicksOf(q)).length;
+      html += '<div class="sq"><div class="sq-top"><span class="sq-label">' + escapeHtml(seasonTitle(q)) + '</span><span class="sq-meta">' + n + ' reponse' + (n > 1 ? "s" : "") + '</span></div>' +
+        '<div class="sq-meta">' + escapeHtml(seasonPoolLabel(q)) + '</div>';
+      html += '<div class="sq-admin"><span class="sq-meta">Date limite</span><input type="date" data-action="season-dl" data-q="' + q.id + '" value="' + escapeHtml(q.deadline || "") + '"></div>';
+      if(q.answer){
+        html += '<div class="sq-admin"><span class="sq-answer">Reponse validee : <b>' + escapeHtml(q.answer) + '</b></span><button class="btn btn-ghost btn-sm" data-action="season-answer" data-q="' + q.id + '" data-team="">Annuler</button></div>';
+      } else {
+        if(sg){
+          var t1 = sg.teams[0];
+          html += '<div class="sq-admin"><span class="sq-meta">' + (sg.finished ? 'Poule terminee' : 'Classement actuel (pas fini)') + ' : <b>' + sg.teams.map(escapeHtml).join(" / ") + '</b>' + (sg.teams.length > 1 ? ' (ex aequo)' : '') + '</span>' +
+            '<button class="btn btn-primary btn-sm" data-action="season-answer" data-q="' + q.id + '" data-team="' + escapeHtml(t1) + '">Valider ' + escapeHtml(t1) + '</button></div>';
+        }
+        html += '<div class="sq-admin"><select class="sq-select" data-role="season-other" data-q="' + q.id + '">' + teamOptions(poolTeams(q.pool), "", sg ? "Autre equipe..." : "Choisir la bonne reponse...") + '</select>' +
+          '<button class="btn btn-sm" data-action="season-answer-other" data-q="' + q.id + '">Valider</button></div>';
+      }
+      html += '<div class="sq-admin"><button class="btn btn-ghost btn-sm" data-action="season-del" data-q="' + q.id + '">Supprimer la question</button></div></div>';
+    });
+  }
+  return html + '</div>';
+}
 
 /* ===================== Mes equipes, pronos manquants, joker ===================== */
 function myFavs(){ return (state.me && state.favs[state.me]) || []; }
@@ -1647,6 +1832,7 @@ function renderPronostics(){
     html += renderMatchList(miss);
     return html;
   }
+  html += renderSeasonBox();
   if(miss.length) html += '<div class="missing-banner"><span><b>' + miss.length + '</b> match' + (miss.length > 1 ? "s" : "") + ' a pronostiquer dans les 7 prochains jours</span><button class="btn btn-sm btn-primary" data-action="only-missing" data-on="1">Les voir</button></div>';
   html += renderFilters(true);
   var today = todayIso();
@@ -2126,7 +2312,7 @@ function renderMatchsInner(){
 
 function weekFilter(off){ var wr = weekRange(off); return function(m){ return !!m.date && m.date >= wr.start && m.date <= wr.end; }; }
 function rankRows(totals){
-  var rows = state.players.map(function(p){ var t = totals[p] || {points:0,exact:0,correct:0,played:0}; return {name:p, points:t.points, exact:t.exact, correct:t.correct, played:t.played}; });
+  var rows = state.players.map(function(p){ var t = totals[p] || {points:0,exact:0,correct:0,played:0}; return {name:p, points:t.points, exact:t.exact, correct:t.correct, played:t.played, season:t.season || 0}; });
   rows.sort(function(a,b){ return b.points - a.points || b.exact - a.exact; });
   return rows;
 }
@@ -2164,6 +2350,8 @@ function renderStats(){
 function renderResultats(){
   var view = state.lbView;
   var totals = view === "all" ? playerTotals() : playerTotals(weekFilter(view === "w0" ? 0 : -1));
+  var hasSeason = state.seasonOn && view === "all" && seasonList().length > 0, stot = hasSeason ? seasonTotals() : {};
+  if(hasSeason) Object.keys(totals).forEach(function(p){ totals[p].season = (stot[p] || {pts:0}).pts; totals[p].points += totals[p].season; });
   var rows = rankRows(totals);
   var html = '<h2 class="section-title">Classement</h2><p class="section-hint">Classement en direct sur les matchs termines.</p>';
   var lw = rankRows(playerTotals(weekFilter(-1)));
@@ -2176,15 +2364,16 @@ function renderResultats(){
   if(!rows.length){
     html += '<div class="empty"><div class="big">Personne pour l\'instant</div><p>Ajoutez des joueurs pour demarrer.</p></div>';
   } else {
-    html += '<table class="leaderboard"><thead><tr><th></th><th>Joueur</th><th class="num">Pronos</th><th class="num">Exacts</th><th class="num">Bons</th><th class="num">Points</th></tr></thead><tbody>';
+    html += '<table class="leaderboard"><thead><tr><th></th><th>Joueur</th><th class="num">Pronos</th><th class="num">Exacts</th><th class="num">Bons</th>' + (hasSeason ? '<th class="num">Saison</th>' : '') + '<th class="num">Points</th></tr></thead><tbody>';
     rows.forEach(function(r, i){
       var rc = i === 0 ? "r1" : (i === 1 ? "r2" : (i === 2 ? "r3" : ""));
-      html += '<tr><td><span class="rank ' + rc + '">' + (i+1) + '</span></td><td class="player-name">' + escapeHtml(r.name) + '</td><td class="num">' + r.played + '</td><td class="num">' + r.exact + '</td><td class="num">' + r.correct + '</td><td class="num"><span class="points-val">' + r.points + '</span></td></tr>';
+      html += '<tr><td><span class="rank ' + rc + '">' + (i+1) + '</span></td><td class="player-name">' + escapeHtml(r.name) + '</td><td class="num">' + r.played + '</td><td class="num">' + r.exact + '</td><td class="num">' + r.correct + '</td>' + (hasSeason ? '<td class="num">' + r.season + '</td>' : '') + '<td class="num"><span class="points-val">' + r.points + '</span></td></tr>';
     });
     html += '</tbody></table>';
     if(view !== "all" && !rows.some(function(r){ return r.played; })) html += '<p class="points-sub">Aucun match pronostique termine sur cette semaine pour l\'instant.</p>';
     html += renderStats();
   }
+  html += renderSeasonResults();
   html += '<h2 class="section-title" style="margin-top:30px;">Matchs joues</h2><p class="section-hint">Detail des pronostics et des points pour chaque match termine (seuls les matchs pronostiques par au moins un joueur sont affiches).</p>';
   html += renderFilters(false);
   var done = sortMatches(state.matches.filter(function(m){
@@ -2225,6 +2414,7 @@ function renderAdmin(){
   html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Inviter quelqu\'un</h2>' +
     '<p class="section-hint">Par WhatsApp, SMS, e-mail ou QR code : la personne arrive directement dans la partie et n\'a qu\'a choisir son prenom.</p>' +
     '<button class="btn btn-primary" data-action="invite">+ Inviter quelqu\'un</button></div>';
+  html += renderSeasonAdmin();
   html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Poules suivies</h2>';
   html += '<p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(poolName(p)); }).join(" &middot; ") + '</p>';
   html += '<details id="pool-editor"' + (state.poolEditorOpen ? ' open' : '') + '><summary class="btn btn-sm" style="display:inline-block;">Ajouter ou retirer des poules</summary><div style="margin-top:12px;">' + renderPoolPicker() +
@@ -2327,6 +2517,81 @@ function attachEvents(){
     render(); window.scrollTo(0, 0);
   });
   on('[data-action="notif-set"]', "change", function(el){ setLocal("hb-notif-" + el.getAttribute("data-k"), el.checked ? "1" : "0"); lastNotifSig = ""; scheduleNotifs(); });
+  var sb = document.getElementById("season-box");
+  if(sb) sb.addEventListener("toggle", function(){ state.seasonBoxOpen = sb.open; });
+  on('[data-action="season-on"]', "change", async function(el){
+    state.seasonOn = el.checked; render();
+    var ok = await fbSet("settings/seasonOn", el.checked);
+    showToast(ok ? (el.checked ? "Pronos de saison affiches" : "Pronos de saison masques") : "Enregistrement impossible (connexion ?)");
+  });
+  on('[data-action="season-pick"]', "change", async function(el){
+    var qid = el.getAttribute("data-q"), q = state.seasonQ[qid];
+    if(!q || !state.me) return;
+    if(seasonLocked(q) || q.answer){ showToast("Cette question est fermee"); render(); return; }
+    var v = el.value || null;
+    state.seasonPicks[qid] = state.seasonPicks[qid] || {};
+    if(v) state.seasonPicks[qid][state.me] = v; else delete state.seasonPicks[qid][state.me];
+    state.seasonBoxOpen = true;
+    var ok = await fbSet("seasonPicks/" + qid + "/" + state.me, v);
+    showToast(ok ? (v ? "Enregistre : " + v : "Reponse retiree") : "Enregistrement impossible (connexion ?)");
+    render();
+  });
+  var sqp = document.getElementById("sq-pool");
+  if(sqp) sqp.addEventListener("change", function(){ state.seasonPool = sqp.value; render(); });
+  on('[data-action="season-add"]', "click", async function(){
+    var pid = document.getElementById("sq-pool").value, dl = document.getElementById("sq-dl").value || addDaysIso(14);
+    var types = Array.prototype.slice.call(document.querySelectorAll(".sq-type:checked")).map(function(x){ return x.value; });
+    if(!pid || !types.length){ showToast("Cochez au moins une question"); return; }
+    var oks = 0;
+    for(var i = 0; i < types.length; i++){
+      var id = "q" + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 5);
+      var q = {type:types[i], pool:pid, label:seasonTypeLabel(types[i]), deadline:dl, points:SEASON_PTS, answer:null, created:Date.now()};
+      state.seasonQ[id] = q;
+      if(await fbSet("seasonQ/" + id, q)) oks++;
+    }
+    state.seasonPool = pid;
+    showToast(oks === types.length ? oks + " question" + (oks > 1 ? "s" : "") + " ajoutee" + (oks > 1 ? "s" : "") : "Enregistrement incomplet (connexion ?)");
+    render();
+  });
+  on('[data-action="season-add-custom"]', "click", async function(){
+    var label = document.getElementById("sq-label").value.trim(), pid = document.getElementById("sq-cpool").value, dl = document.getElementById("sq-cdl").value || addDaysIso(14);
+    if(!label){ showToast("Ecrivez la question"); return; }
+    var id = "q" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    var q = {type:"custom", pool:pid || "", label:label.slice(0, 120), deadline:dl, points:SEASON_PTS, answer:null, created:Date.now()};
+    state.seasonQ[id] = q;
+    var ok = await fbSet("seasonQ/" + id, q);
+    showToast(ok ? "Question ajoutee" : "Enregistrement impossible (connexion ?)");
+    render();
+  });
+  on('[data-action="season-dl"]', "change", async function(el){
+    var qid = el.getAttribute("data-q"); if(!state.seasonQ[qid] || !el.value) return;
+    state.seasonQ[qid].deadline = el.value;
+    var ok = await fbSet("seasonQ/" + qid + "/deadline", el.value);
+    showToast(ok ? "Date limite : " + formatDate(el.value) : "Enregistrement impossible (connexion ?)");
+    render();
+  });
+  var setAnswer = async function(qid, team){
+    if(!state.seasonQ[qid]) return;
+    state.seasonQ[qid].answer = team || null;
+    var ok = await fbSet("seasonQ/" + qid + "/answer", team || null);
+    showToast(ok ? (team ? "Reponse validee : " + team : "Validation annulee") : "Enregistrement impossible (connexion ?)");
+    render();
+  };
+  on('[data-action="season-answer"]', "click", function(el){ setAnswer(el.getAttribute("data-q"), el.getAttribute("data-team")); });
+  on('[data-action="season-answer-other"]', "click", function(el){
+    var qid = el.getAttribute("data-q"), s = document.querySelector('[data-role="season-other"][data-q="' + qid + '"]');
+    if(!s || !s.value){ showToast("Choisissez une equipe"); return; }
+    setAnswer(qid, s.value);
+  });
+  on('[data-action="season-del"]', "click", async function(el){
+    var qid = el.getAttribute("data-q"), q = state.seasonQ[qid];
+    if(!q) return;
+    if(el.getAttribute("data-sure") !== "1"){ el.setAttribute("data-sure", "1"); el.textContent = "Confirmer la suppression"; el.classList.add("btn-primary"); return; }
+    delete state.seasonQ[qid]; delete state.seasonPicks[qid];
+    var ok = (await fbSet("seasonQ/" + qid, null)) && (await fbSet("seasonPicks/" + qid, null));
+    showToast(ok ? "Question supprimee" : "Suppression incomplete (connexion ?)");
+    render();
+  });
   on('[data-action="only-missing"]', "click", function(el){ state.onlyMissing = el.getAttribute("data-on") === "1"; render(); window.scrollTo(0, 0); });
   on('[data-action="lb-view"]', "click", function(el){ state.lbView = el.getAttribute("data-view"); render(); });
   on('[data-action="toggle-joker"]', "click", async function(el){
