@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 13/10/2026 (filtre outdoor / indoor) -->
+<!-- Pronos Hockey championnat - version du 13/10/2026 (saisie express) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -718,6 +718,27 @@
   .surf-switch{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px;margin:0 0 12px;max-width:340px;}
   .surf-btn{flex:1;border:none;background:transparent;color:var(--ice-dim);font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:8px 6px;border-radius:999px;cursor:pointer;}
   .surf-btn.active{background:var(--gold);color:#1a1205;font-weight:700;}
+  .surf-tag{display:inline-block;vertical-align:middle;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;margin-left:6px;}
+  .surf-tag.surf-out{background:rgba(47,174,102,.18);color:var(--green);}
+  .surf-tag.surf-in{background:rgba(125,179,236,.18);color:#7db3ec;}
+  .view-switch-row{display:flex;justify-content:flex-start;margin:-4px 0 10px;}
+  .view-switch{margin:0;max-width:240px;flex:1;}
+  .xp-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+  .xp-row{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;}
+  .xp-row.done{border-color:rgba(47,174,102,.45);}
+  .xp-meta{display:flex;gap:8px;align-items:center;font-family:var(--font-mono);font-size:10.5px;color:var(--ice-faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;flex-wrap:wrap;}
+  .xp-meta .xp-pool{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;}
+  .xp-ok{margin-left:auto;color:var(--green);font-size:14px;opacity:0;transition:opacity .2s;}
+  .xp-ok.show{opacity:1;}
+  .xp-main{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto minmax(0,1fr);align-items:center;gap:6px;}
+  .xp-team{font-weight:600;font-size:14px;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;}
+  .xp-a{text-align:right;}
+  .xp-step{display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .xp-btn{width:38px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--ice);font-size:18px;line-height:1;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;}
+  .xp-btn:active{background:var(--panel-3);border-color:var(--gold);}
+  .xp-val{font-family:var(--font-mono);font-size:22px;font-weight:700;min-width:30px;text-align:center;color:var(--gold);}
+  .xp-val.empty{color:var(--ice-faint);}
+  .xp-colon{color:var(--ice-faint);font-size:18px;}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
   .filter-summary{font-family:var(--font-mono);font-size:11px;color:var(--gold);margin:-6px 0 12px;cursor:pointer;}
@@ -840,7 +861,7 @@ var state = {
   me:null, tab:"pronostics",
   filterGenre:[], filterPools:[], filterCat:"", filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false, favs:{}, onlyMissing:false, lbView:"all", surf:""
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false, favs:{}, onlyMissing:false, lbView:"all", surf:"", express:false
 };
 
 /* ===================== Utilitaires ===================== */
@@ -1188,17 +1209,17 @@ function withAllData(fn){
   var keep = SRC; SRC = SNAP.state === "ok" ? mergedExt() : null;
   try{ return fn(); } finally { SRC = keep; }
 }
-function favCard(t){
+function favCard(t, surf, showSurf){
   var today = todayIso();
-  var mine = srcMatches().filter(function(m){ return m.teamA === t || m.teamB === t; });
+  var mine = srcMatches().filter(function(m){ return (m.teamA === t || m.teamB === t) && (!surf || surfOfPid(m.pool) === surf); });
   var next = sortMatches(mine.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }))[0];
-  var last = playedMatchesOf(t)[0];
+  var last = playedMatchesOf(t, surf)[0];
   var s = null, sp = null;
   mine.forEach(function(m){ var st = standingOf(t, m.pool); if(st && (!s || st.j > s.j)){ s = st; sp = m.pool; } });
-  var html = '<div class="fav-card"><div class="fav-head"><span class="fav-name" data-action="fav-open" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</span>' +
+  var html = '<div class="fav-card"><div class="fav-head"><span class="fav-name" data-action="fav-open" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + (showSurf && surf ? ' <span class="surf-tag surf-' + surf + '">' + SURF_LABEL[surf] + '</span>' : '') + '</span>' +
     '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733;</button></div>';
   if(s) html += '<div class="fav-pos">' + escapeHtml(poolName(sp).replace(/ - A$/, "")) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts</div>';
-  html += '<div class="form-row">' + formChips(t, 5) + '</div>';
+  html += '<div class="form-row">' + formChips(t, 5, surf) + '</div>';
   if(last){
     var gf = last.teamA === t ? last.scoreA : last.scoreB, ga = last.teamA === t ? last.scoreB : last.scoreA, opp = last.teamA === t ? last.teamB : last.teamA;
     html += '<div class="fav-line"><span class="fav-k">Dernier</span><span class="fav-v"><span class="form-chip form-' + resultFor(t, last) + '">' + resultFor(t, last) + '</span> <b>' + gf + '-' + ga + '</b> vs ' + escapeHtml(opp) + '<br><span class="fav-d">' + formatDate(last.date) + '</span></span></div>';
@@ -1215,7 +1236,15 @@ function renderFavBlock(){
   if(!favs.length) return '<p class="points-sub fav-tip">Astuce : ouvrez la fiche d\'une equipe et touchez &#9734; pour la suivre ici dans &laquo; Mes equipes &raquo;.</p>';
   var html = '<h2 class="section-title" style="font-size:18px;margin-top:4px;">Mes equipes &#9733;</h2>';
   if(SNAP.state === "loading") html += '<p class="points-sub" style="margin:0 0 8px;">Chargement des donnees hockey.be...</p>';
-  html += '<div class="fav-grid">' + withAllData(function(){ return favs.map(favCard).join(""); }) + '</div>';
+  html += '<div class="fav-grid">' + withAllData(function(){
+    var all = srcMatches();
+    return favs.map(function(t){
+      var surfs = teamSurfaces(t, all);
+      if(!surfs.length) return state.surf ? "" : favCard(t, "", false);
+      var both = ["out", "in"].filter(function(k){ return all.some(function(m){ return (m.teamA === t || m.teamB === t) && surfOfPid(m.pool) === k; }); }).length > 1;
+      return surfs.map(function(sf){ return favCard(t, sf, both); }).join("");
+    }).join("");
+  }) + '</div>';
   return html;
 }
 
@@ -1369,6 +1398,13 @@ function staleBanner(){
 
 /* ===================== Outdoor / Indoor ===================== */
 function isIndoorPid(pid){ return / Indoor( |$)/.test(poolName(pid)); }
+function surfOfPid(pid){ return isIndoorPid(pid) ? "in" : "out"; }
+var SURF_LABEL = {out:"Outdoor", "in":"Indoor"};
+/* saisons d'une equipe presentes dans une liste de matchs (outdoor d'abord) */
+function teamSurfaces(team, list){
+  var s = {}; list.forEach(function(m){ if(m.teamA === team || m.teamB === team) s[surfOfPid(m.pool)] = 1; });
+  return ["out", "in"].filter(function(k){ return s[k] && (!state.surf || state.surf === k); });
+}
 function surfOk(pid){ return !state.surf || (state.surf === "in") === isIndoorPid(pid); }
 /* bouton Outdoor / Indoor : affiche seulement s'il y a les deux sortes de poules (ou si un choix est deja fait) */
 function surfaceSwitch(pids){
@@ -1470,7 +1506,18 @@ function renderFilters(showWindow){
 }
 
 /* ===================== Rendu ===================== */
+/* un choix de categorie / poule qui ne correspond plus au filtre Outdoor / Indoor est oublie */
+function sanitizeSurf(){
+  if(!state.surf) return;
+  if(state.filterCat && !state.pools.some(function(p){ return surfOk(p) && poolCat(p) === state.filterCat; })) state.filterCat = "";
+  state.filterPools = state.filterPools.filter(surfOk);
+  if(state.searchCat && !state.pools.some(function(p){ return surfOk(p) && poolCat(p) === state.searchCat; })){ state.searchCat = ""; state.searchPool = ""; }
+  if(state.searchPool && !surfOk(state.searchPool)) state.searchPool = "";
+  if(state.extPool && !surfOk(state.extPool)) state.extPool = "";
+  if(state.extCat && (/ Indoor$/.test(state.extCat) ? "in" : "out") !== state.surf){ state.extCat = ""; state.extPool = ""; }
+}
 function render(){
+  sanitizeSurf();
   var app = document.getElementById("app");
   if(!state.room){
     app.innerHTML = renderHeader() + '<div class="content">' + renderSetup() + '</div>';
@@ -1585,13 +1632,13 @@ function badges(m, compact){
 function renderPronostics(){
   if(!state.me) return '<div class="empty"><div class="big">' + (state.invited ? 'Bienvenue dans la partie ' + escapeHtml(state.room) + ' !' : 'Choisissez votre nom') + '</div><p>' +
     (state.players.length ? 'Touchez votre prenom en haut, ou ajoutez-vous avec "+" si vous n\'y etes pas encore.' : 'Ajoutez-vous avec "+" en haut.') + '</p></div>';
-  var html = '<h2 class="section-title">Mes pronostics</h2>';
+  var html = '<h2 class="section-title">Mes pronostics</h2>' + viewSwitch();
   html += '<p class="section-hint"><span class="hint-long">Entrez votre score pour chaque match : il s\'enregistre tout seul. Les pronostics se ferment au coup d\'envoi et les resultats arrivent automatiquement de hockey.be. </span><span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>0 pt</b> faux &middot; <b>Joker</b> points x2 sur un match par semaine</span></p>';
   var miss = missingList();
   if(state.onlyMissing){
     html += '<div class="missing-banner"><span><b>' + miss.length + '</b> match' + (miss.length > 1 ? "s" : "") + ' sans pronostic (7 prochains jours)</span><button class="btn btn-sm" data-action="only-missing" data-on="0">Voir tous les matchs</button></div>';
     if(!miss.length) return html + '<div class="empty"><div class="big">Tout est pronostique</div><p>Bravo, il ne reste aucun match ouvert sans pronostic cette semaine.</p></div>';
-    miss.forEach(function(m){ html += renderPredictionCard(m, false); });
+    html += renderMatchList(miss);
     return html;
   }
   if(miss.length) html += '<div class="missing-banner"><span><b>' + miss.length + '</b> match' + (miss.length > 1 ? "s" : "") + ' a pronostiquer dans les 7 prochains jours</span><button class="btn btn-sm btn-primary" data-action="only-missing" data-on="1">Les voir</button></div>';
@@ -1604,9 +1651,35 @@ function renderPronostics(){
   if(!upcoming.length){
     return html + '<div class="empty"><div class="big">Aucun match a venir</div><p>Passez a la semaine suivante avec la fleche \u203A, ou choisissez "Toute la saison".</p></div>';
   }
-  upcoming.slice(0, 200).forEach(function(m){ html += renderPredictionCard(m, false); });
+  html += renderMatchList(upcoming.slice(0, 200));
   if(upcoming.length > 200) html += '<p class="section-hint">' + (upcoming.length - 200) + ' autres matchs : utilisez les filtres pour les afficher.</p>';
   return html;
+}
+
+/* ===================== Saisie express ===================== */
+function renderExpressRow(m){
+  var pr = myPred(m) || {}, has = pr.a !== undefined;
+  var stepper = function(side){
+    var v = has ? pr[side] : "";
+    return '<div class="xp-step"><button class="xp-btn" data-action="xp" data-match="' + m.id + '" data-side="' + side + '" data-d="1" aria-label="Plus">+</button>' +
+      '<span class="xp-val' + (has ? '' : ' empty') + '" id="xp-' + side + '-' + m.id + '">' + (has ? v : '&ndash;') + '</span>' +
+      '<button class="xp-btn" data-action="xp" data-match="' + m.id + '" data-side="' + side + '" data-d="-1" aria-label="Moins">&minus;</button></div>';
+  };
+  return '<div class="xp-row' + (has ? ' done' : '') + '" id="xp-row-' + m.id + '"><div class="xp-meta"><span>' + formatDate(m.date, m.time) + '</span><span class="xp-pool">' + escapeHtml(poolName(m.pool).replace(/ - A$/, "")) + '</span>' +
+    (pr.j ? '<span class="joker-badge">x2</span>' : '') + '<span class="xp-ok" id="xp-ok-' + m.id + '">&#10003;</span></div>' +
+    '<div class="xp-main"><span class="xp-team xp-a">' + escapeHtml(m.teamA) + '</span>' + stepper("a") + '<span class="xp-colon">:</span>' + stepper("b") + '<span class="xp-team xp-b">' + escapeHtml(m.teamB) + '</span></div></div>';
+}
+function renderMatchList(list){
+  if(state.express){
+    var open = list.filter(function(m){ return !isLocked(m); });
+    var html = '<div class="xp-list">' + open.map(renderExpressRow).join("") + '</div>';
+    if(open.length < list.length) html += '<p class="points-sub">' + (list.length - open.length) + ' match(s) deja commence(s) : passez en mode Cartes pour les voir.</p>';
+    return html;
+  }
+  return list.map(function(m){ return renderPredictionCard(m, false); }).join("");
+}
+function viewSwitch(){
+  return '<div class="view-switch-row"><div class="surf-switch view-switch"><button class="surf-btn' + (!state.express ? ' active' : '') + '" data-action="set-express" data-on="0">Cartes</button><button class="surf-btn' + (state.express ? ' active' : '') + '" data-action="set-express" data-on="1">Express</button></div></div>';
 }
 
 function renderPredictionCard(m, isDone){
@@ -1746,15 +1819,15 @@ function allTeams(){
   srcMatches().forEach(function(m){ set[m.teamA] = 1; set[m.teamB] = 1; });
   return Object.keys(set).sort(function(a,b){ return a.localeCompare(b); });
 }
-function playedMatchesOf(team){
-  return sortMatches(srcMatches().filter(function(m){ return hasScore(m) && (m.teamA === team || m.teamB === team); })).reverse();
+function playedMatchesOf(team, surf){
+  return sortMatches(srcMatches().filter(function(m){ return hasScore(m) && (m.teamA === team || m.teamB === team) && (!surf || surfOfPid(m.pool) === surf); })).reverse();
 }
 function resultFor(team, m){
   var gf = m.teamA === team ? m.scoreA : m.scoreB, ga = m.teamA === team ? m.scoreB : m.scoreA;
   return gf > ga ? "V" : (gf < ga ? "D" : "N");
 }
-function formChips(team, n){
-  var list = playedMatchesOf(team).slice(0, n || 5);
+function formChips(team, n, surf){
+  var list = playedMatchesOf(team, surf).slice(0, n || 5);
   if(!list.length) return '<span class="points-sub">aucun match joue</span>';
   return list.map(function(m){
     var r = resultFor(team, m), opp = m.teamA === team ? m.teamB : m.teamA;
@@ -1770,7 +1843,7 @@ function standingOf(team, pool){
 function teamLine(team, pool){
   var s = standingOf(team, pool);
   var pos = s ? '<span class="team-pos">' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.bp + '-' + s.bc + '</span>' : '';
-  return '<div class="info-team"><div class="info-team-name">' + escapeHtml(team) + '</div>' + pos + '<div class="form-row">' + formChips(team, 5) + '</div></div>';
+  return '<div class="info-team"><div class="info-team-name">' + escapeHtml(team) + '</div>' + pos + '<div class="form-row">' + formChips(team, 5, surfOfPid(pool)) + '</div></div>';
 }
 function standingsTable(pid, hlTeam){
   var st = srcStandings()[pid] || [];
@@ -1803,7 +1876,7 @@ function matchRow(m, focusTeam){
     '<div class="row-main">' + badge + '<span class="row-team row-a">' + escapeHtml(m.teamA) + '</span>' + sc + '<span class="row-team row-b">' + escapeHtml(m.teamB) + '</span></div></div>';
 }
 function renderMatchInfo(m){
-  var h2h = playedMatchesOf(m.teamA).filter(function(x){ return x.teamA === m.teamB || x.teamB === m.teamB; });
+  var h2h = playedMatchesOf(m.teamA, surfOfPid(m.pool)).filter(function(x){ return x.teamA === m.teamB || x.teamB === m.teamB; });
   var html = '<div class="match-info">';
   html += '<div class="info-grid">' + teamLine(m.teamA, m.pool) + teamLine(m.teamB, m.pool) + '</div>';
   html += '<div class="info-sub">Confrontations cette saison</div>';
@@ -1983,9 +2056,9 @@ function renderMatchsInner(){
     var nq = function(s){ return s.toLowerCase().replace(/\./g, "").replace(/\s+/g, " "); }, qn = nq(q);
     var myCats = {}; state.pools.forEach(function(pid){ myCats[poolCat(pid)] = 1; });
     var catHits = extCategories().filter(function(c){ return nq(c).indexOf(qn) !== -1; });
-    Object.keys(myCats).forEach(function(c){ if(nq(c).indexOf(qn) !== -1 && catHits.indexOf(c) === -1) catHits.push(c); });
+    Object.keys(myCats).forEach(function(c){ if(nq(c).indexOf(qn) !== -1 && catHits.indexOf(c) === -1 && (!state.surf || (state.surf === "in") === / Indoor$/.test(c))) catHits.push(c); });
     sortCats(catHits);
-    var poolHits = catHits.length ? [] : ALL_POOLS.filter(function(x){ return x[2] > 0 && !isIsolatedPool(x[1]) && nq(shortPool(x[1])).indexOf(qn) !== -1; }).slice(0, 15);
+    var poolHits = catHits.length ? [] : ALL_POOLS.filter(function(x){ return x[2] > 0 && !isIsolatedPool(x[1]) && surfOk(x[0]) && nq(shortPool(x[1])).indexOf(qn) !== -1; }).slice(0, 15);
     if(catHits.length || poolHits.length){
       html += '<h2 class="section-title" style="font-size:18px;margin-top:6px;">' + (catHits.length ? 'Categories' : 'Poules') + ' contenant &laquo; ' + escapeHtml(state.searchQ.trim()) + ' &raquo;</h2>';
       html += '<p class="points-sub" style="margin:0 0 8px;">La recherche porte sur les equipes. Touchez une ' + (catHits.length ? 'categorie' : 'poule') + ' pour voir ses matchs' + (catHits.length ? '' : ' et son classement') + '.</p>';
@@ -1997,20 +2070,25 @@ function renderMatchsInner(){
     return html + '<div class="empty"><div class="big">Aucun match trouve</div><p>' + (state.searchAll ? 'Verifiez l\'orthographe, ou choisissez une autre poule (ou toutes les poules de la categorie).' : 'Verifiez l\'orthographe, choisissez "Toutes" les categories, ou passez en mode "Tout hockey.be".') + '</p></div>';
   }
   var exact = teams.length === 1 ? teams[0] : teams.find(function(t){ return t.toLowerCase() === q; });
+  var exactSurfs = exact ? teamSurfaces(exact, scopeAll) : [];
   if(exact){
-    /* classement : la poule ou l'equipe a joue le plus (championnat plutot que coupe) */
-    var pm = null, s = null;
-    scopeAll.forEach(function(m){
-      if(m.teamA !== exact && m.teamB !== exact) return;
-      var st = standingOf(exact, m.pool);
-      if(st && (!s || st.j > s.j)){ s = st; pm = m; }
-    });
     var fv = isFav(exact);
-    html += '<div class="admin-form team-card"><div class="fav-head"><div class="info-team-name" style="font-size:22px;">' + escapeHtml(exact) + '</div>' +
-      (state.me ? '<button class="fav-star' + (fv ? ' on' : '') + '" data-action="toggle-fav" data-team="' + escapeHtml(exact) + '">' + (fv ? '&#9733; Suivie' : '&#9734; Suivre') + '</button>' : '') + '</div>';
-    if(s) html += '<div class="team-pos">' + escapeHtml(poolName(pm.pool)) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.g + 'V ' + s.n + 'N ' + s.p + 'D &middot; buts ' + s.bp + '-' + s.bc + '</div>';
-    html += '<div class="form-row" style="margin-top:8px;">' + formChips(exact, 8) + '</div></div>';
-    if(pm) html += standingsTable(pm.pool, exact);
+    var starBtn = state.me ? '<button class="fav-star' + (fv ? ' on' : '') + '" data-action="toggle-fav" data-team="' + escapeHtml(exact) + '">' + (fv ? '&#9733; Suivie' : '&#9734; Suivre') + '</button>' : '';
+    (exactSurfs.length ? exactSurfs : [""]).forEach(function(sf, idx){
+      /* classement : la poule ou l'equipe a joue le plus (championnat plutot que coupe), dans cette saison (outdoor / indoor) */
+      var pm = null, s = null;
+      scopeAll.forEach(function(m){
+        if(m.teamA !== exact && m.teamB !== exact) return;
+        if(sf && surfOfPid(m.pool) !== sf) return;
+        var st = standingOf(exact, m.pool);
+        if(st && (!s || st.j > s.j)){ s = st; pm = m; }
+      });
+      html += '<div class="admin-form team-card"><div class="fav-head"><div class="info-team-name" style="font-size:22px;">' + escapeHtml(exact) +
+        (exactSurfs.length > 1 ? ' <span class="surf-tag surf-' + sf + '">' + SURF_LABEL[sf] + '</span>' : '') + '</div>' + (idx === 0 ? starBtn : '') + '</div>';
+      if(s) html += '<div class="team-pos">' + escapeHtml(poolName(pm.pool)) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.g + 'V ' + s.n + 'N ' + s.p + 'D &middot; buts ' + s.bp + '-' + s.bc + '</div>';
+      html += '<div class="form-row" style="margin-top:8px;">' + formChips(exact, 8, sf) + '</div></div>';
+      if(pm) html += standingsTable(pm.pool, exact);
+    });
   } else if(teams.length > 1){
     var showAll = state.teamSuggAll || teams.length <= 12;
     html += '<div class="filter-label">Equipes trouvees (' + teams.length + ') &middot; touchez-en une</div>' +
@@ -2018,13 +2096,18 @@ function renderMatchsInner(){
       (teams.length > 12 ? '<p style="margin:-2px 0 12px;"><button class="btn btn-sm btn-ghost clear-btn" data-action="team-sugg-all">' + (showAll ? 'Reduire la liste' : 'Voir les ' + teams.length + ' equipes') + '</button></p>' : '');
   }
   var today = todayIso();
-  var upcoming = sortMatches(hits.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }));
-  var played = sortMatches(hits.filter(function(m){ return hasScore(m) || (m.date && m.date < today); })).reverse();
-  html += '<h2 class="section-title" style="font-size:18px;margin-top:18px;">Resultats (' + played.length + ')</h2>';
-  html += played.length ? '<div class="admin-form row-list">' + played.slice(0, 40).map(function(m){ return matchRow(m, exact); }).join("") + '</div>' : '<p class="points-sub">Aucun resultat pour l\'instant.</p>';
-  html += '<h2 class="section-title" style="font-size:18px;margin-top:18px;">A venir (' + upcoming.length + ')</h2>';
-  html += upcoming.length ? '<div class="admin-form row-list">' + upcoming.slice(0, 20).map(function(m){ return matchRow(m); }).join("") + '</div>' : '<p class="points-sub">Aucun match a venir.</p>';
-  if(upcoming.length > 20) html += '<p class="points-sub">+ ' + (upcoming.length - 20) + ' autres matchs plus tard dans la saison.</p>';
+  var surfList = exactSurfs.length > 1 ? exactSurfs : [""];
+  surfList.forEach(function(sf){
+    var sub = sf ? hits.filter(function(m){ return surfOfPid(m.pool) === sf; }) : hits;
+    var tag = sf ? ' &middot; ' + SURF_LABEL[sf] : '';
+    var upcoming = sortMatches(sub.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }));
+    var played = sortMatches(sub.filter(function(m){ return hasScore(m) || (m.date && m.date < today); })).reverse();
+    html += '<h2 class="section-title" style="font-size:18px;margin-top:18px;">Resultats' + tag + ' (' + played.length + ')</h2>';
+    html += played.length ? '<div class="admin-form row-list">' + played.slice(0, 40).map(function(m){ return matchRow(m, exact); }).join("") + '</div>' : '<p class="points-sub">Aucun resultat pour l\'instant.</p>';
+    html += '<h2 class="section-title" style="font-size:18px;margin-top:18px;">A venir' + tag + ' (' + upcoming.length + ')</h2>';
+    html += upcoming.length ? '<div class="admin-form row-list">' + upcoming.slice(0, 20).map(function(m){ return matchRow(m); }).join("") + '</div>' : '<p class="points-sub">Aucun match a venir.</p>';
+    if(upcoming.length > 20) html += '<p class="points-sub">+ ' + (upcoming.length - 20) + ' autres matchs plus tard dans la saison.</p>';
+  });
   return html;
 }
 
@@ -2301,6 +2384,27 @@ function attachEvents(){
   var fx = document.getElementById("fix-scores");
   if(fx) fx.addEventListener("toggle", function(){ state.fixOpen = fx.open; });
   on('[data-action="stat-toggle"]', "click", function(el){ var p = el.getAttribute("data-player"); state.statOpen = state.statOpen || {}; state.statOpen[p] = !state.statOpen[p]; render(); });
+  on('[data-action="set-express"]', "click", function(el){ state.express = el.getAttribute("data-on") === "1"; setLocal("hb-express", state.express ? "1" : null); render(); });
+  var xpTimers = {};
+  on('[data-action="xp"]', "click", function(el){
+    var id = el.getAttribute("data-match"), side = el.getAttribute("data-side"), d = +el.getAttribute("data-d");
+    var m = state.matches.find(function(x){ return x.id === id; });
+    if(!m || isLocked(m) || !state.me){ if(m && isLocked(m)) showToast("Match commence : pronostic ferme"); return; }
+    if(!state.predictions[id]) state.predictions[id] = {};
+    var pr = state.predictions[id][state.me];
+    if(!pr || pr.a === undefined){ pr = {a:0, b:0}; if(state.predictions[id][state.me] && state.predictions[id][state.me].j) pr.j = true; state.predictions[id][state.me] = pr; if(d > 0) pr[side] = 1; }
+    else pr[side] = Math.max(0, Math.min(30, (pr[side] || 0) + d));
+    ["a", "b"].forEach(function(s){ var v = document.getElementById("xp-" + s + "-" + id); if(v){ v.textContent = pr[s]; v.classList.remove("empty"); } });
+    var row = document.getElementById("xp-row-" + id); if(row) row.classList.add("done");
+    var ok = document.getElementById("xp-ok-" + id); if(ok) ok.classList.remove("show");
+    clearTimeout(xpTimers[id]);
+    xpTimers[id] = setTimeout(async function(){
+      var saved = await savePrediction(id, state.me, pr);
+      if(!saved){ showToast("Sauvegarde impossible (connexion ?)"); return; }
+      var ok2 = document.getElementById("xp-ok-" + id); if(ok2){ ok2.classList.add("show"); setTimeout(function(){ ok2.classList.remove("show"); }, 1500); }
+      updateMissingBadge(); scheduleNotifs();
+    }, 600);
+  });
   on('[data-action="set-surf"]', "click", function(el){
     state.surf = el.getAttribute("data-surf"); setLocal("hb-surface", state.surf || null);
     /* on oublie les choix de categorie / poule qui ne correspondent plus */
@@ -2478,6 +2582,7 @@ async function init(){
   state.room = getLocal(LOCAL_ROOM_KEY);
   state.me = getLocal(LOCAL_ME_KEY);
   state.surf = getLocal("hb-surface") || "";
+  state.express = getLocal("hb-express") === "1";
   if(state.room && !(await refreshCloud())){ state.room = null; setLocal(LOCAL_ROOM_KEY, null); }
   var joined = await joinFromLink();
   if(state.me && state.players.indexOf(state.me) === -1) state.me = null;
