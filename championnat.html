@@ -721,14 +721,20 @@
   .surf-tag{display:inline-block;vertical-align:middle;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;margin-left:6px;}
   .surf-tag.surf-out{background:rgba(47,174,102,.18);color:var(--green);}
   .surf-tag.surf-in{background:rgba(125,179,236,.18);color:#7db3ec;}
-  .view-switch-row{display:flex;justify-content:flex-start;margin:-4px 0 10px;}
-  .view-switch{margin:0;max-width:240px;flex:1;}
+  .title-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .title-row .section-title{margin-bottom:6px;}
+  .view-switch{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:2px;background:var(--panel);flex-shrink:0;}
+  .vs-btn{border:none;background:transparent;color:var(--ice-faint);font-family:var(--font-mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;padding:5px 10px;border-radius:999px;cursor:pointer;}
+  .vs-btn.active{background:var(--gold);color:#1a1205;font-weight:700;}
   .xp-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
   .xp-row{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;}
   .xp-row.done{border-color:rgba(47,174,102,.45);}
-  .xp-meta{display:flex;gap:8px;align-items:center;font-family:var(--font-mono);font-size:10.5px;color:var(--ice-faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;flex-wrap:wrap;}
-  .xp-meta .xp-pool{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;}
-  .xp-ok{margin-left:auto;color:var(--green);font-size:14px;opacity:0;transition:opacity .2s;}
+  .xp-meta{display:flex;gap:8px;align-items:center;font-family:var(--font-mono);font-size:10.5px;color:var(--ice-faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;flex-wrap:nowrap;white-space:nowrap;}
+  .xp-meta .xp-pool{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+  .xp-ok{margin-left:auto;flex-shrink:0;color:var(--green);font-size:14px;opacity:0;transition:opacity .2s;}
+  .xp-joker{flex-shrink:0;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--gold);color:var(--gold);background:transparent;border-radius:999px;padding:3px 9px;cursor:pointer;}
+  .xp-joker.on{background:var(--gold);color:#1a1205;}
+  .xp-joker.used{border-color:var(--line);color:var(--ice-faint);cursor:default;}
   .xp-ok.show{opacity:1;}
   .xp-main{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto minmax(0,1fr);align-items:center;gap:6px;}
   .xp-team{font-weight:600;font-size:14px;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;}
@@ -736,8 +742,8 @@
   .xp-step{display:flex;flex-direction:column;align-items:center;gap:2px;}
   .xp-btn{width:38px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--ice);font-size:18px;line-height:1;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;}
   .xp-btn:active{background:var(--panel-3);border-color:var(--gold);}
-  .xp-val{font-family:var(--font-mono);font-size:22px;font-weight:700;min-width:30px;text-align:center;color:var(--gold);}
-  .xp-val.empty{color:var(--ice-faint);}
+  .xp-val{font-family:var(--font-mono);font-size:22px;font-weight:700;min-width:30px;height:30px;line-height:30px;display:block;text-align:center;color:var(--gold);overflow:hidden;}
+  .xp-val.xp-empty{color:var(--ice-faint);}
   .xp-colon{color:var(--ice-faint);font-size:18px;}
   .clear-btn{color:var(--gold);border-color:var(--gold);white-space:nowrap;}
   .filters-actions{display:flex;justify-content:flex-end;margin:12px 0 8px;}
@@ -1632,7 +1638,7 @@ function badges(m, compact){
 function renderPronostics(){
   if(!state.me) return '<div class="empty"><div class="big">' + (state.invited ? 'Bienvenue dans la partie ' + escapeHtml(state.room) + ' !' : 'Choisissez votre nom') + '</div><p>' +
     (state.players.length ? 'Touchez votre prenom en haut, ou ajoutez-vous avec "+" si vous n\'y etes pas encore.' : 'Ajoutez-vous avec "+" en haut.') + '</p></div>';
-  var html = '<h2 class="section-title">Mes pronostics</h2>' + viewSwitch();
+  var html = '<div class="title-row"><h2 class="section-title">Mes pronostics</h2>' + viewSwitch() + '</div>';
   html += '<p class="section-hint"><span class="hint-long">Entrez votre score pour chaque match : il s\'enregistre tout seul. Les pronostics se ferment au coup d\'envoi et les resultats arrivent automatiquement de hockey.be. </span><span class="legend"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>0 pt</b> faux &middot; <b>Joker</b> points x2 sur un match par semaine</span></p>';
   var miss = missingList();
   if(state.onlyMissing){
@@ -1662,12 +1668,19 @@ function renderExpressRow(m){
   var stepper = function(side){
     var v = has ? pr[side] : "";
     return '<div class="xp-step"><button class="xp-btn" data-action="xp" data-match="' + m.id + '" data-side="' + side + '" data-d="1" aria-label="Plus">+</button>' +
-      '<span class="xp-val' + (has ? '' : ' empty') + '" id="xp-' + side + '-' + m.id + '">' + (has ? v : '&ndash;') + '</span>' +
+      '<span class="xp-val' + (has ? '' : ' xp-empty') + '" id="xp-' + side + '-' + m.id + '">' + (has ? v : '&ndash;') + '</span>' +
       '<button class="xp-btn" data-action="xp" data-match="' + m.id + '" data-side="' + side + '" data-d="-1" aria-label="Moins">&minus;</button></div>';
   };
   return '<div class="xp-row' + (has ? ' done' : '') + '" id="xp-row-' + m.id + '"><div class="xp-meta"><span>' + formatDate(m.date, m.time) + '</span><span class="xp-pool">' + escapeHtml(poolName(m.pool).replace(/ - A$/, "")) + '</span>' +
-    (pr.j ? '<span class="joker-badge">x2</span>' : '') + '<span class="xp-ok" id="xp-ok-' + m.id + '">&#10003;</span></div>' +
+    '<span class="xp-ok" id="xp-ok-' + m.id + '">&#10003;</span>' + xpJoker(m, pr) + '</div>' +
     '<div class="xp-main"><span class="xp-team xp-a">' + escapeHtml(m.teamA) + '</span>' + stepper("a") + '<span class="xp-colon">:</span>' + stepper("b") + '<span class="xp-team xp-b">' + escapeHtml(m.teamB) + '</span></div></div>';
+}
+function xpJoker(m, pr){
+  if(!m.date) return "";
+  if(pr.j) return '<button class="xp-joker on" data-action="toggle-joker" data-match="' + m.id + '" title="Retirer le joker">Joker x2 &#10003;</button>';
+  var jm = jokerMatchOf(state.me, weekKey(m.date));
+  if(jm && isLocked(jm)) return '<span class="xp-joker used" title="Joker de la semaine deja joue">Joker joue</span>';
+  return '<button class="xp-joker" data-action="toggle-joker" data-match="' + m.id + '" title="Doubler les points de ce match">Joker x2</button>';
 }
 function renderMatchList(list){
   if(state.express){
@@ -1679,7 +1692,7 @@ function renderMatchList(list){
   return list.map(function(m){ return renderPredictionCard(m, false); }).join("");
 }
 function viewSwitch(){
-  return '<div class="view-switch-row"><div class="surf-switch view-switch"><button class="surf-btn' + (!state.express ? ' active' : '') + '" data-action="set-express" data-on="0">Cartes</button><button class="surf-btn' + (state.express ? ' active' : '') + '" data-action="set-express" data-on="1">Express</button></div></div>';
+  return '<div class="view-switch"><button class="vs-btn' + (!state.express ? ' active' : '') + '" data-action="set-express" data-on="0">Cartes</button><button class="vs-btn' + (state.express ? ' active' : '') + '" data-action="set-express" data-on="1">Express</button></div>';
 }
 
 function renderPredictionCard(m, isDone){
@@ -2394,7 +2407,7 @@ function attachEvents(){
     var pr = state.predictions[id][state.me];
     if(!pr || pr.a === undefined){ pr = {a:0, b:0}; if(state.predictions[id][state.me] && state.predictions[id][state.me].j) pr.j = true; state.predictions[id][state.me] = pr; if(d > 0) pr[side] = 1; }
     else pr[side] = Math.max(0, Math.min(30, (pr[side] || 0) + d));
-    ["a", "b"].forEach(function(s){ var v = document.getElementById("xp-" + s + "-" + id); if(v){ v.textContent = pr[s]; v.classList.remove("empty"); } });
+    ["a", "b"].forEach(function(s){ var v = document.getElementById("xp-" + s + "-" + id); if(v){ v.textContent = pr[s]; v.classList.remove("xp-empty"); } });
     var row = document.getElementById("xp-row-" + id); if(row) row.classList.add("done");
     var ok = document.getElementById("xp-ok-" + id); if(ok) ok.classList.remove("show");
     clearTimeout(xpTimers[id]);
