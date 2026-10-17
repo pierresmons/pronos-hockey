@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 15/10/2026 (codes PIN) -->
+<!-- Pronos Hockey championnat - version du 15/10/2026 (croix pour vider la recherche) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -611,6 +611,13 @@
   .pool-opt input{accent-color:var(--red);}
   .pool-opt.checked{color:var(--ice);}
   .search-input{width:100%;margin-bottom:8px;}
+  .clr-wrap{position:relative;display:block;width:100%;margin-bottom:8px;}
+  .clr-wrap.clr-team{max-width:420px;margin-bottom:6px;}
+  .filter-row .clr-wrap{flex:1;margin-bottom:0;}
+  .clr-wrap > input{width:100%;margin-bottom:0 !important;padding-right:40px;box-sizing:border-box;}
+  .clr-wrap input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;display:none;}
+  .clr-x{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;border:none;background:var(--panel-3, rgba(255,255,255,.15));color:var(--ice);font-size:20px;line-height:28px;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .clr-x[hidden]{display:none;}
   .selected-count{font-family:var(--font-mono);font-size:11px;color:var(--gold);}
   .sync-line{font-family:var(--font-mono);font-size:10.5px;color:var(--ice-faint);padding:6px 20px;border-bottom:1px solid var(--line);}
   .status-locked{background:rgba(147,174,194,0.12);color:var(--ice-dim);}
@@ -864,6 +871,7 @@
     .filters-panel .filter-row-scroll::-webkit-scrollbar{display:none;}
     .filters-panel .filter-chip{font-size:11px;padding:7px 11px;white-space:nowrap;}
     .filters-panel .filter-search,.filters-panel .date-select{max-width:none;font-size:16px;}
+    .clr-wrap.clr-team{max-width:none;}
     .week-nav .week-label{flex:1;}
     .week-nav .week-arrow{padding:4px 16px;}
     .match-card{padding:10px 12px;margin-bottom:10px;}
@@ -991,6 +999,9 @@ function isoDate(dmy){
   return m ? (m[3] + "-" + m[2] + "-" + m[1]) : null;
 }
 function matchKey(poolId, a, b){ return (poolId + "_" + a + "_" + b).replace(/[.#$\[\]\/]/g, "-"); }
+/* petite croix pour vider un champ de recherche */
+function clearBtn(id, val){ return '<button type="button" class="clr-x" data-clear="' + id + '" aria-label="Effacer"' + (val ? '' : ' hidden') + '>&times;</button>'; }
+var CLEAR_KEYS = {"team-filter":"filterTeam", "pool-search":"pickerSearch", "match-search":"searchQ"};
 function escapeHtml(s){
   return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
@@ -1843,7 +1854,7 @@ function renderFilters(showWindow){
   if(!state.filtersOpen) return html;
 
   html += '<div class="filters-panel">';
-  html += '<input type="search" class="inline-input filter-search" id="team-filter" placeholder="Equipe ou club (ex : Leopold)" value="' + escapeHtml(state.filterTeam) + '" autocomplete="off">';
+  html += '<span class="clr-wrap clr-team"><input type="search" class="inline-input filter-search" id="team-filter" placeholder="Equipe ou club (ex : Leopold)" value="' + escapeHtml(state.filterTeam) + '" autocomplete="off">' + clearBtn("team-filter", state.filterTeam) + '</span>';
   /* Categorie puis poule : deux rangees qui defilent horizontalement sur iPhone */
   var cats = [];
   state.pools.forEach(function(pid){ if(!surfOk(pid)) return; var c = poolCat(pid); if(cats.indexOf(c) === -1) cats.push(c); });
@@ -1922,7 +1933,7 @@ function renderPoolPicker(){
   });
   sortCats(order);
   var html = surfaceSwitch(ALL_POOLS.filter(function(p){ return p[2] > 0; }).map(function(p){ return p[0]; }));
-  html += '<input type="text" class="search-input" id="pool-search" placeholder="Rechercher : U19 Boys, Nat. 1, EHL, Ladies..." value="' + escapeHtml(state.pickerSearch) + '">';
+  html += '<span class="clr-wrap"><input type="text" class="search-input" id="pool-search" placeholder="Rechercher : U19 Boys, Nat. 1, EHL, Ladies..." value="' + escapeHtml(state.pickerSearch) + '">' + clearBtn("pool-search", state.pickerSearch) + '</span>';
   html += '<div class="pool-picker">';
   if(!order.length) html += '<p class="section-hint">Aucune poule ne correspond.</p>';
   order.forEach(function(g){
@@ -2389,7 +2400,7 @@ function renderMatchsInner(){
     html += renderSearchScope();
   }
   html += renderMatchWeekNav();
-  html += '<div class="filter-row"><input type="search" class="inline-input search-input" id="match-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Ex : Leopold, Racing H-1, Dragons..." value="' + escapeHtml(state.searchQ) + '"></div>';
+  html += '<div class="filter-row"><span class="clr-wrap"><input type="search" class="inline-input search-input" id="match-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Ex : Leopold, Racing H-1, Dragons..." value="' + escapeHtml(state.searchQ) + '">' + clearBtn("match-search", state.searchQ) + '</span></div>';
   var scopeAll = srcMatches().filter(inSearchScope);
   var scopeMatches = state.mWeekOn ? scopeAll.filter(inMatchWeek) : scopeAll;
   var scopeTeams = {}; scopeAll.forEach(function(m){ scopeTeams[m.teamA] = 1; scopeTeams[m.teamB] = 1; });
@@ -2813,6 +2824,12 @@ function attachEvents(){
     showToast(!ok ? "Sauvegarde impossible (connexion ?)" : (pr.j ? "Joker pose : points x2 sur " + m.teamA + " - " + m.teamB : "Joker retire"));
   });
   on('[data-action="team-sugg-all"]', "click", function(){ state.teamSuggAll = !state.teamSuggAll; render(); });
+  on('[data-clear]', "mousedown", function(el, e){ e.preventDefault(); });
+  on('[data-clear]', "click", function(el){
+    var id = el.getAttribute("data-clear"); state[CLEAR_KEYS[id]] = "";
+    if(id === "match-search") state.teamSuggAll = false;
+    render(); var n = document.getElementById(id); if(n) n.focus();
+  });
   on('[data-action="pick-team"]', "click", function(el){ state.searchQ = el.getAttribute("data-team"); render(); });
   var ms = document.getElementById("match-search");
   if(ms){
