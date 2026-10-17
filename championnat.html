@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 15/10/2026 (buts marques/encaisses) -->
+<!-- Pronos Hockey championnat - version du 15/10/2026 (codes PIN) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -698,6 +698,24 @@
   .stale-text{color:var(--red) !important;}
   .room-actions{display:flex;gap:6px;align-items:center;}
   .invite-pill{white-space:nowrap;border:1px solid var(--gold);color:var(--gold);background:transparent;border-radius:999px;padding:6px 12px;}
+  .pin-sheet{text-align:center;}
+  .pin-sheet.still{animation:none;}
+  .pin-sub{color:var(--ice-dim);font-size:14px;margin:4px 0 14px;}
+  .pin-dots{display:flex;justify-content:center;gap:16px;margin:8px 0 6px;}
+  .pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--ice-dim);}
+  .pin-dot.on{background:var(--gold);border-color:var(--gold);}
+  .pin-err{min-height:20px;color:var(--red);font-size:14px;font-weight:600;margin-bottom:6px;}
+  .pin-dots.shake{animation:pinShake .35s;}
+  @keyframes pinShake{0%,100%{transform:none;}25%{transform:translateX(-10px);}75%{transform:translateX(10px);}}
+  .pin-pad{display:grid;grid-template-columns:repeat(3, 72px);gap:12px 22px;justify-content:center;margin:6px 0 10px;}
+  .pin-key{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);background:var(--panel-2);color:var(--ice);font-size:28px;font-weight:600;font-family:var(--font-body);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+  .pin-key:active{background:var(--panel-3);}
+  .pin-key.ghost{border:none;background:none;font-size:15px;color:var(--ice-dim);}
+  .pin-lock{font-size:11px;margin-left:3px;opacity:.7;}
+  .pin-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap;}
+  .pin-row:first-of-type{border-top:none;}
+  .pin-st{font-size:12px;color:var(--ice-dim);}
+  .pin-st.ok{color:var(--green, #3bb273);}
   .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:90;}
   .sheet{position:fixed;left:0;right:0;bottom:0;z-index:91;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding:10px 20px calc(20px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto;max-height:92vh;overflow-y:auto;animation:sheetUp .22s ease-out;}
   @keyframes sheetUp{from{transform:translateY(100%);}to{transform:none;}}
@@ -894,7 +912,7 @@ var state = {
   me:null, tab:"pronostics",
   filterGenre:[], filterPools:[], filterCat:"", filterDate:"all", filterTeam:"", filterWindow:"week", weekOffset:0,
   showAddPlayer:false, filtersOpen:false, joinError:null, joinBusy:false,
-  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false, favs:{}, onlyMissing:false, lbView:"all", surf:"", express:false, seasonQ:{}, seasonPicks:{}, seasonOpen:{}, seasonOn:true
+  pickerSel:[], pickerSearch:"", syncing:false, poolEditorOpen:false, showIsolated:false, searchQ:"", searchCat:"", searchPool:"", infoOpen:{}, searchAll:false, mWeekOn:false, mWeekOffset:0, extCat:"", extPool:"", extAllCat:false, teamSuggAll:false, favs:{}, onlyMissing:false, lbView:"all", surf:"", express:false, seasonQ:{}, seasonPicks:{}, seasonOpen:{}, seasonOn:true, pins:{}, owner:null, pinSheet:null
 };
 
 /* ===================== Utilitaires ===================== */
@@ -1149,6 +1167,8 @@ function applyRoom(data){
   state.seasonQ = data.seasonQ || {};
   state.seasonPicks = data.seasonPicks || {};
   state.seasonOn = !(data.settings && data.settings.seasonOn === false);
+  state.pins = data.pins || {};
+  state.owner = data.owner || null;
 }
 /* PATCH : met a jour poules, matchs et classements sans toucher aux joueurs ni aux pronostics */
 async function saveCloud(){
@@ -1364,6 +1384,162 @@ function renderSeasonAdmin(){
       }
       html += '<div class="sq-admin"><button class="btn btn-ghost btn-sm" data-action="season-del" data-q="' + q.id + '">Supprimer la question</button></div></div>';
     });
+  }
+  return html + '</div>';
+}
+
+
+/* ===================== Codes PIN des joueurs ===================== */
+/* pins/<joueur> = empreinte SHA-256 du code (jamais le code en clair) ; owner = organisateur de la partie.
+   Un appareil deverrouille pour un joueur garde l'empreinte en memoire locale : si le code change, il faut le retaper. */
+function sha256hex(str){
+  function rr(n, x){ return (x >>> n) | (x << (32 - n)); }
+  var K = [], H = [], primes = [], isC = {}, c = 2;
+  while(primes.length < 64){ if(!isC[c]){ for(var m = c * c; m < 400; m += c) isC[m] = 1; primes.push(c); } c++; }
+  primes.forEach(function(pr, i){ K[i] = (Math.pow(pr, 1/3) % 1) * 4294967296 | 0; if(i < 8) H[i] = (Math.pow(pr, 1/2) % 1) * 4294967296 | 0; });
+  var bytes = unescape(encodeURIComponent(str)), l = bytes.length, words = [];
+  for(var i = 0; i < l; i++) words[i >> 2] |= bytes.charCodeAt(i) << (24 - (i % 4) * 8);
+  words[l >> 2] |= 0x80 << (24 - (l % 4) * 8);
+  words[((l + 8) >> 6) * 16 + 15] = l * 8;
+  for(var j = 0; j < words.length; j += 16){
+    var w = [], a = H[0], b = H[1], cc = H[2], d = H[3], e = H[4], f = H[5], g = H[6], hh = H[7];
+    for(var t = 0; t < 64; t++){
+      if(t < 16) w[t] = words[j + t] | 0;
+      else { var x = w[t-15], y = w[t-2]; w[t] = (w[t-16] + (rr(7,x) ^ rr(18,x) ^ (x >>> 3)) + w[t-7] + (rr(17,y) ^ rr(19,y) ^ (y >>> 10))) | 0; }
+      var t1 = (hh + (rr(6,e) ^ rr(11,e) ^ rr(25,e)) + ((e & f) ^ (~e & g)) + K[t] + w[t]) | 0;
+      var t2 = ((rr(2,a) ^ rr(13,a) ^ rr(22,a)) + ((a & b) ^ (a & cc) ^ (b & cc))) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0; d = cc; cc = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + cc) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + hh) | 0;
+  }
+  return H.map(function(v){ return ("00000000" + (v >>> 0).toString(16)).slice(-8); }).join("");
+}
+function pinHash(player, pin){ return sha256hex("pronos-hockey|" + state.room + "|" + player + "|" + pin); }
+function ownerName(){ return state.owner && state.players.indexOf(state.owner) !== -1 ? state.owner : (state.players[0] || null); }
+function isOwner(){ return !!state.me && state.me === ownerName(); }
+function unlockKey(){ return "hb-unlock-" + state.room; }
+function unlockedMap(){ try{ return JSON.parse(getLocal(unlockKey()) || "{}") || {}; }catch(e){ return {}; } }
+function hasPin(p){ return !!(state.pins || {})[p]; }
+function isUnlocked(p){ return hasPin(p) && unlockedMap()[p] === state.pins[p]; }
+function rememberUnlock(p){ var u = unlockedMap(); u[p] = state.pins[p]; setLocal(unlockKey(), JSON.stringify(u)); }
+function forgetUnlock(p){ var u = unlockedMap(); delete u[p]; setLocal(unlockKey(), JSON.stringify(u)); }
+function setMe(p){ state.me = p; setLocal(LOCAL_ME_KEY, p); state.invited = false; }
+/* choisir un joueur : direct si cet appareil le connait, sinon code (ou creation du code) */
+function choosePlayer(p, welcome){
+  if(isUnlocked(p)){ setMe(p); render(); return; }
+  openPin(p, hasPin(p) ? "enter" : "create", welcome);
+}
+function openPin(p, mode, welcome){
+  state.pinSheet = {player:p, mode:mode, step:1, first:"", entry:"", err:"", welcome:!!welcome, shown:false};
+  render();
+}
+/* le joueur choisi sur cet appareil n'est plus valable (code change ou remis a zero) */
+function checkMeLock(){
+  if(!state.me || state.pinSheet) return;
+  if(hasPin(state.me)){
+    if(!isUnlocked(state.me)){ var p = state.me; state.me = null; setLocal(LOCAL_ME_KEY, null); openPinLater(p, "enter"); }
+  } else openPinLater(state.me, "create");
+}
+function openPinLater(p, mode){ state.pinSheet = {player:p, mode:mode, step:1, first:"", entry:"", err:"", shown:false, forced:true}; }
+function pinTitle(s){
+  if(s.mode === "enter") return {t:"Code de " + s.player, sub:"Tape le code a 4 chiffres de " + s.player + "."};
+  if(s.mode === "set") return {t:(s.step === 1 ? "Code pour " : "Confirme le code de ") + s.player, sub:s.step === 1 ? "Choisis un code a 4 chiffres et donne-le a " + s.player + "." : "Tape le meme code une deuxieme fois."};
+  if(s.mode === "change") return {t:s.step === 1 ? "Nouveau code" : "Confirme ton code", sub:s.step === 1 ? "Choisis ton nouveau code a 4 chiffres." : "Tape le meme code une deuxieme fois."};
+  return {t:s.step === 1 ? "Bonjour " + s.player + " !" : "Confirme ton code", sub:s.step === 1 ? "Choisis un code a 4 chiffres pour proteger tes pronos. Personne d'autre ne pourra jouer a ta place." : "Tape le meme code une deuxieme fois."};
+}
+function renderPinSheet(){
+  var s = state.pinSheet;
+  if(!s) return "";
+  var tt = pinTitle(s), still = s.shown;
+  s.shown = true;
+  var dots = ""; for(var i = 0; i < 4; i++) dots += '<span class="pin-dot' + (i < s.entry.length ? " on" : "") + '"></span>';
+  var keys = ["1","2","3","4","5","6","7","8","9"].map(function(k){ return '<button class="pin-key" data-pin-key="' + k + '">' + k + '</button>'; }).join("") +
+    '<button class="pin-key ghost" data-action="pin-cancel">Annuler</button><button class="pin-key" data-pin-key="0">0</button><button class="pin-key ghost" data-pin-key="del" aria-label="Effacer">&#9003;</button>';
+  var foot = s.mode === "enter" ? '<p class="pin-sub" style="margin-top:4px;">Code oublie ? ' + (ownerName() && ownerName() !== s.player ? escapeHtml(ownerName()) + ' peut le remettre a zero dans Gestion.' : 'Demande a un autre joueur de la partie.') + '</p>' : '';
+  return '<div class="sheet-backdrop"></div><div class="sheet pin-sheet' + (still ? " still" : "") + '" role="dialog" aria-label="Code">' +
+    '<div class="sheet-grab"></div><h2 class="sheet-title">' + escapeHtml(tt.t) + '</h2><p class="pin-sub">' + escapeHtml(tt.sub) + '</p>' +
+    '<div class="pin-dots" id="pin-dots">' + dots + '</div><div class="pin-err" id="pin-err">' + escapeHtml(s.err || "") + '</div>' +
+    '<div class="pin-pad">' + keys + '</div>' + foot + '</div>';
+}
+function pinDraw(){
+  var s = state.pinSheet, d = document.getElementById("pin-dots"), e = document.getElementById("pin-err");
+  if(!s || !d) return;
+  d.querySelectorAll(".pin-dot").forEach(function(x, i){ x.classList.toggle("on", i < s.entry.length); });
+  if(e) e.textContent = s.err || "";
+}
+function pinFail(msg){
+  var s = state.pinSheet; s.entry = ""; s.err = msg; pinDraw();
+  var d = document.getElementById("pin-dots");
+  if(d){ d.classList.remove("shake"); void d.offsetWidth; d.classList.add("shake"); }
+}
+function pinTries(){ try{ return JSON.parse(getLocal("hb-pin-tries") || "{}") || {}; }catch(e){ return {}; } }
+async function pinKey(k){
+  var s = state.pinSheet;
+  if(!s || s.busy) return;
+  if(k === "del"){ s.entry = s.entry.slice(0, -1); s.err = ""; pinDraw(); return; }
+  if(s.entry.length >= 4) return;
+  s.entry += k; s.err = ""; pinDraw();
+  if(s.entry.length < 4) return;
+  var pin = s.entry;
+  if(s.mode === "enter"){
+    var tr = pinTries();
+    if(tr.until && Date.now() < tr.until){ pinFail("Trop d'essais : reessaie dans " + Math.ceil((tr.until - Date.now()) / 1000) + " s"); return; }
+    s.busy = true; await refreshCloud(); s.busy = false;
+    if(!hasPin(s.player)){ s.mode = "create"; s.entry = ""; s.step = 1; s.shown = false; render(); return; }
+    if(pinHash(s.player, pin) !== state.pins[s.player]){
+      tr.n = (tr.n || 0) + 1;
+      if(tr.n >= 5){ tr.n = 0; tr.until = Date.now() + 30000; }
+      setLocal("hb-pin-tries", JSON.stringify(tr));
+      pinFail(tr.until && Date.now() < tr.until ? "Code incorrect. Patiente 30 s avant de reessayer." : "Code incorrect");
+      return;
+    }
+    setLocal("hb-pin-tries", null);
+    rememberUnlock(s.player); state.pinSheet = null; setMe(s.player); render(); showToast("Bienvenue " + s.player + " !");
+    if(isStale()) syncFromHockeyBe().then(render);
+    return;
+  }
+  /* creation / changement : deux fois le meme code */
+  if(s.step === 1){ setTimeout(function(){ s.first = pin; s.entry = ""; s.step = 2; s.shown = false; render(); }, 150); return; }
+  if(pin !== s.first){ s.step = 1; s.first = ""; s.entry = ""; s.err = "Les deux codes ne sont pas pareils. Recommence."; s.shown = false; render(); return; }
+  s.busy = true;
+  var hash = pinHash(s.player, pin);
+  if(s.mode === "create"){
+    await refreshCloud();
+    if(hasPin(s.player)){ s.busy = false; s.mode = "enter"; s.step = 1; s.entry = ""; s.err = s.player + " a deja un code : tape-le."; s.shown = false; render(); return; }
+  }
+  var ok = await fbSet("pins/" + s.player, hash);
+  if(ok && !state.owner && s.player === ownerName() && s.mode !== "set") await fbSet("owner", s.player);
+  s.busy = false;
+  if(!ok){ s.step = 1; s.first = ""; s.entry = ""; s.err = "Enregistrement impossible (connexion ?)"; s.shown = false; render(); return; }
+  state.pins[s.player] = hash;
+  if(!state.owner && s.player === ownerName() && s.mode !== "set") state.owner = s.player;
+  var mode = s.mode, who = s.player;
+  state.pinSheet = null;
+  if(mode === "set"){ render(); showToast("Code enregistre pour " + who + " : donne-le lui"); return; }
+  rememberUnlock(who); setMe(who); render();
+  showToast(mode === "change" ? "Nouveau code enregistre" : "Code enregistre. Bienvenue " + who + " !");
+  if(isStale()) syncFromHockeyBe().then(render);
+}
+function renderPinAdmin(){
+  var own = ownerName();
+  var html = '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Codes des joueurs</h2>' +
+    '<p class="section-hint">Chaque joueur a un code a 4 chiffres : personne ne peut modifier les pronos d\'un autre. Un appareil retient le code apres la premiere saisie. Organisateur de la partie : <b>' + escapeHtml(own || "-") + '</b>' +
+    (isOwner() ? ' (toi) : tu peux remettre un code a zero si quelqu\'un l\'a oublie, ou en definir un pour un joueur.' : '.') + '</p>';
+  state.players.forEach(function(p){
+    var on = hasPin(p);
+    html += '<div class="pin-row"><span><b>' + escapeHtml(p) + '</b> <span class="pin-st' + (on ? " ok" : "") + '">' + (on ? "&#128274; code defini" : "pas encore de code") + '</span></span><span class="sq-admin">';
+    if(p === state.me) html += '<button class="btn btn-sm" data-action="pin-change">Changer mon code</button>';
+    else if(isOwner()){
+      if(on) html += '<button class="btn btn-ghost btn-sm" data-action="pin-reset" data-player="' + escapeHtml(p) + '">Remettre a zero</button>';
+      else html += '<button class="btn btn-sm" data-action="pin-set" data-player="' + escapeHtml(p) + '">Definir son code</button>';
+    }
+    html += '</span></div>';
+  });
+  if(isOwner() && state.players.length > 1){
+    html += '<div class="sq-admin" style="margin-top:10px;"><span class="sq-meta">Passer le role d\'organisateur a</span><select class="sq-select" id="owner-select">' +
+      state.players.filter(function(p){ return p !== own; }).map(function(p){ return '<option value="' + escapeHtml(p) + '">' + escapeHtml(p) + '</option>'; }).join("") +
+      '</select><button class="btn btn-ghost btn-sm" data-action="owner-set">Valider</button></div>';
   }
   return html + '</div>';
 }
@@ -1709,12 +1885,13 @@ function sanitizeSurf(){
 }
 function render(){
   sanitizeSurf();
+  if(state.room) checkMeLock();
   var app = document.getElementById("app");
   if(!state.room){
     app.innerHTML = renderHeader() + '<div class="content">' + renderSetup() + '</div>';
   } else {
-    if(state.invited && !state.me) app.innerHTML = renderHeader() + '<div class="content">' + renderWelcome() + '</div>';
-    else app.innerHTML = renderHeader() + renderPlayersRow() + renderTabs() + '<div class="content">' + renderContent() + '</div>' + renderInviteSheet();
+    if(state.invited && !state.me) app.innerHTML = renderHeader() + '<div class="content">' + renderWelcome() + '</div>' + renderPinSheet();
+    else app.innerHTML = renderHeader() + renderPlayersRow() + renderTabs() + '<div class="content">' + renderContent() + '</div>' + renderInviteSheet() + renderPinSheet();
   }
   attachEvents();
   if(state.inviteOpen) drawInviteQR();
@@ -1781,7 +1958,7 @@ function renderSetup(){
 
 function renderPlayersRow(){
   var chips = state.players.map(function(p){
-    return '<button class="chip' + (p === state.me ? " active" : "") + '" data-action="select-player" data-player="' + escapeHtml(p) + '">' + escapeHtml(p) + '</button>';
+    return '<button class="chip' + (p === state.me ? " active" : "") + '" data-action="select-player" data-player="' + escapeHtml(p) + '">' + escapeHtml(p) + (p !== state.me && hasPin(p) && !isUnlocked(p) ? '<span class="pin-lock">&#128274;</span>' : '') + '</button>';
   }).join("");
   var add = state.showAddPlayer
     ? '<input type="text" id="new-player-name" class="inline-input" placeholder="Prenom" maxlength="24"><button class="btn btn-primary btn-sm" data-action="confirm-add-player">Ajouter</button><button class="btn btn-ghost btn-sm" data-action="cancel-add-player">Annuler</button>'
@@ -2414,6 +2591,7 @@ function renderAdmin(){
   html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Inviter quelqu\'un</h2>' +
     '<p class="section-hint">Par WhatsApp, SMS, e-mail ou QR code : la personne arrive directement dans la partie et n\'a qu\'a choisir son prenom.</p>' +
     '<button class="btn btn-primary" data-action="invite">+ Inviter quelqu\'un</button></div>';
+  html += renderPinAdmin();
   html += renderSeasonAdmin();
   html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Poules suivies</h2>';
   html += '<p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(poolName(p)); }).join(" &middot; ") + '</p>';
@@ -2519,6 +2697,28 @@ function attachEvents(){
   on('[data-action="notif-set"]', "change", function(el){ setLocal("hb-notif-" + el.getAttribute("data-k"), el.checked ? "1" : "0"); lastNotifSig = ""; scheduleNotifs(); });
   var sb = document.getElementById("season-box");
   if(sb) sb.addEventListener("toggle", function(){ state.seasonBoxOpen = sb.open; });
+  on('[data-pin-key]', "click", function(el){ pinKey(el.getAttribute("data-pin-key")); });
+  on('[data-action="pin-cancel"]', "click", function(){
+    var s = state.pinSheet; state.pinSheet = null;
+    if(s && s.forced && s.mode === "create"){ state.me = null; setLocal(LOCAL_ME_KEY, null); }
+    render();
+  });
+  on('[data-action="pin-change"]', "click", function(){ openPin(state.me, "change"); });
+  on('[data-action="pin-set"]', "click", function(el){ if(isOwner()) openPin(el.getAttribute("data-player"), "set"); });
+  on('[data-action="pin-reset"]', "click", async function(el){
+    var p = el.getAttribute("data-player");
+    if(!isOwner()) return;
+    if(el.getAttribute("data-sure") !== "1"){ el.setAttribute("data-sure", "1"); el.textContent = "Confirmer"; el.classList.add("btn-primary"); return; }
+    var ok = await fbSet("pins/" + p, null);
+    if(ok){ delete state.pins[p]; showToast("Code de " + p + " remis a zero : il en choisira un nouveau"); } else showToast("Impossible (connexion ?)");
+    render();
+  });
+  on('[data-action="owner-set"]', "click", async function(){
+    var s = document.getElementById("owner-select"); if(!s || !isOwner()) return;
+    var ok = await fbSet("owner", s.value);
+    if(ok){ state.owner = s.value; showToast(s.value + " est maintenant l'organisateur"); } else showToast("Impossible (connexion ?)");
+    render();
+  });
   on('[data-action="season-on"]', "change", async function(el){
     state.seasonOn = el.checked; render();
     var ok = await fbSet("settings/seasonOn", el.checked);
@@ -2698,17 +2898,13 @@ function attachEvents(){
   on('[data-action="invite-close"]', "click", function(){ state.inviteOpen = false; render(); });
   on('[data-action="invite-copy"]', "click", function(){ copyInvite(); });
   on('[data-action="invite-share"]', "click", async function(){ try{ await navigator.share({title:"Pronos hockey", text:inviteText(), url:inviteUrl()}); }catch(e){} });
-  on('[data-action="welcome-pick"]', "click", function(el){
-    state.me = el.getAttribute("data-player"); setLocal(LOCAL_ME_KEY, state.me); state.invited = false; render(); showToast("Bienvenue " + state.me + " !");
-    if(isStale()) syncFromHockeyBe().then(render);
-  });
+  on('[data-action="welcome-pick"]', "click", function(el){ choosePlayer(el.getAttribute("data-player"), true); });
   var welcomeJoin = async function(){
     var i = document.getElementById("welcome-name"), name = i ? i.value.trim() : "";
     if(!name){ showToast("Entre ton prenom"); if(i) i.focus(); return; }
     await refreshCloud();
     if(state.players.indexOf(name) === -1){ state.players.push(name); await savePlayers(); }
-    state.me = name; setLocal(LOCAL_ME_KEY, name); state.invited = false; render(); showToast("Bienvenue " + name + " !");
-    if(isStale()) syncFromHockeyBe().then(render);
+    choosePlayer(name, true);
   };
   on('[data-action="welcome-join"]', "click", welcomeJoin);
   var wn = document.getElementById("welcome-name");
@@ -2726,7 +2922,7 @@ function attachEvents(){
   });
 
   on('[data-action="set-tab"]', "click", function(el){ state.tab = el.getAttribute("data-tab"); render(); });
-  on('[data-action="select-player"]', "click", function(el){ state.me = el.getAttribute("data-player"); setLocal(LOCAL_ME_KEY, state.me); render(); });
+  on('[data-action="select-player"]', "click", function(el){ var p = el.getAttribute("data-player"); if(p !== state.me) choosePlayer(p); });
   on('[data-action="sync-now"]', "click", async function(){
     await refreshCloud();
     var n = await syncFromHockeyBe(); render();
@@ -2740,8 +2936,7 @@ function attachEvents(){
     await refreshCloud();
     if(state.players.indexOf(name) !== -1){ showToast(name + " est deja dans la liste"); return; }
     state.players.push(name); await savePlayers();
-    state.me = name; setLocal(LOCAL_ME_KEY, name); state.showAddPlayer = false; render();
-    showToast(name + " a rejoint la partie");
+    state.showAddPlayer = false; openPin(name, "create");
   };
   on('[data-action="confirm-add-player"]', "click", doAdd);
   var npi = document.getElementById("new-player-name");
@@ -2848,7 +3043,7 @@ function attachEvents(){
     }catch(e){ showToast("Suppression impossible (connexion ?)"); return; }
     var name = state.room;
     setLocal(LOCAL_ROOM_KEY, null);
-    state.room = null; state.players = []; state.pools = []; state.matches = []; state.predictions = {}; state.standings = {}; state.lastSync = null; state.me = null;
+    state.room = null; state.players = []; state.pools = []; state.matches = []; state.predictions = {}; state.standings = {}; state.lastSync = null; state.me = null; state.pinSheet = null;
     state.tab = "pronostics"; render();
     showToast("Partie " + name + " supprimee");
   });
@@ -2865,7 +3060,7 @@ async function init(){
   var joined = await joinFromLink();
   if(state.me && state.players.indexOf(state.me) === -1) state.me = null;
   if(state.pools.some(function(p){ return /^ehl-/.test(p); })) loadSnapshot(false);
-  if(!state.me && state.players.length && !joined) state.me = state.players[0];
+  if(!state.me && !joined && state.players.length === 1 && !hasPin(state.players[0])) state.me = state.players[0];
   render();
   if(state.room){
     var stale = isStale();
