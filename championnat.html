@@ -2388,9 +2388,11 @@ function renderMatchs(){
 }
 function renderMatchsInner(){
   var html = "";
-  if(state.teamBack){
-    var bl = {pronostics:"Pronos", resultats:"Classement", poules:"Poules", admin:"Gestion"}[state.teamBack.tab] || "Retour";
-    html += '<button class="btn btn-sm team-back" data-action="team-back">&#8249; Retour a ' + bl + '</button>';
+  var tbk = (state.teamBack || [])[(state.teamBack || []).length - 1];
+  if(tbk){
+    var bl = tbk.tab !== "matchs" ? ({pronostics:"Pronos", resultats:"Classement", poules:"Poules", admin:"Gestion"}[tbk.tab] || "l'onglet precedent")
+      : (tbk.s.searchQ.trim() ? tbk.s.searchQ.trim() : "la recherche");
+    html += '<button class="btn btn-sm team-back" data-action="team-back">&#8249; Retour a ' + escapeHtml(bl) + '</button>';
   }
   if(!state.searchQ.trim() && !state.searchCat && !state.searchPool && !state.extCat && !state.extPool) html += renderFavBlock();
   html += '<h2 class="section-title">Rechercher un match</h2>';
@@ -2704,28 +2706,27 @@ function attachEvents(){
     if(!(await saveFavs())) showToast("Sauvegarde impossible (connexion ?)");
     else showToast(i === -1 ? t + " ajoutee a Mes equipes" : t + " retiree de Mes equipes");
   });
-  on('[data-action="goto-team"]', "click", function(el, e){
-    e.stopPropagation();
-    var t = el.getAttribute("data-team");
-    if(state.tab !== "matchs") state.teamBack = {tab:state.tab, y:window.scrollY};
+  /* ouvrir la fiche d'une equipe ; on garde ou on etait pour le bouton Retour (plusieurs niveaux) */
+  var SEARCH_KEYS = ["searchQ","searchCat","searchPool","extCat","extPool","searchAll","mWeekOn","mWeekOffset","teamSuggAll"];
+  var openTeam = function(t){
+    if(state.tab === "matchs" && state.searchQ.trim() === t) return;
+    var s = {}; SEARCH_KEYS.forEach(function(k){ s[k] = state[k]; });
+    state.teamBack = (state.teamBack || []).concat([{tab:state.tab, y:window.scrollY, s:s}]).slice(-15);
     var inParty = state.matches.some(function(m){ return m.teamA === t || m.teamB === t; });
     state.tab = "matchs"; state.searchQ = t; state.searchCat = ""; state.searchPool = ""; state.extCat = ""; state.extPool = ""; state.mWeekOn = false; state.teamSuggAll = false;
     if(!inParty){ state.searchAll = true; loadSnapshot(false); }
     render();
     var tb = document.querySelector(".team-back") || document.getElementById("match-search");
     window.scrollTo(0, tb ? Math.max(0, tb.getBoundingClientRect().top + window.scrollY - 10) : 0);
-  });
+  };
+  on('[data-action="goto-team"]', "click", function(el, e){ e.stopPropagation(); openTeam(el.getAttribute("data-team")); });
   on('[data-action="team-back"]', "click", function(){
-    var b = state.teamBack; state.teamBack = null; if(!b) return;
-    state.tab = b.tab; render(); window.scrollTo(0, b.y || 0);
+    var st = state.teamBack || [], b = st.pop(); if(!b) return;
+    state.tab = b.tab;
+    if(b.tab === "matchs") SEARCH_KEYS.forEach(function(k){ state[k] = b.s[k]; });
+    render(); window.scrollTo(0, b.y || 0);
   });
-  on('[data-action="fav-open"]', "click", function(el){
-    var t = el.getAttribute("data-team");
-    var inParty = state.matches.some(function(m){ return m.teamA === t || m.teamB === t; });
-    state.searchQ = t; state.searchCat = ""; state.searchPool = ""; state.extCat = ""; state.extPool = "";
-    if(!inParty){ state.searchAll = true; loadSnapshot(false); }
-    render(); window.scrollTo(0, 0);
-  });
+  on('[data-action="fav-open"]', "click", function(el){ openTeam(el.getAttribute("data-team")); });
   on('[data-action="notif-set"]', "change", function(el){ setLocal("hb-notif-" + el.getAttribute("data-k"), el.checked ? "1" : "0"); lastNotifSig = ""; scheduleNotifs(); });
   var sb = document.getElementById("season-box");
   if(sb) sb.addEventListener("toggle", function(){ state.seasonBoxOpen = sb.open; });
@@ -2851,7 +2852,7 @@ function attachEvents(){
     if(id === "match-search") state.teamSuggAll = false;
     render(); var n = document.getElementById(id); if(n) n.focus();
   });
-  on('[data-action="pick-team"]', "click", function(el){ state.searchQ = el.getAttribute("data-team"); render(); });
+  on('[data-action="pick-team"]', "click", function(el){ openTeam(el.getAttribute("data-team")); });
   var ms = document.getElementById("match-search");
   if(ms){
     ms.addEventListener("input", function(){
