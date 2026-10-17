@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Pronos Hockey championnat - version du 15/10/2026 (croix pour vider la recherche) -->
+<!-- Pronos Hockey championnat - version du 15/10/2026 (clic sur une equipe) -->
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -806,6 +806,8 @@
   .std-compact td{padding:7px 6px;font-size:13px;}
   .std-compact th{padding:0 6px 6px;}
   .std-team{cursor:pointer;}
+  .team-link{cursor:pointer;text-decoration:underline dotted rgba(255,255,255,.35);text-underline-offset:3px;-webkit-tap-highlight-color:transparent;}
+  .team-back{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;}
   .std-team:hover{color:var(--gold);}
   .live-line{font-family:var(--font-mono);font-size:10.5px;color:var(--green);margin:0 0 10px;display:flex;align-items:center;gap:6px;}
   .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(47,174,102,.25);}
@@ -2047,7 +2049,7 @@ function renderExpressRow(m){
   };
   return '<div class="xp-row' + (has ? ' done' : '') + '" id="xp-row-' + m.id + '"><div class="xp-meta"><span>' + formatDate(m.date, m.time) + '</span><span class="xp-pool">' + escapeHtml(poolName(m.pool).replace(/ - A$/, "")) + '</span>' +
     '<span class="xp-ok" id="xp-ok-' + m.id + '">&#10003;</span>' + xpJoker(m, pr) + '</div>' +
-    '<div class="xp-main"><span class="xp-team xp-a">' + escapeHtml(m.teamA) + '</span>' + stepper("a") + '<span class="xp-colon">:</span>' + stepper("b") + '<span class="xp-team xp-b">' + escapeHtml(m.teamB) + '</span></div></div>';
+    '<div class="xp-main"><span class="xp-team xp-a"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamA) + '">' + escapeHtml(m.teamA) + '</span></span>' + stepper("a") + '<span class="xp-colon">:</span>' + stepper("b") + '<span class="xp-team xp-b"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamB) + '">' + escapeHtml(m.teamB) + '</span></span></div></div>';
 }
 function xpJoker(m, pr){
   if(!m.date) return "";
@@ -2114,7 +2116,7 @@ function renderPredictionCard(m, isDone){
     }).join("") + '</div>';
   }
   return '<div class="match-card"><div class="match-top"><span class="match-date">' + formatDate(m.date, m.time) + '</span>' + status + '</div><div class="match-meta match-sub">' + badges(m, true) + '</div>' +
-    '<div class="scoreboard"><div class="team team-a">' + escapeHtml(m.teamA) + '</div>' + inputs + '<div class="team team-b">' + escapeHtml(m.teamB) + '</div></div>' +
+    '<div class="scoreboard"><div class="team team-a"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamA) + '">' + escapeHtml(m.teamA) + '</span></div>' + inputs + '<div class="team team-b"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamB) + '">' + escapeHtml(m.teamB) + '</span></div></div>' +
     actions + tags + '</div>';
 }
 
@@ -2230,7 +2232,7 @@ function standingOf(team, pool){
 function teamLine(team, pool){
   var s = standingOf(team, pool);
   var pos = s ? '<span class="team-pos">' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.bp + '-' + s.bc + '</span>' : '';
-  return '<div class="info-team"><div class="info-team-name">' + escapeHtml(team) + '</div>' + pos + '<div class="form-row">' + formChips(team, 5, surfOfPid(pool)) + '</div></div>';
+  return '<div class="info-team"><div class="info-team-name"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(team) + '">' + escapeHtml(team) + '</span></div>' + pos + '<div class="form-row">' + formChips(team, 5, surfOfPid(pool)) + '</div></div>';
 }
 function standingsTable(pid, hlTeam){
   var st = srcStandings()[pid] || [];
@@ -2260,7 +2262,7 @@ function matchRow(m, focusTeam){
   var badge = "";
   if(focusTeam && hasScore(m)){ var r = resultFor(focusTeam, m); badge = '<span class="form-chip form-' + r + '">' + r + '</span>'; }
   return '<div class="match-row"><div class="row-meta">' + formatDate(m.date) + ' &middot; ' + escapeHtml(poolName(m.pool)) + '</div>' +
-    '<div class="row-main">' + badge + '<span class="row-team row-a">' + escapeHtml(m.teamA) + '</span>' + sc + '<span class="row-team row-b">' + escapeHtml(m.teamB) + '</span></div></div>';
+    '<div class="row-main">' + badge + '<span class="row-team row-a"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamA) + '">' + escapeHtml(m.teamA) + '</span></span>' + sc + '<span class="row-team row-b"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamB) + '">' + escapeHtml(m.teamB) + '</span></span></div></div>';
 }
 function renderMatchInfo(m){
   var h2h = playedMatchesOf(m.teamA, surfOfPid(m.pool)).filter(function(x){ return x.teamA === m.teamB || x.teamB === m.teamB; });
@@ -2386,6 +2388,10 @@ function renderMatchs(){
 }
 function renderMatchsInner(){
   var html = "";
+  if(state.teamBack){
+    var bl = {pronostics:"Pronos", resultats:"Classement", poules:"Poules", admin:"Gestion"}[state.teamBack.tab] || "Retour";
+    html += '<button class="btn btn-sm team-back" data-action="team-back">&#8249; Retour a ' + bl + '</button>';
+  }
   if(!state.searchQ.trim() && !state.searchCat && !state.searchPool && !state.extCat && !state.extPool) html += renderFavBlock();
   html += '<h2 class="section-title">Rechercher un match</h2>';
   html += '<div class="filter-row"><button class="filter-chip' + (!state.searchAll ? " active" : "") + '" data-action="search-mode" data-all="0">Mes poules</button>' +
@@ -2588,7 +2594,7 @@ function renderPoules(){
     st.forEach(function(t){
       var diff = t.bp - t.bc;
       var hl = q && t.team.toLowerCase().indexOf(q) !== -1 ? ' class="team-hl"' : '';
-      html += '<tr' + hl + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name">' + escapeHtml(t.team) + '</td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + t.bp + '</td><td class="num">' + t.bc + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
+      html += '<tr' + hl + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(t.team) + '">' + escapeHtml(t.team) + '</span></td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + t.bp + '</td><td class="num">' + t.bc + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
     });
     html += '</tbody></table>';
   });
@@ -2697,6 +2703,21 @@ function attachEvents(){
     state.favs[state.me] = f; render();
     if(!(await saveFavs())) showToast("Sauvegarde impossible (connexion ?)");
     else showToast(i === -1 ? t + " ajoutee a Mes equipes" : t + " retiree de Mes equipes");
+  });
+  on('[data-action="goto-team"]', "click", function(el, e){
+    e.stopPropagation();
+    var t = el.getAttribute("data-team");
+    if(state.tab !== "matchs") state.teamBack = {tab:state.tab, y:window.scrollY};
+    var inParty = state.matches.some(function(m){ return m.teamA === t || m.teamB === t; });
+    state.tab = "matchs"; state.searchQ = t; state.searchCat = ""; state.searchPool = ""; state.extCat = ""; state.extPool = ""; state.mWeekOn = false; state.teamSuggAll = false;
+    if(!inParty){ state.searchAll = true; loadSnapshot(false); }
+    render();
+    var tb = document.querySelector(".team-back") || document.getElementById("match-search");
+    window.scrollTo(0, tb ? Math.max(0, tb.getBoundingClientRect().top + window.scrollY - 10) : 0);
+  });
+  on('[data-action="team-back"]', "click", function(){
+    var b = state.teamBack; state.teamBack = null; if(!b) return;
+    state.tab = b.tab; render(); window.scrollTo(0, b.y || 0);
   });
   on('[data-action="fav-open"]', "click", function(el){
     var t = el.getAttribute("data-team");
@@ -2938,7 +2959,7 @@ function attachEvents(){
     }catch(e){ state.joinBusy = false; state.joinError = "Partie introuvable. Verifiez le nom."; render(); }
   });
 
-  on('[data-action="set-tab"]', "click", function(el){ state.tab = el.getAttribute("data-tab"); render(); });
+  on('[data-action="set-tab"]', "click", function(el){ state.tab = el.getAttribute("data-tab"); state.teamBack = null; render(); });
   on('[data-action="select-player"]', "click", function(el){ var p = el.getAttribute("data-player"); if(p !== state.me) choosePlayer(p); });
   on('[data-action="sync-now"]', "click", async function(){
     await refreshCloud();
