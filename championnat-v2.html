@@ -2150,7 +2150,7 @@ function surfaceSwitch(){ return ""; }
 /* ===================== v2 : petits morceaux ===================== */
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
-function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, ""); }
+function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
 function teamLink(t){ return '<span class="team-link" data-action="goto-team" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + '</span>'; }
 function dayTitle(d){
   if(!d) return "Date a confirmer";
@@ -2383,8 +2383,10 @@ function renderSearchResults(q){
     return clubRank[x.club] - clubRank[y.club] || x.club.localeCompare(y.club) || x.kind - y.kind || x.num - y.num || a.localeCompare(b); });
   var nq = function(s){ return s.toLowerCase().replace(/\./g, "").replace(/\s+/g, " "); }, qn = nq(q);
   /* poules et categories : le texte tel quel ; sinon tous les mots, dans n'importe quel ordre (ex : u19 boys reg 1) */
-  var words = qn.split(" ").filter(Boolean);
-  var byWords = function(txt){ var toks = nq(txt).split(/[\s-]+/); return words.length > 1 && words.every(function(w){ return toks.some(function(k){ return k.indexOf(w) === 0; }); }); };
+  var words = qn.split(/[\s-]+/).filter(Boolean);
+  /* un mot correspond au debut d'un mot ; un nombre seul correspond aussi au nombre d'une categorie (16 = U16, 19 = U19) */
+  var wm = function(k, w){ return k.indexOf(w) === 0 || (/^\d+$/.test(w) && (k.match(/^[a-z]+(\d+)/) || [])[1] === w); };
+  var byWords = function(txt){ var toks = nq(txt).split(/[\s-]+/); return words.length > 1 && words.every(function(w){ return toks.some(function(k){ return wm(k, w); }); }); };
   var phraseHit = ALL_POOLS.some(function(x){ return x[2] > 0 && nq(shortPool(x[1])).indexOf(qn) !== -1; }) || extCategories().some(function(c){ return nq(c).indexOf(qn) !== -1; });
   var hasAll = function(txt){ return phraseHit ? nq(txt).indexOf(qn) !== -1 : byWords(txt); };
   var pools = ALL_POOLS.filter(function(x){ return x[2] > 0 && !isIsolatedPool(x[1]) && hasAll(shortPool(x[1])); })
@@ -2400,10 +2402,67 @@ function renderSearchResults(q){
         '<span class="li-s">' + extPoolsOf(c).length + ' poule' + (extPoolsOf(c).length > 1 ? "s" : "") + '</span><span class="li-go">&#8250;</span></button>';
     }).join("") + '</div>';
   }
+  /* recherche combinee : club + niveau (ex : "nat old cl" = equipes de Old Club en Nat.) */
+  var combo = [];
+  /* le texte tel quel au debut d'un mot d'une equipe (ex : "racing h-1") : on garde la recherche simple */
+  var atWordStart = function(t){ var l = " " + t.toLowerCase(), i = l.indexOf(qn, 1); while(i !== -1){ if(/[\s-]/.test(l.charAt(i - 1))) return true; i = l.indexOf(qn, i + 1); } return false; };
+  var direct = teams.filter(function(t){ return atWordStart(t) || atWordStart(teamParts(t).club); });
+  /* equipes ou le texte est au milieu d'un mot (ex : "ve" dans Louvain-la-Neuve) : rubrique a part */
+  var others = direct.length ? teams.filter(function(t){ return direct.indexOf(t) === -1; }) : [];
+  if(direct.length) teams = direct;
+  var combo2 = [];
+  if(words.length > 1 && !direct.length){
+    var tp = {};
+    srcMatches().forEach(function(m){ [m.teamA, m.teamB].forEach(function(t){ (tp[t] = tp[t] || {})[m.pool] = 1; }); });
+    var ptoks = function(pid){ return nq(poolName(pid)).split(/[\s-]+/); };
+    /* cm : comment un mot est compare au nom du club (debut de mot, ou n'importe ou) */
+    var build = function(cm, skip){
+      var out = [];
+      Object.keys(tp).forEach(function(t){
+        if(skip && skip[t]) return;
+        var ttoks = nq(t).split(/[\s-]+/), pids = Object.keys(tp[t]);
+        var ok = words.every(function(w){
+          return ttoks.some(function(k){ return cm(k, w); }) || pids.some(function(pid){ return ptoks(pid).some(function(k){ return wm(k, w); }); });
+        });
+        if(!ok) return;
+        /* poules qui correspondent aux mots qui ne sont pas dans le nom du club */
+        var ctoks = nq(teamParts(t).club).split(/[\s-]+/);
+        var rest = words.filter(function(w){ return !ctoks.some(function(k){ return cm(k, w); }); });
+        if(rest.length === words.length) return;
+        var hit = pids.filter(function(pid){ var pt = ptoks(pid); return rest.every(function(w){ return pt.some(function(k){ return wm(k, w); }); }); });
+        if(rest.length && !hit.length) return;
+        /* sans niveau demande : on montre le championnat plutot que les coupes */
+        var show = rest.length ? hit : pids;
+        var champ = show.filter(function(pid){ return !/Cup/.test(poolName(pid)); });
+        out.push({team:t, pools:(champ.length ? champ : show)});
+      });
+      return out.sort(function(a, b){ var x = teamParts(a.team), y = teamParts(b.team);
+        return x.club.localeCompare(y.club) || x.kind - y.kind || x.num - y.num || a.team.localeCompare(b.team); });
+    };
+    combo = build(wm);
+    var seen = {}; combo.forEach(function(c){ seen[c.team] = 1; });
+    combo2 = build(function(k, w){ return wm(k, w) || (!/^\d+$/.test(w) && k.indexOf(w) !== -1); }, seen);
+  }
+  /* plusieurs mots : la recherche mot par mot (debut de mot) remplace la recherche du texte tel quel */
+  if(combo.length || combo2.length) teams = [];
+  var comboList = function(list){ return '<div class="list">' + list.map(function(c){
+      return '<button class="li" data-action="goto-team" data-team="' + escapeHtml(c.team) + '"><span class="li-t">' + escapeHtml(c.team) + (isFav(c.team) ? ' &#9733;' : '') + '</span>' +
+        '<span class="li-s">' + c.pools.map(function(pid){ return escapeHtml(shortPoolName(pid)); }).join(" &middot; ") + '</span><span class="li-go">&#8250;</span></button>';
+    }).join("") + '</div>'; };
+  if(combo.length) html += '<h2 class="h2">Equipes (' + combo.length + ')</h2>' + comboList(combo);
+  if(combo2.length){
+    html += '<h2 class="h2">Aussi trouve dans le nom (' + combo2.length + ')</h2>' + comboList(state.othersAll ? combo2 : combo2.slice(0, 15));
+    if(combo2.length > 15) html += '<button class="btn btn-sm btn-ghost clear-btn" data-action="others-all">' + (state.othersAll ? 'Reduire la liste' : 'Voir les ' + combo2.length + ' equipes') + '</button>';
+  }
   if(teams.length){
     var showAll = state.teamSuggAll || teams.length <= 15;
     html += '<h2 class="h2">Equipes (' + teams.length + ')</h2><div class="team-sugg' + (showAll && teams.length > 15 ? ' team-sugg-all' : '') + '">' + teamSuggHtml(showAll ? teams : teams.slice(0, 15)) + '</div>' +
       (teams.length > 15 ? '<button class="btn btn-sm btn-ghost clear-btn" data-action="team-sugg-all">' + (showAll ? 'Reduire la liste' : 'Voir les ' + teams.length + ' equipes') + '</button>' : '');
+  }
+  if(teams.length && others.length){
+    html += '<h2 class="h2">Aussi trouve dans le nom (' + others.length + ')</h2>';
+    if(others.length <= 15 || state.othersAll) html += '<div class="team-sugg' + (others.length > 15 ? ' team-sugg-all' : '') + '">' + teamSuggHtml(others) + '</div>';
+    if(others.length > 15) html += '<button class="btn btn-sm btn-ghost clear-btn" data-action="others-all">' + (state.othersAll ? 'Masquer' : 'Voir les ' + others.length + ' equipes') + '</button>';
   }
   if(pools.length){
     /* toutes les poules trouvees, rangees par categorie */
@@ -2414,7 +2473,7 @@ function renderSearchResults(q){
       return head + '<button class="li" data-action="goto-pool" data-pool="' + p[0] + '"><span class="li-t">' + escapeHtml(shortPool(p[1]).replace(g + " - ", "").replace(/ - A$/, "")) + (state.pools.indexOf(p[0]) !== -1 ? ' &#9733;' : '') + '</span><span class="li-go">&#8250;</span></button>';
     }).join("") + '</div>';
   }
-  if(!cats.length && !teams.length && !pools.length) html += emptyBox("Rien trouve", SNAP.state === "ok" ? "Verifie l'orthographe (ex : Leopold, Racing, U19 Boys)." : "Les donnees de tout hockey.be ne sont pas encore chargees : reessaie dans un instant.");
+  if(!cats.length && !teams.length && !pools.length && !combo.length && !combo2.length) html += emptyBox("Rien trouve", SNAP.state === "ok" ? "Verifie l'orthographe (ex : Leopold, Racing, U19 Boys)." : "Les donnees de tout hockey.be ne sont pas encore chargees : reessaie dans un instant.");
   return html;
 }
 function renderPoolPage(pid){
@@ -2592,6 +2651,7 @@ var ACTIONS = {
   "mweek-mode": function(el){ state.mWeek = el.getAttribute("data-on") === "1" ? 0 : null; render(); },
   "mweek": function(el){ var d = +el.getAttribute("data-d"); state.mWeek = d === 0 ? 0 : (state.mWeek || 0) + d; render(); },
   "goto-cat": function(el){ state.exploreCat = el.getAttribute("data-cat"); state.q = ""; state.teamSuggAll = false; render(); window.scrollTo(0, 0); },
+  "others-all": function(){ state.othersAll = !state.othersAll; render(); },
   "pool-all": function(){ state.poolAll = true; render(); },
   "team-sugg-all": function(){ state.teamSuggAll = !state.teamSuggAll; render(); },
   "clear-q": function(){ state.q = ""; state.exploreCat = ""; state.teamSuggAll = false; render(); keepFocus("match-search", 0); },
@@ -2878,7 +2938,7 @@ var CHANGE_ACTIONS = {
 };
 /* champs de recherche : on redessine en gardant le curseur */
 var INPUTS = {
-  "match-search": function(el){ state.q = el.value; state.teamSuggAll = false; if(state.q.trim().length >= 2) loadSnapshot(false); },
+  "match-search": function(el){ state.q = el.value; state.teamSuggAll = false; state.othersAll = false; if(state.q.trim().length >= 2) loadSnapshot(false); },
   "pool-search": function(el){ state.pickerSearch = el.value; },
   "fix-q": function(el){ state.fixQ = el.value; }
 };
