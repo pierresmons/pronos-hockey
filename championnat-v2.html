@@ -1054,6 +1054,9 @@
   #explore-cat:focus{outline:none;border-color:var(--red);}
   #explore-cat.picked{color:var(--ice);font-weight:600;border-color:var(--gold);}
   #explore-cat + .section-title, #explore-cat + .fav-tip{margin-top:16px !important;}
+  .li-h{font-family:var(--font-mono);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);padding:10px 14px 6px;border-top:1px solid var(--line);background:var(--panel-2);}
+  .li-h:first-child{border-top:none;}
+  .li-h + .li{border-top:none;}
 </style>
 </head>
 <body>
@@ -1258,7 +1261,7 @@ async function syncFromHockeyBe(){
         changes += upsertMatch({pool:pid, teamA:a, teamB:b, date:isoDate(r[0]), time:(r[1]||"").slice(0,5),
           scoreA: m ? parseInt(m[1],10) : null, scoreB: m ? parseInt(m[2],10) : null, status: m ? (status || null) : (sc || null), official:true});
       });
-      state.standings[pid] = standing.map(function(s){
+      if(standing.length || !(state.standings[pid] || []).length) state.standings[pid] = standing.map(function(s){
         return {rank:s[0], team:s[1], j:s[2], g:s[3], p:s[4], n:s[5], bp:s[6], bc:s[7], pts:s[8]};
       });
     }
@@ -1996,7 +1999,8 @@ async function loadExtPools(pids, force){
         res[1].forEach(function(r){ var sc = stripHtml(r[5] || ""), mm = /(\d+)\s*-\s*(\d+)/.exec(sc);
           put({pool:pid, teamA:teamName(r[3]), teamB:teamName(r[r.length-1]), date:isoDate(r[0]), time:(r[1]||"").slice(0,5),
                scoreA: mm ? parseInt(mm[1],10) : null, scoreB: mm ? parseInt(mm[2],10) : null, status: mm ? (sc.replace(/(\d+)\s*-\s*(\d+)/, "").trim() || null) : (sc || null)}); });
-        EXT.standings[pid] = res[2].map(function(t){ return {rank:t[0], team:t[1], j:t[2], g:t[3], p:t[4], n:t[5], bp:t[6], bc:t[7], pts:t[8]}; });
+        /* hockey.be renvoie parfois un classement vide : on garde alors celui du robot */
+        if(res[2].length || !EXT.standings[pid]) EXT.standings[pid] = res[2].map(function(t){ return {rank:t[0], team:t[1], j:t[2], g:t[3], p:t[4], n:t[5], bp:t[6], bc:t[7], pts:t[8]}; });
         EXT.loaded[pid] = true; EXT.live = EXT.live || {}; EXT.live[pid] = new Date();
       }catch(e){ EXT.failed.push(poolName(pid)); }
       EXT.loading--; render();
@@ -2344,8 +2348,8 @@ function renderMatchs(){
   } finally { SRC = null; }
 }
 function renderMatchsHome(){
-  var html = '<div class="search"><span class="clr-wrap"><input type="search" class="inline-input search-input" id="match-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Equipe, club ou poule (tout hockey.be)" value="' + escapeHtml(state.q) + '">' +
-    '<button type="button" class="clr-x" data-action="clear-q" aria-label="Effacer"' + (state.q ? '' : ' hidden') + '>&times;</button></span></div>';
+  var html = '<div class="search"><span class="clr-wrap"><input type="search" class="inline-input search-input" id="match-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Equipe, club, categorie ou poule" value="' + escapeHtml(state.q) + '">' +
+    '<button type="button" class="clr-x" data-action="clear-q" aria-label="Effacer"' + (state.q || state.exploreCat ? '' : ' hidden') + '>&times;</button></span></div>';
   var q = state.q.trim().toLowerCase();
   if(q.length >= 2) return html + renderSearchResults(q);
   /* explorer */
@@ -2378,21 +2382,39 @@ function renderSearchResults(q){
   teams.sort(function(a, b){ var x = teamParts(a), y = teamParts(b);
     return clubRank[x.club] - clubRank[y.club] || x.club.localeCompare(y.club) || x.kind - y.kind || x.num - y.num || a.localeCompare(b); });
   var nq = function(s){ return s.toLowerCase().replace(/\./g, "").replace(/\s+/g, " "); }, qn = nq(q);
-  var pools = ALL_POOLS.filter(function(x){ return x[2] > 0 && !isIsolatedPool(x[1]) && nq(shortPool(x[1])).indexOf(qn) !== -1; })
-    .sort(function(a, b){ return (state.pools.indexOf(a[0]) === -1) - (state.pools.indexOf(b[0]) === -1); }).slice(0, 12);
+  /* poules et categories : le texte tel quel ; sinon tous les mots, dans n'importe quel ordre (ex : u19 boys reg 1) */
+  var words = qn.split(" ").filter(Boolean);
+  var byWords = function(txt){ var toks = nq(txt).split(/[\s-]+/); return words.length > 1 && words.every(function(w){ return toks.some(function(k){ return k.indexOf(w) === 0; }); }); };
+  var phraseHit = ALL_POOLS.some(function(x){ return x[2] > 0 && nq(shortPool(x[1])).indexOf(qn) !== -1; }) || extCategories().some(function(c){ return nq(c).indexOf(qn) !== -1; });
+  var hasAll = function(txt){ return phraseHit ? nq(txt).indexOf(qn) !== -1 : byWords(txt); };
+  var pools = ALL_POOLS.filter(function(x){ return x[2] > 0 && !isIsolatedPool(x[1]) && hasAll(shortPool(x[1])); })
+    .sort(function(a, b){ var x = catInfo(poolGroup(a[1])), y = catInfo(poolGroup(b[1])); return x.g - y.g || x.k.localeCompare(y.k) || shortPool(a[1]).localeCompare(shortPool(b[1])); });
   var html = "";
   if(SNAP.state === "loading") html += '<p class="points-sub">Chargement de tout hockey.be...</p>';
+  /* categories (U19 Boys, Ladies, EHL...) : toucher ouvre la liste de leurs poules */
+  var myCats = {}; state.pools.forEach(function(pid){ myCats[poolCat(pid)] = 1; });
+  var cats = extCategories().filter(function(c){ return hasAll(c); });
+  if(cats.length){
+    html += '<h2 class="h2">Categories</h2><div class="list">' + cats.map(function(c){
+      return '<button class="li" data-action="goto-cat" data-cat="' + escapeHtml(c) + '"><span class="li-t">' + escapeHtml(c) + (myCats[c] ? ' &#9733;' : '') + '</span>' +
+        '<span class="li-s">' + extPoolsOf(c).length + ' poule' + (extPoolsOf(c).length > 1 ? "s" : "") + '</span><span class="li-go">&#8250;</span></button>';
+    }).join("") + '</div>';
+  }
   if(teams.length){
     var showAll = state.teamSuggAll || teams.length <= 15;
     html += '<h2 class="h2">Equipes (' + teams.length + ')</h2><div class="team-sugg' + (showAll && teams.length > 15 ? ' team-sugg-all' : '') + '">' + teamSuggHtml(showAll ? teams : teams.slice(0, 15)) + '</div>' +
       (teams.length > 15 ? '<button class="btn btn-sm btn-ghost clear-btn" data-action="team-sugg-all">' + (showAll ? 'Reduire la liste' : 'Voir les ' + teams.length + ' equipes') + '</button>' : '');
   }
   if(pools.length){
-    html += '<h2 class="h2">Poules</h2><div class="list">' + pools.map(function(p){
-      return '<button class="li" data-action="goto-pool" data-pool="' + p[0] + '"><span class="li-t">' + escapeHtml(shortPool(p[1]).replace(/ - A$/, "")) + (state.pools.indexOf(p[0]) !== -1 ? ' &#9733;' : '') + '</span><span class="li-go">&#8250;</span></button>';
+    /* toutes les poules trouvees, rangees par categorie */
+    var cur = null;
+    html += '<h2 class="h2">Poules (' + pools.length + ')</h2><div class="list">' + pools.map(function(p){
+      var g = poolGroup(p[1]), head = g !== cur ? '<div class="li-h">' + escapeHtml(g) + '</div>' : '';
+      cur = g;
+      return head + '<button class="li" data-action="goto-pool" data-pool="' + p[0] + '"><span class="li-t">' + escapeHtml(shortPool(p[1]).replace(g + " - ", "").replace(/ - A$/, "")) + (state.pools.indexOf(p[0]) !== -1 ? ' &#9733;' : '') + '</span><span class="li-go">&#8250;</span></button>';
     }).join("") + '</div>';
   }
-  if(!teams.length && !pools.length) html += emptyBox("Rien trouve", SNAP.state === "ok" ? "Verifie l'orthographe (ex : Leopold, Racing, U19 Boys)." : "Les donnees de tout hockey.be ne sont pas encore chargees : reessaie dans un instant.");
+  if(!cats.length && !teams.length && !pools.length) html += emptyBox("Rien trouve", SNAP.state === "ok" ? "Verifie l'orthographe (ex : Leopold, Racing, U19 Boys)." : "Les donnees de tout hockey.be ne sont pas encore chargees : reessaie dans un instant.");
   return html;
 }
 function renderPoolPage(pid){
@@ -2569,9 +2591,10 @@ var ACTIONS = {
   "goto-pool": function(el){ openPool(el.getAttribute("data-pool")); },
   "mweek-mode": function(el){ state.mWeek = el.getAttribute("data-on") === "1" ? 0 : null; render(); },
   "mweek": function(el){ var d = +el.getAttribute("data-d"); state.mWeek = d === 0 ? 0 : (state.mWeek || 0) + d; render(); },
+  "goto-cat": function(el){ state.exploreCat = el.getAttribute("data-cat"); state.q = ""; state.teamSuggAll = false; render(); window.scrollTo(0, 0); },
   "pool-all": function(){ state.poolAll = true; render(); },
   "team-sugg-all": function(){ state.teamSuggAll = !state.teamSuggAll; render(); },
-  "clear-q": function(){ state.q = ""; state.teamSuggAll = false; render(); keepFocus("match-search", 0); },
+  "clear-q": function(){ state.q = ""; state.exploreCat = ""; state.teamSuggAll = false; render(); keepFocus("match-search", 0); },
 
   /* --- pronos --- */
   "week": function(el){ var d = +el.getAttribute("data-d"); state.weekOffset = d === 0 ? 0 : state.weekOffset + d; state.open = {}; render(); },
