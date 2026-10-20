@@ -1066,6 +1066,17 @@
   /* badge du nombre de pronos a faire : colle au mot Pronos */
   .tabs .tab .tab-badge{position:relative;top:-2px;right:auto;display:inline-block;margin-left:6px;box-shadow:none;vertical-align:middle;}
   @media (max-width:600px){ .tabs .tab .tab-badge{top:-2px;right:auto;} }
+  /* jours deja joues, replies */
+  .day-fold{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;text-align:left;}
+  .day-fold .day-sum{font-weight:500;color:var(--gold);white-space:nowrap;}
+  /* lignes de prono plus basses */
+  .pr{padding:6px 10px;margin-bottom:6px;}
+  .pr-meta{margin-bottom:2px;}
+  .pr .xp-btn{height:23px;width:38px;font-size:16px;line-height:1;}
+  .pr .xp-val{height:22px;line-height:22px;font-size:19px;}
+  .pr .xp-step{gap:2px;}
+  .pr .final{min-width:72px;}
+  .pr .final b{font-size:19px;}
 </style>
 </head>
 <body>
@@ -2114,7 +2125,7 @@ var state = {
   room:null, players:[], pools:[], matches:[], predictions:{}, standings:{}, lastSync:null,
   favs:{}, seasonQ:{}, seasonPicks:{}, seasonOn:true, pins:{}, owner:null,
   me:null, tab:"pronos", settings:false, surf:"",
-  weekOffset:0, cat:"", open:{}, lbView:"all", statOpen:{},
+  weekOffset:0, cat:"", open:{}, dayOpen:{}, lbView:"all", statOpen:{},
   mview:{type:"home"}, nav:[], mWeek:0, q:"", exploreCat:"", teamSuggAll:false, poolAll:false,
   pickerSel:[], pickerSearch:"", showIsolated:false, poolEditorOpen:false,
   syncing:false, joinBusy:false, joinError:null,
@@ -2124,7 +2135,7 @@ var state = {
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 20/10 (accents)";
+var APP_VERSION = "v2 du 20/10 (lignes compactes)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2209,10 +2220,19 @@ function renderPronos(){
     return html + emptyBox("Pas de match", state.weekOffset >= 0 ? "Rien de prévu cette semaine-la. Passe à la suivante avec &#8250;." : "Aucun match cette semaine-la.");
   }
   html += '<p class="wk-sum" id="wk-sum">' + weekSummary(list) + '</p>';
-  var day = null;
-  list.forEach(function(m){
-    if(m.date !== day){ day = m.date; html += '<h3 class="day">' + dayTitle(day) + '</h3>'; }
-    html += rowHtml(m);
+  /* jours deja joues : replies en une ligne quand la semaine a encore des matchs a pronostiquer */
+  var weekOpen = list.some(function(m){ return !isLocked(m); });
+  var days = [], byDay = {};
+  list.forEach(function(m){ var k = m.date || ""; if(!byDay[k]){ byDay[k] = []; days.push(k); } byDay[k].push(m); });
+  days.forEach(function(d){
+    var ms = byDay[d], allDone = ms.every(isLocked);
+    var folded = weekOpen && allDone && !state.dayOpen[d];
+    if(weekOpen && allDone){
+      var pts = 0, n = 0;
+      ms.forEach(function(m){ var p = myPred(m); if(p && p.a !== undefined && hasScore(m)){ n++; pts += computePoints(p, m) || 0; } });
+      html += '<button class="day day-fold" data-action="day-fold" data-day="' + escapeHtml(d) + '"><span>' + dayTitle(d) + '</span><span class="day-sum">' + ms.length + ' match' + (ms.length > 1 ? 's' : '') + ' &middot; ' + pts + ' pt' + (pts > 1 ? 's' : '') + ' ' + (folded ? '&#9662;' : '&#9652;') + '</span></button>';
+    } else html += '<h3 class="day">' + dayTitle(d) + '</h3>';
+    if(!folded) ms.forEach(function(m){ html += rowHtml(m); });
   });
   html += '<p class="legend2"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>Joker</b> x2 sur un match par semaine. Touche un match pour la forme, le joker et les pronos des autres.</p>';
   return html;
@@ -2717,6 +2737,7 @@ var ACTIONS = {
   "goto-cat": function(el){ state.exploreCat = el.getAttribute("data-cat"); state.q = ""; state.teamSuggAll = false; render(); window.scrollTo(0, 0); },
   "others-all": function(){ state.othersAll = !state.othersAll; render(); },
   "clear-picker": function(){ state.pickerSearch = ""; var i = document.getElementById("pool-search"); if(i) i.value = ""; refreshPicker(false); keepFocus("pool-search", 0); },
+  "day-fold": function(el){ var d = el.getAttribute("data-day"); state.dayOpen[d] = !state.dayOpen[d]; render(); },
   "pool-all": function(){ state.poolAll = true; render(); },
   "team-sugg-all": function(){ state.teamSuggAll = !state.teamSuggAll; render(); },
   "clear-q": function(){ state.q = ""; state.exploreCat = ""; state.teamSuggAll = false; render(); keepFocus("match-search", 0); },
