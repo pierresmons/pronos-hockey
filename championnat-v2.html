@@ -2336,6 +2336,14 @@ function statDetail(p){
 }
 
 /* ===================== v2 : Matchs (equipes, poules, recherche) ===================== */
+function refreshMatchsBody(){
+  var box = document.getElementById("msub");
+  if(!box) return render();
+  SRC = SNAP.state === "ok" ? mergedExt() : null;
+  try{ box.innerHTML = renderMatchsBody(); } finally { SRC = null; }
+  var x = document.querySelector('[data-action="clear-q"]');
+  if(x) x.hidden = !(state.q || state.exploreCat);
+}
 function renderMatchs(){
   if(SNAP.state === "idle") setTimeout(function(){ loadSnapshot(false); }, 0);
   SRC = SNAP.state === "ok" ? mergedExt() : null;
@@ -2350,6 +2358,12 @@ function renderMatchs(){
 function renderMatchsHome(){
   var html = '<div class="search"><span class="clr-wrap"><input type="search" class="inline-input search-input" id="match-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Equipe, club, categorie ou poule" value="' + escapeHtml(state.q) + '">' +
     '<button type="button" class="clr-x" data-action="clear-q" aria-label="Effacer"' + (state.q || state.exploreCat ? '' : ' hidden') + '>&times;</button></span></div>';
+  return html + '<div id="msub">' + renderMatchsBody() + '</div>';
+}
+/* tout ce qui est sous la barre de recherche : redessine seul pendant la frappe,
+   pour que l'iPhone garde son clavier (chiffres) au lieu de revenir aux lettres */
+function renderMatchsBody(){
+  var html = "";
   var q = state.q.trim().toLowerCase();
   if(q.length >= 2) return html + renderSearchResults(q);
   /* explorer */
@@ -2962,6 +2976,7 @@ function installEvents(){
   });
   document.addEventListener("input", function(e){
     var el = e.target, fn = INPUTS[el.id];
+    if(el.id === "match-search"){ fn(el); refreshMatchsBody(); return; }
     if(fn){ var pos = el.selectionStart; fn(el); render(); keepFocus(el.id, pos); return; }
     if(el.getAttribute("data-role") === "final-a" || el.getAttribute("data-role") === "final-b") el.value = el.value.replace(/[^0-9]/g, "").slice(0, 2);
   });
