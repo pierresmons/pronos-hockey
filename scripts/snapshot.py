@@ -256,12 +256,24 @@ def main():
                 a, b = team(r[3]), team(r[-1])
                 key = (pid, a, b)
                 matches[key] = [pi, iso(dv[0]), (r[1] or "")[:5], t_id(a), t_id(b), None, None, None, dv[1] if len(dv) > 1 else None]
+            seen = {}
             for r in results:
                 a, b = team(r[3]), team(r[-1])
                 sc = strip(r[5] if len(r) > 5 else "")
                 m = re.search(r"(\d+)\s*-\s*(\d+)", sc)
                 status = (re.sub(r"(\d+)\s*-\s*(\d+)", "", sc).strip() or None) if m else (sc or None)
                 key = (pid, a, b)
+                # match annule puis rejoue : hockey.be donne deux lignes pour le meme match.
+                # On garde celle qui a un score, sinon celle a la date la plus recente.
+                d = iso(r[0]) or ""
+                # ligne annulee sans score alors que le calendrier donne deja la nouvelle date (match a rejouer)
+                if not m and key not in seen and key in matches and (matches[key][1] or "") > d:
+                    continue
+                if key in seen:
+                    had_score, had_date = seen[key]
+                    if (had_score and not m) or (bool(m) == had_score and d <= had_date):
+                        continue
+                seen[key] = (bool(m), d)
                 venue = matches[key][8] if key in matches else None
                 matches[key] = [pi, iso(r[0]), (r[1] or "")[:5], t_id(a), t_id(b),
                                 int(m.group(1)) if m else None, int(m.group(2)) if m else None, status, venue]
