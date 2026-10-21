@@ -1077,6 +1077,7 @@
   .pr .xp-step{gap:2px;}
   .pr .final{min-width:72px;}
   .pr .final b{font-size:19px;}
+  .h2-sub{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.04em;color:var(--ice-faint);margin-left:6px;text-transform:uppercase;}
 </style>
 </head>
 <body>
@@ -2135,7 +2136,7 @@ var state = {
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 20/10 (lignes compactes)";
+var APP_VERSION = "v2 du 21/10 (journées)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2507,10 +2508,34 @@ function renderPoolPage(pid){
     var wk = sortMatches(ms.filter(inMWeek));
     html += '<h2 class="h2">Matchs de la semaine (' + wk.length + ')</h2>' + (wk.length ? '<div class="admin-form row-list">' + wk.map(function(m){ return matchRow(m); }).join("") + '</div>' : '<p class="points-sub">Aucun match cette semaine-la.</p>');
   } else {
-    var lim = state.poolAll ? 500 : 8;
-    html += '<h2 class="h2">Derniers résultats</h2>' + (played.length ? '<div class="admin-form row-list">' + played.slice(0, lim).map(function(m){ return matchRow(m); }).join("") + '</div>' : '<p class="points-sub">Aucun résultat pour l\'instant.</p>');
-    html += '<h2 class="h2">À venir</h2>' + (next.length ? '<div class="admin-form row-list">' + next.slice(0, lim).map(function(m){ return matchRow(m); }).join("") + '</div>' : '<p class="points-sub">Aucun match à venir.</p>');
-    if(played.length > lim || next.length > lim) html += '<button class="btn btn-sm btn-ghost clear-btn" data-action="pool-all">Voir tous les matchs</button>';
+    /* une journee = un week-end (semaine du lundi au dimanche) : derniere journee jouee et prochaine journee */
+    var rows = function(list){ return '<div class="admin-form row-list">' + list.map(function(m){ return matchRow(m); }).join("") + '</div>'; };
+    var dayLbl = function(list){ var ds = []; list.forEach(function(m){ if(m.date && ds.indexOf(m.date) === -1) ds.push(m.date); }); ds.sort();
+      return ds.length ? ' <span class="h2-sub">' + ds.map(function(d){ return formatDate(d); }).join(", ") + '</span>' : ''; };
+    var lastDay = [], nextDay = [];
+    if(state.poolAll){
+      html += '<h2 class="h2">Tous les résultats (' + played.length + ')</h2>' + (played.length ? rows(played) : '<p class="points-sub">Aucun résultat pour l\'instant.</p>');
+      html += '<h2 class="h2">Tous les matchs à venir (' + next.length + ')</h2>' + (next.length ? rows(next) : '<p class="points-sub">Aucun match à venir.</p>');
+    } else {
+      /* un match de rattrapage isole ne compte pas comme une journee : on va jusqu'a la premiere semaine "pleine"
+         (au moins la moitie des matchs d'une journee normale), en gardant les matchs isoles qui la precedent */
+      var nTeams = (srcStandings()[pid] || []).length, full = Math.max(1, Math.ceil(Math.floor(nTeams / 2) / 2));
+      var upTo = function(list){
+        var out = [], cnt = {};
+        list.forEach(function(m){ if(m.date){ var k = weekKey(m.date); cnt[k] = (cnt[k] || 0) + 1; } });
+        for(var i = 0; i < list.length; i++){
+          var m = list[i]; if(!m.date) continue;
+          out.push(m);
+          var k = weekKey(m.date), nx = list[i + 1];
+          if(cnt[k] >= full && (!nx || !nx.date || weekKey(nx.date) !== k)) break;
+        }
+        return out;
+      };
+      lastDay = upTo(played); nextDay = next.some(function(m){ return m.date; }) ? upTo(next) : next.slice(0, 8);
+      html += '<h2 class="h2">Dernière journée' + dayLbl(lastDay) + '</h2>' + (lastDay.length ? rows(lastDay) : '<p class="points-sub">Aucun résultat pour l\'instant.</p>');
+      html += '<h2 class="h2">Prochaine journée' + dayLbl(nextDay) + '</h2>' + (nextDay.length ? rows(nextDay) : '<p class="points-sub">Aucun match à venir.</p>');
+    }
+    if(state.poolAll || played.length > lastDay.length || next.length > nextDay.length) html += '<button class="btn btn-sm btn-ghost clear-btn" data-action="pool-all">' + (state.poolAll ? 'Revenir aux journées' : 'Voir tous les matchs de la saison') + '</button>';
   }
   var stH = standingsTable(pid, "").replace(/<h2 class="section-title"[^>]*>.*?<\/h2>/, "");
   if(stH) html += '<h2 class="h2">Classement</h2>' + stH;
@@ -2738,7 +2763,7 @@ var ACTIONS = {
   "others-all": function(){ state.othersAll = !state.othersAll; render(); },
   "clear-picker": function(){ state.pickerSearch = ""; var i = document.getElementById("pool-search"); if(i) i.value = ""; refreshPicker(false); keepFocus("pool-search", 0); },
   "day-fold": function(el){ var d = el.getAttribute("data-day"); state.dayOpen[d] = !state.dayOpen[d]; render(); },
-  "pool-all": function(){ state.poolAll = true; render(); },
+  "pool-all": function(){ state.poolAll = !state.poolAll; render(); },
   "team-sugg-all": function(){ state.teamSuggAll = !state.teamSuggAll; render(); },
   "clear-q": function(){ state.q = ""; state.exploreCat = ""; state.teamSuggAll = false; render(); keepFocus("match-search", 0); },
 
