@@ -1274,7 +1274,7 @@ async function syncFromHockeyBe(){
         var a = teamName(r[3]), b = teamName(r[r.length-1]);
         changes += upsertMatch({pool:pid, teamA:a, teamB:b, date:isoDate(dv[0]), time:(r[1]||"").slice(0,5), venue:dv[1] || null});
       });
-      results.forEach(function(r){
+      dedupeResults(results, program).forEach(function(r){
         var a = teamName(r[3]), b = teamName(r[r.length-1]);
         var sc = stripHtml(r[5] || "");
         var m = /(\d+)\s*-\s*(\d+)/.exec(sc);
@@ -1984,7 +1984,7 @@ async function loadExtPools(pids, force){
       try{
         var res = await Promise.all([apiGet(pid,"program"), apiGet(pid,"results"), apiGet(pid,"standing")]);
         res[0].forEach(function(r){ var dv = stripHtml(r[0]).split(" | "); put({pool:pid, teamA:teamName(r[3]), teamB:teamName(r[r.length-1]), date:isoDate(dv[0]), time:(r[1]||"").slice(0,5), venue:dv[1] || null}); });
-        res[1].forEach(function(r){ var sc = stripHtml(r[5] || ""), mm = /(\d+)\s*-\s*(\d+)/.exec(sc);
+        dedupeResults(res[1], res[0]).forEach(function(r){ var sc = stripHtml(r[5] || ""), mm = /(\d+)\s*-\s*(\d+)/.exec(sc);
           put({pool:pid, teamA:teamName(r[3]), teamB:teamName(r[r.length-1]), date:isoDate(r[0]), time:(r[1]||"").slice(0,5),
                scoreA: mm ? parseInt(mm[1],10) : null, scoreB: mm ? parseInt(mm[2],10) : null, status: mm ? (sc.replace(/(\d+)\s*-\s*(\d+)/, "").trim() || null) : (sc || null)}); });
         /* hockey.be renvoie parfois un classement vide : on garde alors celui du robot */
@@ -2132,11 +2132,27 @@ var state = {
   syncing:false, joinBusy:false, joinError:null,
   playerSheet:false, addingPlayer:false, inviteOpen:false, pinSheet:null, fixQ:""
 };
+/* match annule puis rejoue : hockey.be renvoie deux lignes pour le meme match (meme poule, memes equipes).
+   On garde celle qui a un score, sinon celle a la date la plus recente (le calendrier compte aussi). */
+function dedupeResults(rows, program){
+  var best = {}, order = [], planned = {};
+  (program || []).forEach(function(r){ planned[teamName(r[3]) + "|" + teamName(r[r.length - 1])] = isoDate(stripHtml(r[0]).split(" | ")[0]) || ""; });
+  (rows || []).forEach(function(r){
+    var k = teamName(r[3]) + "|" + teamName(r[r.length - 1]);
+    var sc = /(\d+)\s*-\s*(\d+)/.test(stripHtml(r[5] || "")), d = isoDate(r[0]) || "";
+    var cur = best[k];
+    /* ligne annulee sans score alors que le calendrier donne deja la nouvelle date */
+    if(!sc && !cur && planned[k] && planned[k] > d) return;
+    if(!cur){ best[k] = {r:r, sc:sc, d:d}; order.push(k); return; }
+    if((sc && !cur.sc) || (sc === cur.sc && d > cur.d)) best[k] = {r:r, sc:sc, d:d};
+  });
+  return order.map(function(k){ return best[k].r; });
+}
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 21/10 (journées)";
+var APP_VERSION = "v2 du 21/10 (matchs rejoues)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
