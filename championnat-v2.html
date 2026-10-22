@@ -2145,16 +2145,22 @@ function dedupeResults(rows, program){
   return order.map(function(k){ return best[k].r; });
 }
 /* matchs sans prono de la semaine en cours (lundi-dimanche) : meme chiffre que la ligne "a pronostiquer" de Pronos */
+/* semaine "en cours" pour les pronos : celle-ci s'il reste des matchs ouverts, sinon la suivante
+   (ex. le dimanche soir, quand tout est joue, on passe deja a la semaine prochaine) */
+function currentPronoWeek(){
+  var open = function(off){ var wr = weekRange(off); return state.matches.some(function(m){ return m.date && m.date >= wr.start && m.date <= wr.end && !isLocked(m); }); };
+  return open(0) ? 0 : (open(1) ? 1 : 0);
+}
 function missingList(){
   if(!state.me) return [];
-  var wr = weekRange(0);
+  var wr = weekRange(currentPronoWeek());
   return sortMatches(state.matches.filter(function(m){ return !hasScore(m) && !isLocked(m) && m.date && m.date >= wr.start && m.date <= wr.end && !hasPred(m); }));
 }
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 22/10 (pronos caches)";
+var APP_VERSION = "v2 du 24/10 (badge)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2783,7 +2789,7 @@ var ACTIONS = {
   "clear-q": function(){ state.q = ""; state.exploreCat = ""; state.teamSuggAll = false; render(); keepFocus("match-search", 0); },
 
   /* --- pronos --- */
-  "week": function(el){ var d = +el.getAttribute("data-d"); state.weekOffset = d === 0 ? 0 : state.weekOffset + d; state.open = {}; render(); },
+  "week": function(el){ var d = +el.getAttribute("data-d"); state.weekOffset = d === 0 ? currentPronoWeek() : state.weekOffset + d; state.open = {}; render(); },
   "cat": function(el){ state.cat = el.getAttribute("data-cat"); render(); },
   "row": function(el){ var id = el.getAttribute("data-match"); state.open[id] = !state.open[id]; render(); },
   "xp": function(el){
@@ -3114,6 +3120,7 @@ async function init(){
   if(state.me && state.players.indexOf(state.me) === -1) state.me = null;
   if(state.pools.some(function(p){ return /^ehl-/.test(p); }) || (state.me && myFavs().length)) loadSnapshot(false);
   if(!state.me && !joined && state.players.length === 1 && !hasPin(state.players[0])) state.me = state.players[0];
+  state.weekOffset = currentPronoWeek();
   render();
   if(state.room && isStale()){ await syncFromHockeyBe(); render(); }
 }
