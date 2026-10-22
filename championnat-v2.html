@@ -2152,7 +2152,7 @@ function dedupeResults(rows, program){
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 21/10 (matchs rejoues)";
+var APP_VERSION = "v2 du 22/10 (protection)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2712,12 +2712,7 @@ function renderSettings(){
       '<label class="pool-opt"><input type="checkbox" data-action="notif-set" data-k="miss"' + (notifOn("miss") ? " checked" : "") + '> Pronostic oublié : 2 h avant le premier match du jour</label>';
   } else html += '<p class="section-hint" style="margin:0;">Uniquement dans l\'app iPhone Pronos Hockey, pas dans Safari.</p>';
   html += '<p style="margin:14px 0 0;"><button class="btn btn-ghost btn-sm" data-action="leave-room">Quitter cette partie sur cet appareil</button></p></div>';
-  if(boss){
-    html += '<div class="admin-form danger"><h2 class="section-title" style="font-size:19px;color:var(--red);">Supprimer la partie</h2>' +
-      '<p class="section-hint">Définitif, pour tout le monde : joueurs, pronostics et classement. Tape <b>' + escapeHtml(state.room) + '</b> pour confirmer.</p>' +
-      '<div class="form-row"><input type="text" class="inline-input" id="delete-room-confirm" placeholder="' + escapeHtml(state.room) + '" style="width:200px;">' +
-      '<button class="btn btn-primary" data-action="delete-room">Supprimer</button></div></div>';
-  }
+  html += '<p class="points-sub" style="margin:14px 0 0;">Les parties ne peuvent plus être supprimées depuis l\'app (protection des données) ; elles sont sauvegardées chaque nuit.</p>';
   html += '<p class="points-sub" style="text-align:center;margin:18px 0 0;">Version ' + APP_VERSION + '</p>';
   return html;
 }
@@ -2977,17 +2972,6 @@ var ACTIONS = {
     await syncFromHockeyBe(); render(); showToast("Score repris de hockey.be");
   },
   "leave-room": function(){ setLocal(LOCAL_ROOM_KEY, null); state.room = null; state.settings = false; render(); },
-  "delete-room": async function(){
-    if(!isOwner()) return;
-    if(val("delete-room-confirm").trim().toLowerCase() !== state.room){ showToast("Tape exactement le nom de la partie pour confirmer"); return; }
-    try{ var res = await fetch(roomUrl(state.room), {method:"DELETE"}); if(!res.ok) throw new Error(); }
-    catch(e){ showToast("Suppression impossible (connexion ?)"); return; }
-    var name = state.room;
-    setLocal(LOCAL_ROOM_KEY, null);
-    state.room = null; state.players = []; state.pools = []; state.matches = []; state.predictions = {}; state.standings = {}; state.lastSync = null; state.me = null; state.pinSheet = null;
-    state.tab = "pronos"; state.settings = false; render();
-    showToast("Partie " + name + " supprimée");
-  },
 
   /* --- creer / rejoindre --- */
   "create-room": async function(){
