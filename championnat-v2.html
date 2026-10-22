@@ -1079,6 +1079,7 @@
   .pr .final b{font-size:19px;}
   .h2-sub{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.04em;color:var(--ice-faint);margin-left:6px;text-transform:uppercase;}
   .pred-tag .ok-mark{color:var(--green);}
+  .wk-sum:empty{display:none;}
 </style>
 </head>
 <body>
@@ -2160,7 +2161,7 @@ function missingList(){
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 24/10 (badge)";
+var APP_VERSION = "v2 du 24/10 (badge 2)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2268,7 +2269,6 @@ function weekSummary(list){
   done.forEach(function(m){ var p = computePoints(myPred(m) || {}, m); if(p) pts += p; });
   var parts = [];
   if(todo.length) parts.push('<b class="red">' + todo.length + '</b> à pronostiquer');
-  else if(open.length) parts.push('Tout est pronostiqué');
   if(done.length) parts.push('<b>' + pts + '</b> pt' + (pts > 1 ? "s" : "") + ' sur ' + done.length + ' match' + (done.length > 1 ? "s" : "") + ' joué' + (done.length > 1 ? "s" : ""));
   return parts.join(" &middot; ");
 }
