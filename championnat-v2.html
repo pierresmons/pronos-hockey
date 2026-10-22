@@ -1078,6 +1078,7 @@
   .pr .final{min-width:72px;}
   .pr .final b{font-size:19px;}
   .h2-sub{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.04em;color:var(--ice-faint);margin-left:6px;text-transform:uppercase;}
+  .pred-tag .ok-mark{color:var(--green);}
 </style>
 </head>
 <body>
@@ -1694,11 +1695,6 @@ async function saveFavs(){
 }
 function myPred(m, who){ return (state.predictions[m.id] || {})[who || state.me]; }
 function hasPred(m, who){ var p = myPred(m, who); return !!p && p.a !== undefined; }
-function missingList(){
-  if(!state.me) return [];
-  var lim = addDaysIso(7);
-  return sortMatches(state.matches.filter(function(m){ return !hasScore(m) && !isLocked(m) && m.date && m.date <= lim && !hasPred(m); }));
-}
 function updateMissingBadge(){
   var n = missingList().length, b = document.getElementById("missing-badge");
   if(b){ b.textContent = n; b.style.display = n ? "" : "none"; }
@@ -2148,11 +2144,17 @@ function dedupeResults(rows, program){
   });
   return order.map(function(k){ return best[k].r; });
 }
+/* matchs sans prono de la semaine en cours (lundi-dimanche) : meme chiffre que la ligne "a pronostiquer" de Pronos */
+function missingList(){
+  if(!state.me) return [];
+  var wr = weekRange(0);
+  return sortMatches(state.matches.filter(function(m){ return !hasScore(m) && !isLocked(m) && m.date && m.date >= wr.start && m.date <= wr.end && !hasPred(m); }));
+}
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 22/10 (protection)";
+var APP_VERSION = "v2 du 22/10 (pronos caches)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2307,8 +2309,10 @@ function rowDetail(m, pr, locked, done){
         var pts = computePoints(x, m), base = basePoints(x, m);
         return '<span class="pred-tag ' + (base === 3 ? "exact" : (base === 1 ? "correct" : "wrong")) + '">' + escapeHtml(p) + ' <b>' + x.a + '-' + x.b + '</b> ' + pts + ' pt' + (pts > 1 ? "s" : "") + (x.j ? ' (joker)' : '') + '</span>';
       }
-      return '<span class="pred-tag">' + escapeHtml(p) + ' <b>' + x.a + '-' + x.b + '</b>' + (locked && x.j ? ' (joker)' : '') + '</span>';
-    }).join("") + '</div>';
+      /* avant le coup d'envoi : on montre qui a joue, pas son score (pas de copie possible) */
+      if(!locked) return '<span class="pred-tag">' + escapeHtml(p) + ' <b class="ok-mark">&#10003;</b></span>';
+      return '<span class="pred-tag">' + escapeHtml(p) + ' <b>' + x.a + '-' + x.b + '</b>' + (x.j ? ' (joker)' : '') + '</span>';
+    }).join("") + '</div>' + (!locked ? '<p class="points-sub" style="margin:4px 0 0;">Les scores des autres s\'affichent au coup d\'envoi.</p>' : '');
   }
   if(!done) html += renderMatchInfo(m);
   return html + '</div>';
