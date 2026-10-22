@@ -1,0 +1,76 @@
+# Sauvegarde Pronos Hockey : copie chaque nuit toutes les parties de Firebase
+# (championnat : hbrooms, Coupe du monde : rooms), chiffree avec le mot de passe
+# BACKUP_PASSWORD (Settings > Secrets and variables > Actions).
+#
+# La sauvegarde n'est PAS mise dans le repo (il est public) : elle est rangee dans
+# les "artifacts" du robot, gardes 30 jours (onglet Actions > Sauvegarde Firebase > un passage).
+#
+# Pour relire une sauvegarde sur le Mac (Terminal), apres avoir telecharge et dezippe l'artifact :
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in pronos-backup-AAAA-MM-JJ.json.gz.enc -out sauvegarde.json.gz
+#   gunzip sauvegarde.json.gz
+# (openssl demande le mot de passe)
+name: Sauvegarde Firebase
+
+on:
+  schedule:
+    - cron: "17 3 * * *"          # chaque nuit vers 4h-5h (heure belge)
+  workflow_dispatch: {}            # bouton "Run workflow" pour lancer a la main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Telecharger et verifier les parties
+        env:
+          FIREBASE_URL: https://pronos-hockey-default-rtdb.europe-west1.firebasedatabase.app
+        run: |
+          set -euo pipefail
+          for path in hbrooms rooms; do
+            curl -sS --fail --retry 3 --retry-delay 5 -m 60 "$FIREBASE_URL/$path.json" -o "$path.json"
+          done
+          python3 - <<'PY'
+          import json, datetime as dt
+          data = {}
+          for path in ("hbrooms", "rooms"):
+              d = json.load(open(f"{path}.json"))   # erreur si le fichier n'est pas du JSON valide
+              data[path] = d or {}
+              n = len(d or {})
+              print(f"{path} : {n} partie(s)")
+          if not data["hbrooms"] and not data["rooms"]:
+              raise SystemExit("Aucune partie trouvee : sauvegarde annulee (Firebase vide ou injoignable ?)")
+          data["_sauvegarde"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          day = dt.date.today().isoformat()
+          json.dump(data, open(f"pronos-backup-{day}.json", "w", encoding="utf-8"), ensure_ascii=False)
+          open("backup_name.txt", "w").write(f"pronos-backup-{day}")
+          PY
+      - name: Chiffrer
+        env:
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKUP_PASSWORD:-}" ]; then
+            echo "::error::Le secret BACKUP_PASSWORD n'existe pas : ajoute-le dans Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          name=$(cat backup_name.txt)
+          gzip -9 "$name.json"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -salt -in "$name.json.gz" -out "$name.json.gz.enc" -pass env:BACKUP_PASSWORD
+          # verification : on relit le fichier chiffre avec le meme mot de passe
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -in "$name.json.gz.enc" -pass env:BACKUP_PASSWORD | gunzip | python3 -c "import json,sys; json.load(sys.stdin); print('Verification OK')"
+          rm -f "$name.json.gz" hbrooms.json rooms.json
+          echo "NAME=$name" >> "$GITHUB_ENV"
+      - name: Ranger la sauvegarde (30 jours)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.json.gz.enc
+          retention-days: 30
+          if-no-files-found: error
