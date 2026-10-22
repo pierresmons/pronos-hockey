@@ -68,7 +68,7 @@ jobs:
           rm -f "$name.json.gz" hbrooms.json rooms.json
           echo "NAME=$name" >> "$GITHUB_ENV"
       - name: Ranger la sauvegarde (30 jours)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.NAME }}
           path: ${{ env.NAME }}.json.gz.enc
