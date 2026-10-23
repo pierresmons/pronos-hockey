@@ -2218,16 +2218,19 @@ function noteLogos(r){
     if(c && m){ var name = stripHtml(c[1]); if(name && LOGOS[name] !== m[1].toUpperCase()){ LOGOS[name] = m[1].toUpperCase(); saveLogos(); } }
   });
 }
+/* logos absents de hockey.be (erreur 404) : adresse de remplacement, prise sur le site du club */
+var LOGO_EXTRA = {"Uccle Sport": "https://www.ucclesport.be/blason/assets/logo.svg"};
 function logoImg(team, cls){
-  var code = LOGOS[teamParts(team).club];
-  if(!code) return "";
-  return '<img class="logo' + (cls ? ' ' + cls : '') + '" src="https://hockey.be/wp-content/uploads/logos/50x50/' + code + '.png" alt="" loading="lazy" onerror="this.remove()">';
+  var club = teamParts(team).club, code = LOGOS[club], src = LOGO_EXTRA[club];
+  if(!src && !code) return "";
+  if(!src) src = "https://hockey.be/wp-content/uploads/logos/50x50/" + code + ".png";
+  return '<img class="logo' + (cls ? ' ' + cls : '') + '" src="' + src + '" alt="" loading="lazy" onerror="this.remove()">';
 }
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 23/10 (logos plus grands)";
+var APP_VERSION = "v2 du 23/10 (logo Uccle Sport)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
