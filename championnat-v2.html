@@ -1100,6 +1100,13 @@
   .rk-legend i{display:inline-block;width:12px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle;}
   .rk-chip{display:inline-flex;align-items:center;border:1px solid var(--line);background:var(--panel-2);color:var(--ice-dim);border-radius:999px;padding:4px 10px;font-family:var(--font-body);font-size:12px;cursor:pointer;}
   .rk-chip.on{color:var(--ice);font-weight:700;border-color:var(--ice-faint);}
+  /* logos des clubs */
+  img.logo{width:18px;height:18px;object-fit:contain;vertical-align:-4px;margin:0 5px;border-radius:3px;}
+  img.logo.sm{width:16px;height:16px;margin:0 6px 0 0;vertical-align:-3px;}
+  img.logo.big{width:34px;height:34px;vertical-align:-8px;margin:0 10px 0 0;}
+  :root[data-theme="dark"] img.logo{background:#fff;padding:1px;}
+  .pr-a img.logo{margin-right:0;} .pr-b img.logo{margin-left:0;}
+  td.player-name img.logo.sm{float:left;margin:2px 7px 0 0;}
 </style>
 </head>
 <body>
@@ -1291,7 +1298,8 @@ async function syncFromHockeyBe(){
       catch(e){ failed.push(poolName(pid)); continue; }
       var program = res[0], results = res[1], standing = res[2];
 
-      program.forEach(function(r){
+      results.forEach(noteLogos);
+      program.forEach(function(r){ noteLogos(r);
         var dv = stripHtml(r[0]).split(" | ");
         var a = teamName(r[3]), b = teamName(r[r.length-1]);
         changes += upsertMatch({pool:pid, teamA:a, teamB:b, date:isoDate(dv[0]), time:(r[1]||"").slice(0,5), venue:dv[1] || null});
@@ -1975,7 +1983,7 @@ async function loadSnapshotNow(){
         EXT.standings[pid] = d.standings[pid].map(function(t){ return {rank:t[0], team:t[1], j:t[2], g:t[3], p:t[4], n:t[5], bp:t[6], bc:t[7], pts:t[8]}; });
       });
       EXT.loaded = {}; pools.forEach(function(p){ EXT.loaded[p[0]] = true; });
-      SNAP.state = "ok"; SNAP.generated = d.generated; SNAP.ehlGenerated = d.ehlGenerated || d.generated; SNAP.ehlStatus = d.ehlStatus || null; SNAP.checked = Date.now(); render();
+      mergeLogos(d.logos); SNAP.state = "ok"; SNAP.generated = d.generated; SNAP.ehlGenerated = d.ehlGenerated || d.generated; SNAP.ehlStatus = d.ehlStatus || null; SNAP.checked = Date.now(); render();
       return;
     }catch(e){}
   }
@@ -2000,6 +2008,7 @@ async function loadExtPools(pids, force){
       var pid = queue.shift();
       try{
         var res = await Promise.all([apiGet(pid,"program"), apiGet(pid,"results"), apiGet(pid,"standing")]);
+        res[0].concat(res[1]).forEach(noteLogos);
         res[0].forEach(function(r){ var dv = stripHtml(r[0]).split(" | "); put({pool:pid, teamA:teamName(r[3]), teamB:teamName(r[r.length-1]), date:isoDate(dv[0]), time:(r[1]||"").slice(0,5), venue:dv[1] || null}); });
         dedupeResults(res[1], res[0]).forEach(function(r){ var sc = stripHtml(r[5] || ""), mm = /(\d+)\s*-\s*(\d+)/.exec(sc);
           put({pool:pid, teamA:teamName(r[3]), teamB:teamName(r[r.length-1]), date:isoDate(r[0]), time:(r[1]||"").slice(0,5),
@@ -2053,7 +2062,7 @@ function standingsTable(pid, hlTeam){
   html += '<div class="admin-form std-wrap"><table class="leaderboard std-compact"><thead><tr><th>#</th><th>Équipe</th><th class="num">J</th><th class="num">G</th><th class="num">N</th><th class="num">P</th><th class="num" title="Buts marques">BM</th><th class="num" title="Buts encaisses">BE</th><th class="num">Diff</th><th class="num">Pts</th></tr></thead><tbody>';
   st.forEach(function(t){
     var diff = t.bp - t.bc, hl = hlTeam && norm(t.team) === norm(hlTeam);
-    html += '<tr' + (hl ? ' class="team-hl"' : '') + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name"><span class="std-team" data-action="pick-team" data-team="' + escapeHtml(t.team) + '">' + escapeHtml(t.team) + '</span></td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + t.bp + '</td><td class="num">' + t.bc + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
+    html += '<tr' + (hl ? ' class="team-hl"' : '') + '><td><span class="rank">' + t.rank + '</span></td><td class="player-name">' + logoImg(t.team, "sm") + '<span class="std-team" data-action="pick-team" data-team="' + escapeHtml(t.team) + '">' + escapeHtml(t.team) + '</span></td><td class="num">' + t.j + '</td><td class="num">' + t.g + '</td><td class="num">' + t.n + '</td><td class="num">' + t.p + '</td><td class="num">' + t.bp + '</td><td class="num">' + t.bc + '</td><td class="num">' + (diff > 0 ? "+" : "") + diff + '</td><td class="num"><span class="std-pts">' + t.pts + '</span></td></tr>';
   });
   return html + '</tbody></table></div>';
 }
@@ -2062,7 +2071,7 @@ function matchRow(m, focusTeam){
   var badge = "";
   if(focusTeam && hasScore(m)){ var r = resultFor(focusTeam, m); badge = '<span class="form-chip form-' + r + '">' + r + '</span>'; }
   return '<div class="match-row"><div class="row-meta">' + formatDate(m.date) + ' &middot; ' + escapeHtml(poolName(m.pool)) + '</div>' +
-    '<div class="row-main">' + badge + '<span class="row-team row-a"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamA) + '">' + escapeHtml(m.teamA) + '</span></span>' + sc + '<span class="row-team row-b"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamB) + '">' + escapeHtml(m.teamB) + '</span></span></div></div>';
+    '<div class="row-main">' + badge + '<span class="row-team row-a"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamA) + '">' + escapeHtml(m.teamA) + '</span>' + logoImg(m.teamA) + '</span>' + sc + '<span class="row-team row-b">' + logoImg(m.teamB) + '<span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamB) + '">' + escapeHtml(m.teamB) + '</span></span></div></div>';
 }
 function renderMatchInfo(m){
   var h2h = playedMatchesOf(m.teamA, surfOfPid(m.pool)).filter(function(x){ return x.teamA === m.teamB || x.teamB === m.teamB; });
@@ -2177,11 +2186,30 @@ function missingList(){
   var wr = weekRange(currentPronoWeek());
   return sortMatches(state.matches.filter(function(m){ return !hasScore(m) && !isLocked(m) && m.date && m.date >= wr.start && m.date <= wr.end && !hasPred(m); }));
 }
+/* ===================== v2 : logos des clubs (hockey.be) ===================== */
+/* nom du club -> code du logo ; rempli par le fichier du robot et par les lectures en direct de hockey.be,
+   garde sur l'appareil pour s'afficher tout de suite a l'ouverture */
+var LOGOS = (function(){ try{ return JSON.parse(getLocal("hb-logos") || "{}") || {}; }catch(e){ return {}; } })();
+var logoSaveT = null;
+function saveLogos(){ clearTimeout(logoSaveT); logoSaveT = setTimeout(function(){ setLocal("hb-logos", JSON.stringify(LOGOS)); }, 500); }
+function mergeLogos(map){ if(!map) return; var ch = false; Object.keys(map).forEach(function(c){ if(LOGOS[c] !== map[c]){ LOGOS[c] = map[c]; ch = true; } }); if(ch) saveLogos(); }
+function noteLogos(r){
+  if(!r || r.length < 6) return;
+  [[r[3], r[4]], [r[r.length - 1], r[r.length - 2]]].forEach(function(p){
+    var c = /<span[^>]*>([\s\S]*?)<\/span>/.exec(String(p[0] || "")), m = /logos\/50x50\/([0-9A-Fa-f]{32})\.png/.exec(String(p[1] || ""));
+    if(c && m){ var name = stripHtml(c[1]); if(name && LOGOS[name] !== m[1].toUpperCase()){ LOGOS[name] = m[1].toUpperCase(); saveLogos(); } }
+  });
+}
+function logoImg(team, cls){
+  var code = LOGOS[teamParts(team).club];
+  if(!code) return "";
+  return '<img class="logo' + (cls ? ' ' + cls : '') + '" src="https://hockey.be/wp-content/uploads/logos/50x50/' + code + '.png" alt="" loading="lazy" onerror="this.remove()">';
+}
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 24/10 (graphique)";
+var APP_VERSION = "v2 du 25/10 (logos)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2312,7 +2340,7 @@ function rowHtml(m){
   if(!locked) center = stepper(m, "a", pr, has) + '<span class="xp-colon">:</span>' + stepper(m, "b", pr, has);
   else if(done) center = '<div class="final"><b>' + m.scoreA + ' - ' + m.scoreB + '</b><span>' + (has ? 'toi ' + pr.a + '-' + pr.b : 'pas de prono') + '</span></div>';
   else center = '<div class="final mine"><b>' + (has ? pr.a + ' - ' + pr.b : '&ndash;') + '</b><span>ton prono</span></div>';
-  var main = '<div class="pr-main' + (locked ? ' pr-locked' : '') + '"><span class="pr-team pr-a">' + teamLink(m.teamA) + '</span>' + center + '<span class="pr-team pr-b">' + teamLink(m.teamB) + '</span></div>';
+  var main = '<div class="pr-main' + (locked ? ' pr-locked' : '') + '"><span class="pr-team pr-a">' + teamLink(m.teamA) + logoImg(m.teamA) + '</span>' + center + '<span class="pr-team pr-b">' + logoImg(m.teamB) + teamLink(m.teamB) + '</span></div>';
   return '<div class="pr ' + cls + (open ? ' open' : '') + '" id="row-' + m.id + '" data-action="row" data-match="' + m.id + '">' + meta + main + (open ? rowDetail(m, pr, locked, done) : '') + '</div>';
 }
 function rowDetail(m, pr, locked, done){
@@ -2712,7 +2740,7 @@ function renderTeamPage(t){
     var mine = all.filter(function(m){ return (m.teamA === t || m.teamB === t) && surfOfPid(m.pool) === sf; });
     var s = null, sp = null;
     mine.forEach(function(m){ var st = standingOf(t, m.pool); if(st && (!s || st.j > s.j)){ s = st; sp = m.pool; } });
-    html += '<div class="admin-form team-card"><div class="fav-head"><div class="info-team-name" style="font-size:22px;">' + escapeHtml(t) +
+    html += '<div class="admin-form team-card"><div class="fav-head"><div class="info-team-name" style="font-size:22px;">' + logoImg(t, "big") + escapeHtml(t) +
       (surfs.length > 1 ? ' <span class="surf-tag surf-' + sf + '">' + SURF_LABEL[sf] + '</span>' : '') + '</div>' +
       (idx === 0 && state.me ? '<button class="fav-star' + (fv ? ' on' : '') + '" data-action="toggle-fav" data-team="' + escapeHtml(t) + '">' + (fv ? '&#9733; Suivie' : '&#9734; Suivre') + '</button>' : '') + '</div>';
     if(s) html += '<div class="team-pos">' + escapeHtml(shortPoolName(sp)) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.g + 'V ' + s.n + 'N ' + s.p + 'D &middot; buts ' + s.bp + '-' + s.bc + '</div>';
