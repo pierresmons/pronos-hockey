@@ -1,0 +1,26 @@
+# Robot ponctuel : cherche les logos des clubs sur hockey.be (a lancer a la main, une fois)
+name: Recherche logos
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  logos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Chercher les logos
+        run: python scripts/logos_explore.py
+      - name: Ranger le rapport
+        uses: actions/upload-artifact@v6
+        with:
+          name: logos-rapport
+          path: logos-rapport.txt
+          retention-days: 7
