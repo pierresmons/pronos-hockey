@@ -1107,6 +1107,24 @@
   :root[data-theme="dark"] img.logo{background:#fff;padding:1px;}
   .pr-a img.logo{margin-right:0;} .pr-b img.logo{margin-left:0;}
   td.player-name img.logo.sm{float:left;margin:2px 7px 0 0;}
+  /* logos un peu plus grands (23/10) */
+  img.logo{width:24px;height:24px;vertical-align:-7px;}
+  .row-main img.logo{width:22px;height:22px;vertical-align:-6px;}
+  img.logo.sm{width:20px;height:20px;vertical-align:-5px;}
+  img.logo.big{width:44px;height:44px;vertical-align:-12px;}
+  /* nom d'equipe sur 2 lignes max, logo toujours visible a cote (hors du texte coupe) */
+  .pr-team{display:flex;align-items:center;gap:5px;overflow:visible;-webkit-line-clamp:unset;}
+  .pr-a{justify-content:flex-end;text-align:right;}
+  .pr-b{justify-content:flex-start;}
+  .pr-team img.logo{flex:none;margin:0;}
+  .pr-name{min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;}
+  @media (max-width:359px){ img.logo{width:20px;height:20px;} .row-main img.logo{width:20px;height:20px;} }
+/* Pronos : logo au-dessus du nom, pour laisser toute la largeur au nom */
+.pr-team{flex-direction:column;gap:3px;}
+.pr-a{align-items:flex-end;}
+.pr-b{align-items:flex-start;}
+.pr-a img.logo{order:-1;}
+.pr-name{word-break:normal;overflow-wrap:anywhere;max-width:100%;}
 </style>
 </head>
 <body>
@@ -2209,7 +2227,7 @@ function logoImg(team, cls){
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 25/10 (logos)";
+var APP_VERSION = "v2 du 23/10 (logos plus grands)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2340,7 +2358,7 @@ function rowHtml(m){
   if(!locked) center = stepper(m, "a", pr, has) + '<span class="xp-colon">:</span>' + stepper(m, "b", pr, has);
   else if(done) center = '<div class="final"><b>' + m.scoreA + ' - ' + m.scoreB + '</b><span>' + (has ? 'toi ' + pr.a + '-' + pr.b : 'pas de prono') + '</span></div>';
   else center = '<div class="final mine"><b>' + (has ? pr.a + ' - ' + pr.b : '&ndash;') + '</b><span>ton prono</span></div>';
-  var main = '<div class="pr-main' + (locked ? ' pr-locked' : '') + '"><span class="pr-team pr-a">' + teamLink(m.teamA) + logoImg(m.teamA) + '</span>' + center + '<span class="pr-team pr-b">' + logoImg(m.teamB) + teamLink(m.teamB) + '</span></div>';
+  var main = '<div class="pr-main' + (locked ? ' pr-locked' : '') + '"><span class="pr-team pr-a"><span class="pr-name">' + teamLink(m.teamA) + '</span>' + logoImg(m.teamA) + '</span>' + center + '<span class="pr-team pr-b">' + logoImg(m.teamB) + '<span class="pr-name">' + teamLink(m.teamB) + '</span></span></div>';
   return '<div class="pr ' + cls + (open ? ' open' : '') + '" id="row-' + m.id + '" data-action="row" data-match="' + m.id + '">' + meta + main + (open ? rowDetail(m, pr, locked, done) : '') + '</div>';
 }
 function rowDetail(m, pr, locked, done){
