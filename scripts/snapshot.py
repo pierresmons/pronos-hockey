@@ -57,6 +57,25 @@ def team(h):
     return re.sub(r" (Outdoor|Indoor|Récréatif|Recreatif|Trimmers) Semaine", "", t, flags=re.I).strip()
 
 
+LOGOS = {}  # nom du club (ex. "Old Club") -> code du logo hockey.be (logos/50x50/<code>.png)
+LOGO_RE = re.compile(r"logos/50x50/([0-9A-Fa-f]{32})\.png")
+
+
+def club_of(h):
+    m = re.search(r"<span[^>]*>(.*?)</span>", str(h or ""), re.S)
+    return strip(m.group(1)) if m else None
+
+
+def note_logos(r):
+    """Ligne hockey.be : [.., equipe A, logo A, .., logo B, equipe B] -> retient le logo de chaque club."""
+    if len(r) < 6:
+        return
+    for team_html, logo_html in ((r[3], r[4]), (r[-1], r[-2])):
+        c, m = club_of(team_html), LOGO_RE.search(str(logo_html or "").replace("\\/", "/"))
+        if c and m:
+            LOGOS[c] = m.group(1).upper()
+
+
 def iso(dmy):
     m = re.match(r"(\d{2})/(\d{2})/(\d{4})", dmy or "")
     return f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else None
@@ -171,12 +190,13 @@ def write(pools, teams, matches, standings, failed, generated=None):
         "ehlGenerated": now,
         "ehlStatus": {"ok": EHL_STATUS["ok"], "info": EHL_STATUS["info"], "at": now},
         "season": [SEASON_FROM, SEASON_TO],
-        "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts]",
+        "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts] ; logos = {club: code} -> https://hockey.be/wp-content/uploads/logos/50x50/<code>.png",
         "pools": out_pools,
         "teams": [teams[i] for i in used_t],
         "matches": out_matches,
         "standings": {p[0]: standings[p[0]] for p in out_pools if p[0] in standings},
         "failed": failed,
+        "logos": dict(sorted(LOGOS.items())),
     }
     if len(out_matches) < 100:
         raise SystemExit(f"Seulement {len(out_matches)} matchs : hockey.be semble indisponible, snapshot non ecrit")
@@ -191,6 +211,7 @@ def write(pools, teams, matches, standings, failed, generated=None):
 def main_ehl_only():
     """Remplace seulement la partie EHL du snapshot existant (quelques secondes)."""
     old = json.load(open(OUT, encoding="utf-8"))
+    LOGOS.update(old.get("logos") or {})
     teams = list(old["teams"])
     tidx = {t: i for i, t in enumerate(teams)}
 
@@ -234,6 +255,8 @@ def main():
             previous = old.get("pools")
         except Exception:
             pass
+    if old:
+        LOGOS.update(old.get("logos") or {})
     pools = [p for p in pool_list(previous) if not p[0].startswith("ehl-")]
     print(f"{len(pools)} poules a recuperer", file=sys.stderr)
 
@@ -252,12 +275,14 @@ def main():
                 failed.append(pid)
             pi = next(i for i, p in enumerate(pools) if p[0] == pid)
             for r in program:
+                note_logos(r)
                 dv = strip(r[0]).split(" | ")
                 a, b = team(r[3]), team(r[-1])
                 key = (pid, a, b)
                 matches[key] = [pi, iso(dv[0]), (r[1] or "")[:5], t_id(a), t_id(b), None, None, None, dv[1] if len(dv) > 1 else None]
             seen = {}
             for r in results:
+                note_logos(r)
                 a, b = team(r[3]), team(r[-1])
                 sc = strip(r[5] if len(r) > 5 else "")
                 m = re.search(r"(\d+)\s*-\s*(\d+)", sc)
