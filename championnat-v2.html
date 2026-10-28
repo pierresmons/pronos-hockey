@@ -2001,7 +2001,7 @@ async function loadSnapshotNow(){
         EXT.standings[pid] = d.standings[pid].map(function(t){ return {rank:t[0], team:t[1], j:t[2], g:t[3], p:t[4], n:t[5], bp:t[6], bc:t[7], pts:t[8]}; });
       });
       EXT.loaded = {}; pools.forEach(function(p){ EXT.loaded[p[0]] = true; });
-      mergeLogos(d.logos); SNAP.state = "ok"; SNAP.generated = d.generated; SNAP.ehlGenerated = d.ehlGenerated || d.generated; SNAP.ehlStatus = d.ehlStatus || null; SNAP.checked = Date.now(); render();
+      mergeLogos(d.logos, d.logosMissing); SNAP.state = "ok"; SNAP.generated = d.generated; SNAP.ehlGenerated = d.ehlGenerated || d.generated; SNAP.ehlStatus = d.ehlStatus || null; SNAP.checked = Date.now(); render();
       return;
     }catch(e){}
   }
@@ -2210,7 +2210,8 @@ function missingList(){
 var LOGOS = (function(){ try{ return JSON.parse(getLocal("hb-logos") || "{}") || {}; }catch(e){ return {}; } })();
 var logoSaveT = null;
 function saveLogos(){ clearTimeout(logoSaveT); logoSaveT = setTimeout(function(){ setLocal("hb-logos", JSON.stringify(LOGOS)); }, 500); }
-function mergeLogos(map){ if(!map) return; var ch = false; Object.keys(map).forEach(function(c){ if(LOGOS[c] !== map[c]){ LOGOS[c] = map[c]; ch = true; } }); if(ch) saveLogos(); }
+var LOGO_MISSING = {};
+function mergeLogos(map, missing){ LOGO_MISSING = {}; (missing || []).forEach(function(c){ LOGO_MISSING[c] = true; }); if(!map) return; var ch = false; Object.keys(map).forEach(function(c){ if(LOGOS[c] !== map[c]){ LOGOS[c] = map[c]; ch = true; } }); if(ch) saveLogos(); }
 function noteLogos(r){
   if(!r || r.length < 6) return;
   [[r[3], r[4]], [r[r.length - 1], r[r.length - 2]]].forEach(function(p){
@@ -2223,7 +2224,7 @@ var LOGO_EXTRA = {"Uccle Sport": ["logo-uccle-sport.svg", "https://www.ucclespor
 function logoImg(team, cls){
   var club = teamParts(team).club, code = LOGOS[club], ex = LOGO_EXTRA[club], src, alt = "";
   if(ex){ src = ex[0]; alt = ex[1] || ""; }
-  else if(code) src = "https://hockey.be/wp-content/uploads/logos/50x50/" + code + ".png";
+  else if(code && !LOGO_MISSING[club]) src = "https://hockey.be/wp-content/uploads/logos/50x50/" + code + ".png";
   else return "";
   return '<img class="logo' + (cls ? ' ' + cls : '') + '" src="' + src + '"' + (alt ? ' data-alt="' + alt + '"' : '') + ' alt="" loading="lazy" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.removeAttribute(\'data-alt\');}else this.remove()">';
 }
@@ -2231,7 +2232,7 @@ function logoImg(team, cls){
 function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 23/10 (logo Uccle Sport, copie)";
+var APP_VERSION = "v2 du 28/10 (logos manquants)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
