@@ -1201,12 +1201,6 @@ function catInfo(c){
 function sortCats(cats){
   return cats.sort(function(a,b){ var x = catInfo(a), y = catInfo(b); return x.g - y.g || x.k.localeCompare(y.k) || a.localeCompare(b); });
 }
-function genreOf(n){
-  if(/Women|Ladies|Girls|^Dames /.test(n)) return "F";
-  if(/\bMen\b|Men's|Gentlemen|Boys|^Heren /.test(n)) return "H";
-  return "X";
-}
-function genreLabel(g){ return g === "F" ? "Dames" : (g === "H" ? "Hommes" : "Mixte"); }
 function stripHtml(h){
   var d = document.createElement("div");
   d.innerHTML = String(h == null ? "" : h).replace(/<br\s*\/?>/g, " | ");
@@ -1220,8 +1214,6 @@ function isoDate(dmy){
   return m ? (m[3] + "-" + m[2] + "-" + m[1]) : null;
 }
 function matchKey(poolId, a, b){ return (poolId + "_" + a + "_" + b).replace(/[.#$\[\]\/]/g, "-"); }
-function clearBtn(id, val){ return '<button type="button" class="clr-x" data-clear="' + id + '" aria-label="Effacer"' + (val ? '' : ' hidden') + '>&times;</button>'; }
-var CLEAR_KEYS = {"team-filter":"filterTeam", "pool-search":"pickerSearch", "match-search":"searchQ"};
 function escapeHtml(s){
   return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
@@ -1613,7 +1605,6 @@ function unlockedMap(){ try{ return JSON.parse(getLocal(unlockKey()) || "{}") ||
 function hasPin(p){ return !!(state.pins || {})[p]; }
 function isUnlocked(p){ return hasPin(p) && unlockedMap()[p] === state.pins[p]; }
 function rememberUnlock(p){ var u = unlockedMap(); u[p] = state.pins[p]; setLocal(unlockKey(), JSON.stringify(u)); }
-function forgetUnlock(p){ var u = unlockedMap(); delete u[p]; setLocal(unlockKey(), JSON.stringify(u)); }
 function setMe(p){ state.me = p; setLocal(LOCAL_ME_KEY, p); state.invited = false; }
 function choosePlayer(p, welcome){
   if(isUnlocked(p)){ setMe(p); render(); return; }
@@ -1943,7 +1934,6 @@ function sortMatches(list){
     return ta < tb ? -1 : (ta > tb ? 1 : 0);
   });
 }
-function mGenre(m){ var p = ALL_POOLS.find(function(x){ return x[0] === m.pool; }); return p ? genreOf(p[1]) : "X"; }
 function renderSetup(){
   var html = '<h2 class="section-title">Bienvenue</h2>';
   html += '<p class="section-hint">Créez une partie (une seule personne le fait) en choisissant les championnats à pronostiquer, ou rejoignez une partie existante avec son nom.</p>';
@@ -2229,10 +2219,9 @@ function logoImg(team, cls){
   return '<img class="logo' + (cls ? ' ' + cls : '') + '" src="' + src + '"' + (alt ? ' data-alt="' + alt + '"' : '') + ' alt="" loading="lazy" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.removeAttribute(\'data-alt\');}else this.remove()">';
 }
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
-function surfaceSwitch(){ return ""; }
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 28/10 (logos manquants)";
+var APP_VERSION = "v2 du 28/10 (nettoyage)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
