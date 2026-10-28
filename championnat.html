@@ -1140,6 +1140,9 @@ details.cat-lvl .row-list{margin:0;padding:0;border:0;box-shadow:none;background
 .ann-sheet{max-height:80vh;overflow-y:auto;}
 .ann-ok{width:100%;position:sticky;bottom:0;box-shadow:0 -8px 16px var(--panel);}
 textarea.ann-input{display:block;width:100% !important;max-width:none !important;box-sizing:border-box;min-height:200px;padding:10px 12px !important;border-radius:12px !important;font-size:16px;line-height:1.45;resize:vertical;}
+
+/* Reglages repliables */
+.set-fold .set-body{margin-top:12px;}
 </style>
 </head>
 <body>
@@ -2241,7 +2244,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 28/10 (Pro League)";
+var APP_VERSION = "v2 du 28/10 (réglages repliables)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2978,41 +2981,56 @@ function renderPlayerSheet(){
 }
 
 /* ===================== v2 : Reglages (roue dentee) ===================== */
+/* Reglages : chaque bloc se replie comme "Corriger un score" ; ouvert/ferme retenu sur l'appareil */
+function setOpenMap(){ try{ return JSON.parse(localStorage.getItem("hb-set-open") || "{}") || {}; }catch(e){ return {}; } }
+function setFold(key, title, sub, inner){
+  return '<details class="admin-form fix-scores set-fold" data-key="' + key + '"' + (setOpenMap()[key] ? ' open' : '') + '><summary><span class="section-title" style="font-size:19px;">' + title + '</span>' +
+    (sub ? '<span class="fix-sub">' + sub + '</span>' : '') + '</summary><div class="set-body">' + inner + '</div></details>';
+}
+/* retire le cadre et le titre d'un bloc existant pour le mettre dans un bloc repliable */
+function unwrapBlock(h, title){
+  h = h.replace(/^<div class="admin-form">/, "").replace(/<\/div>$/, "");
+  return h.replace('<h2 class="section-title" style="font-size:19px;">' + title + '</h2>', "");
+}
 function renderSettings(){
-  var own = ownerName(), boss = isOwner();
+  var own = ownerName(), boss = isOwner(), np = state.players.length;
   var html = '<div class="set-head"><button class="btn btn-sm back" data-action="settings">&#8249; Retour</button><h2 class="section-title">Réglages</h2></div>';
   html += staleBanner().replace('stale-banner"', 'stale-banner" style="margin:8px 0 4px;"');
   /* la partie */
-  html += '<h3 class="set-h">La partie</h3><div class="admin-form">' +
-    '<div class="set-line"><span>Partie <b>' + escapeHtml(state.room) + '</b> &middot; ' + state.players.length + ' joueur' + (state.players.length > 1 ? "s" : "") + ' &middot; organisateur : ' + escapeHtml(own || "-") + '</span></div>' +
+  html += '<h3 class="set-h">La partie</h3>';
+  html += setFold("partie", "Partie " + escapeHtml(state.room), np + ' joueur' + (np > 1 ? "s" : "") + ' &middot; inviter, actualiser',
+    '<div class="set-line"><span>Organisateur : ' + escapeHtml(own || "-") + '</span></div>' +
     '<button class="btn btn-primary" data-action="invite">+ Inviter quelqu\'un</button> ' +
     '<button class="btn" data-action="sync-now"' + (state.syncing ? " disabled" : "") + '>' + (state.syncing ? "Mise à jour..." : "Actualiser") + '</button>' +
-    '<p class="points-sub" style="margin:10px 0 0;">' + (state.lastSync ? "Dernière mise à jour hockey.be : " + new Date(state.lastSync).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) + " (automatique)" : "Jamais synchronisé") + '</p></div>';
-  html += renderPinAdmin();
+    '<p class="points-sub" style="margin:10px 0 0;">' + (state.lastSync ? "Dernière mise à jour hockey.be : " + new Date(state.lastSync).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) + " (automatique)" : "Jamais synchronisé") + '</p>');
+  html += setFold("codes", "Joueurs et codes", boss ? "ton code, codes des joueurs, organisateur" : "changer ton code", unwrapBlock(renderPinAdmin(), "Joueurs et codes"));
   var an = state.announce;
-  if(an && an.text && !boss) html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Message de ' + escapeHtml(an.by || "l'organisateur") + '</h2>' +
-    '<p class="points-sub" style="margin:0 0 8px;">' + annDate(an) + '</p><div class="ann-text">' + annHtml(an.text) + '</div></div>';
+  if(an && an.text && !boss) html += setFold("message", "Message de " + escapeHtml(an.by || "l'organisateur"), annDate(an), '<div class="ann-text">' + annHtml(an.text) + '</div>');
   /* organisateur */
   if(boss){
     html += '<h3 class="set-h">Organisateur</h3>';
-    html += renderAnnounceAdmin();
-    html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Poules suivies</h2><p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(shortPoolName(p)); }).join(" &middot; ") + '</p>' +
+    html += setFold("annonce", "Message à la famille", an && an.text ? "publié le " + annDate(an) : "aucun message publié", unwrapBlock(renderAnnounceAdmin(), "Message à la famille"));
+    html += setFold("poules", "Poules suivies", state.pools.length + " poule" + (state.pools.length > 1 ? "s" : ""),
+      '<p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(shortPoolName(p)); }).join(" &middot; ") + '</p>' +
       '<details id="pool-editor"' + (state.poolEditorOpen ? ' open' : '') + '><summary class="btn btn-sm" style="display:inline-block;">Ajouter ou retirer des poules</summary><div style="margin-top:12px;">' + renderPoolPicker() +
-      '<button class="btn btn-primary" data-action="save-pools">Enregistrer les poules</button></div></details></div>';
-    html += renderSeasonAdmin();
+      '<button class="btn btn-primary" data-action="save-pools">Enregistrer les poules</button></div></details>');
+    var sa = renderSeasonAdmin().replace(/^<div class="admin-form">/, "").replace(/<\/div>$/, "")
+      .replace('<h2 class="section-title" style="font-size:19px;margin:0;">Pronos de saison</h2>', '<span>Afficher les pronos de saison</span>');
+    html += setFold("saison", "Pronos de saison", state.seasonOn ? "activés" : "masqués", sa);
     html += renderFixScores();
   } else html += '<p class="points-sub" style="margin:4px 0 16px;">Poules suivies, pronos de saison et correction des scores : réservés à ' + escapeHtml(own || "l'organisateur") + '.</p>';
   /* cet appareil */
-  var tc = themeChoice();
-  html += '<h3 class="set-h">Cet appareil</h3><div class="admin-form"><h2 class="section-title" style="font-size:19px;">Apparence</h2>' +
+  var tc = themeChoice(), tl = {auto:"Auto", dark:"Sombre", light:"Clair"};
+  var dev = '<h2 class="section-title" style="font-size:16px;">Apparence</h2>' +
     '<div class="seg">' + [["auto","Auto"],["dark","Sombre"],["light","Clair"]].map(function(o){
       return '<button class="seg-btn' + (tc === o[0] ? " on" : "") + '" data-action="set-theme" data-theme="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
-  html += '<h2 class="section-title" style="font-size:19px;margin-top:14px;">Rappels sur l\'iPhone</h2>';
+  dev += '<h2 class="section-title" style="font-size:16px;margin-top:14px;">Rappels sur l\'iPhone</h2>';
   if(notifBridge()){
-    html += '<label class="pool-opt"><input type="checkbox" data-action="notif-set" data-k="fav"' + (notifOn("fav") ? " checked" : "") + '> Match de mes équipes &#9733; : 1 h avant</label>' +
+    dev += '<label class="pool-opt"><input type="checkbox" data-action="notif-set" data-k="fav"' + (notifOn("fav") ? " checked" : "") + '> Match de mes équipes &#9733; : 1 h avant</label>' +
       '<label class="pool-opt"><input type="checkbox" data-action="notif-set" data-k="miss"' + (notifOn("miss") ? " checked" : "") + '> Pronostic oublié : 2 h avant le premier match du jour</label>';
-  } else html += '<p class="section-hint" style="margin:0;">Uniquement dans l\'app iPhone Pronos Hockey, pas dans Safari.</p>';
-  html += '<p style="margin:14px 0 0;"><button class="btn btn-ghost btn-sm" data-action="leave-room">Quitter cette partie sur cet appareil</button></p></div>';
+  } else dev += '<p class="section-hint" style="margin:0;">Uniquement dans l\'app iPhone Pronos Hockey, pas dans Safari.</p>';
+  dev += '<p style="margin:14px 0 0;"><button class="btn btn-ghost btn-sm" data-action="leave-room">Quitter cette partie sur cet appareil</button></p>';
+  html += '<h3 class="set-h">Cet appareil</h3>' + setFold("appareil", "Apparence et rappels", "apparence : " + tl[tc], dev);
   html += '<p class="points-sub" style="margin:14px 0 0;">Les parties ne peuvent plus être supprimées depuis l\'app (protection des données) ; elles sont sauvegardées chaque nuit.</p>';
   html += '<p class="points-sub" style="text-align:center;margin:18px 0 0;">Version ' + APP_VERSION + '</p>';
   return html;
@@ -3416,6 +3434,10 @@ function installEvents(){
   document.addEventListener("input", function(ev){ if(ev.target && ev.target.id === "ann-text") state.annDraft = ev.target.value; }, true);
   document.addEventListener("toggle", function(e){
     var d = e.target;
+    if(d.classList && d.classList.contains("set-fold")){
+      try{ var mo = setOpenMap(); mo[d.getAttribute("data-key")] = d.open; localStorage.setItem("hb-set-open", JSON.stringify(mo)); }catch(err){}
+      return;
+    }
     if(d.classList && d.classList.contains("cat-lvl")){ state.catOpen[d.getAttribute("data-key")] = d.open; return; }
     if(d.id === "season-box") state.seasonBoxOpen = d.open;
     else if(d.id === "season-res") state.seasonResOpen = d.open;
