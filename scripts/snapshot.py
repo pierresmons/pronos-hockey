@@ -22,6 +22,7 @@ import urllib.parse
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ehl  # noqa: E402
@@ -35,14 +36,21 @@ WORKERS = 6
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 PronosHockeyFamille/1.0"
 
 
-def get(url, tries=3):
+REQ = {"n": 0, "fail": 0, "examples": []}
+
+
+def get(url, tries=3, timeout=45):
     for i in range(tries):
+        REQ["n"] += 1
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json, text/html"})
-            with urllib.request.urlopen(req, timeout=45) as r:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.read().decode("utf-8", "replace")
         except Exception as e:  # noqa
             last = e
+            REQ["fail"] += 1
+            if len(REQ["examples"]) < 3:
+                REQ["examples"].append(f"{type(e).__name__}: {e}"[:150])
             time.sleep(2 * (i + 1))
     raise last
 
@@ -163,7 +171,7 @@ def api(pid, endpoint):
     for f, t in variants:
         q = urllib.parse.urlencode({"lang": "fr", "dump": "", "clubid": "", "facilityid": "", "poolid": pid, "from": f, "to": t, "endpoint": endpoint})
         try:
-            data = json.loads(get(f"{API}?{q}")).get("data") or []
+            data = json.loads(get(f"{API}?{q}", tries=2, timeout=20)).get("data") or []
             ok = True
             if data:
                 return data
@@ -189,6 +197,89 @@ def pool_list(previous):
         print("On reutilise la liste du snapshot precedent", file=sys.stderr)
         return previous
     raise SystemExit("Impossible d'obtenir la liste des poules")
+
+
+# ---------- Quelles poules lire a ce passage ? ----------
+FIREBASE_URL = os.environ.get("FIREBASE_URL", "https://pronos-hockey-default-rtdb.europe-west1.firebasedatabase.app")
+BXL = ZoneInfo("Europe/Brussels")
+POOL_SEEN = {}        # poule -> date (AAAA-MM-JJ, heure belge) de la derniere lecture reussie
+EMPTY_DAYS = 7        # poule vide : relue une fois par semaine
+ACTIVE_BEFORE, ACTIVE_AFTER = 2, 3   # match il y a 2 jours ou moins, ou dans 3 jours ou moins : poule relue a chaque passage
+
+
+def fb_get(path):
+    req = urllib.request.Request(f"{FIREBASE_URL}/{path}.json", headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def priority_pools(old):
+    """Poules des parties (Firebase hbrooms/<partie>/pools) + poules des equipes favorites.
+    On ne lit que des numeros de poules et des noms d'equipes ; rien n'est recopie dans le snapshot."""
+    pools, fav_teams = set(), set()
+    try:
+        rooms = list((json.loads(urllib.request.urlopen(urllib.request.Request(
+            f"{FIREBASE_URL}/hbrooms.json?shallow=true", headers={"User-Agent": UA}), timeout=20).read().decode("utf-8")) or {}).keys())
+        for room in rooms:
+            q = urllib.parse.quote(room, safe="")
+            for p in (fb_get(f"hbrooms/{q}/pools") or []):
+                pools.add(str(p))
+            for teams in (fb_get(f"hbrooms/{q}/favs") or {}).values():
+                fav_teams.update(teams or [])
+    except Exception as e:  # noqa
+        print("Parties Firebase illisibles (pas grave, toutes les poules actives sont lues) :", e, file=sys.stderr)
+    if fav_teams and old:
+        opools, oteams = [p[0] for p in old.get("pools", [])], old.get("teams", [])
+        for m in old.get("matches", []):
+            if oteams[m[3]] in fav_teams or oteams[m[4]] in fav_teams:
+                pools.add(opools[m[0]])
+    return pools
+
+
+def plan_pools(pools, old):
+    """Renvoie (a_lire, a_garder, comptes). a_garder = poules reprises telles quelles du snapshot precedent."""
+    global POOL_SEEN
+    today = dt.datetime.now(BXL).date()
+    POOL_SEEN = dict((old or {}).get("poolSeen") or {})
+    if old and not POOL_SEEN:
+        # premier passage avec ce systeme : on considere le snapshot precedent comme lu ce jour-la
+        try:
+            gen = dt.datetime.strptime(old["generated"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+            day = gen.astimezone(BXL).date().isoformat()
+            POOL_SEEN = {p[0]: day for p in pools}
+        except Exception:  # noqa
+            pass
+    dates = {}
+    if old:
+        opools = [p[0] for p in old.get("pools", [])]
+        for m in old.get("matches", []):
+            if m[1]:
+                dates.setdefault(opools[m[0]], []).append(dt.date.fromisoformat(m[1]))
+    prio = priority_pools(old)
+    late = set((old or {}).get("failed") or [])
+    first, then, keep = [], [], []
+    cnt = {"parties/favoris": 0, "en retard": 0, "actives": 0, "calmes (1x/jour)": 0, "vides (1x/semaine)": 0, "jamais lues": 0, "gardees": 0}
+    for p in pools:
+        pid, seen = p[0], POOL_SEEN.get(p[0])
+        age = (today - dt.date.fromisoformat(seen)).days if seen else None
+        if pid in prio:
+            first.append(p); cnt["parties/favoris"] += 1
+        elif pid in late:
+            first.append(p); cnt["en retard"] += 1
+        elif age is None:
+            then.append(p); cnt["jamais lues"] += 1
+        elif pid not in dates:
+            if age >= EMPTY_DAYS:
+                then.append(p); cnt["vides (1x/semaine)"] += 1
+            else:
+                keep.append(p); cnt["gardees"] += 1
+        elif any(-ACTIVE_BEFORE <= (d - today).days <= ACTIVE_AFTER for d in dates[pid]):
+            then.append(p); cnt["actives"] += 1
+        elif age >= 1:
+            then.append(p); cnt["calmes (1x/jour)"] += 1
+        else:
+            keep.append(p); cnt["gardees"] += 1
+    return first + then, keep, cnt
 
 
 START = time.time()
@@ -279,6 +370,7 @@ def write(pools, teams, matches, standings, failed, generated=None):
         "logos": dict(sorted(LOGOS.items())),
         "logosMissing": logos_missing(),
         "logoCheck": LOGO_CHECK,
+        "poolSeen": dict(sorted(POOL_SEEN.items())),
     }
     if len(out_matches) < 100:
         raise SystemExit(f"Seulement {len(out_matches)} matchs : hockey.be semble indisponible, snapshot non ecrit")
@@ -296,6 +388,8 @@ def main_ehl_only():
     LOGOS.update(old.get("logos") or {})
     global LOGO_CHECK
     LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
+    global POOL_SEEN
+    POOL_SEEN = dict(old.get("poolSeen") or {})
     teams = list(old["teams"])
     tidx = {t: i for i, t in enumerate(teams)}
 
@@ -344,11 +438,14 @@ def main():
         LOGOS.update(old.get("logos") or {})
         LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
     pools = [p for p in pool_list(previous) if not p[0].startswith("ehl-")]
-    if old and old.get("failed"):
-        # poules non lues au dernier passage (echec ou temps depasse) : en premier cette fois
-        late = set(old["failed"])
-        pools.sort(key=lambda p: p[0] not in late)
-    print(f"{len(pools)} poules a recuperer", file=sys.stderr)
+    # ordre : parties/favoris, poules en retard, puis les autres ; certaines poules calmes ou vides sont gardees telles quelles
+    pools, kept, cnt = plan_pools(pools, old)
+    print(f"{len(pools) + len(kept)} poules connues, {len(pools)} a lire : " +
+          ", ".join(f"{k} {v}" for k, v in cnt.items() if v), file=sys.stderr)
+    kept_ids = {p[0] for p in kept}
+    pools = pools + kept  # les poules gardees restent dans la liste (index), sans etre lues
+    to_read = [p[0] for p in pools if p[0] not in kept_ids]
+    today_s = dt.datetime.now(BXL).date().isoformat()
 
     teams, tidx = [], {}
 
@@ -360,11 +457,13 @@ def main():
 
     matches, standings, failed = {}, {}, []
     with ThreadPoolExecutor(WORKERS) as ex:
-        for n, (pid, program, results, standing, err) in enumerate(ex.map(fetch_pool, [p[0] for p in pools]), 1):
+        for n, (pid, program, results, standing, err) in enumerate(ex.map(fetch_pool, to_read), 1):
             if err:
                 failed.append(pid)
                 if err == LATE:
                     LATE_POOLS.add(pid)
+            else:
+                POOL_SEEN[pid] = today_s
             pi = next(i for i, p in enumerate(pools) if p[0] == pid)
             for r in program:
                 note_logos(r)
@@ -397,22 +496,27 @@ def main():
             if standing:
                 standings[pid] = [[s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8]] for s in standing]
             if n % 50 == 0:
-                print(f"  {n}/{len(pools)}", file=sys.stderr)
+                print(f"  {n}/{len(to_read)}", file=sys.stderr)
 
-    # Une poule en echec garde ses donnees du snapshot precedent
-    if failed and old:
+    # Une poule en echec, ou pas lue a ce passage, garde ses donnees du snapshot precedent
+    reuse = set(failed) | kept_ids
+    if failed:
         print(f"{len(failed)} poule(s) en echec, reprise des anciennes donnees", file=sys.stderr)
+    print(f"Demandes a hockey.be : {REQ['n']}, echecs : {REQ['fail']}, duree {int(time.time() - START)} s", file=sys.stderr)
+    for e in REQ["examples"]:
+        print(f"  exemple d'echec : {e}", file=sys.stderr)
+    if reuse and old:
         oteams = old.get("teams", [])
         opools = [p[0] for p in old.get("pools", [])]
         for om in old.get("matches", []):
             opid = opools[om[0]] if om[0] < len(opools) else None
-            if opid in failed:
+            if opid in reuse:
                 pi = next((i for i, p in enumerate(pools) if p[0] == opid), None)
                 if pi is None:
                     continue
                 a, b = oteams[om[3]], oteams[om[4]]
                 matches[(opid, a, b)] = [pi, om[1], om[2], t_id(a), t_id(b)] + om[5:]
-        for pid in failed:
+        for pid in reuse:
             if pid in old.get("standings", {}):
                 standings[pid] = old["standings"][pid]
 
