@@ -1125,6 +1125,14 @@
 .pr-b{align-items:flex-start;}
 .pr-a img.logo{order:-1;}
 .pr-name{word-break:normal;overflow-wrap:anywhere;max-width:100%;}
+
+/* Categorie : matchs de la semaine par niveau */
+details.cat-lvl{background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:12px;margin:8px 0;padding:0 12px;}
+details.cat-lvl > summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 0;cursor:pointer;font-weight:700;}
+details.cat-lvl > summary::-webkit-details-marker{display:none;}
+.cat-lvl-n{font-weight:400;font-size:13px;color:var(--ice-dim);white-space:nowrap;}
+details.cat-lvl .row-list{margin:0;padding:0;border:0;box-shadow:none;background:transparent;}
+.cat-lvl-go{margin:6px 0 12px;}
 </style>
 </head>
 <body>
@@ -2161,7 +2169,7 @@ var state = {
   favs:{}, seasonQ:{}, seasonPicks:{}, seasonOn:true, pins:{}, owner:null,
   me:null, tab:"pronos", settings:false, surf:"",
   weekOffset:0, cat:"", open:{}, dayOpen:{}, lbView:"all", statOpen:{},
-  mview:{type:"home"}, nav:[], mWeek:0, q:"", exploreCat:"", teamSuggAll:false, poolAll:false,
+  mview:{type:"home"}, nav:[], mWeek:0, catWeek:0, catOpen:{}, q:"", exploreCat:"", teamSuggAll:false, poolAll:false,
   pickerSel:[], pickerSearch:"", showIsolated:false, poolEditorOpen:false,
   syncing:false, joinBusy:false, joinError:null,
   playerSheet:false, addingPlayer:false, inviteOpen:false, pinSheet:null, fixQ:""
@@ -2221,7 +2229,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 28/10 (nettoyage)";
+var APP_VERSION = "v2 du 28/10 (matchs par catégorie)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2576,6 +2584,8 @@ function renderMatchsBody(){
   html += '<select class="date-select wide' + (state.exploreCat ? ' picked' : '') + '" id="explore-cat"><option value="">Ou choisis une catégorie (tout hockey.be)...</option>' +
     (function(){ var out = "", cur = -1; extCategories().forEach(function(c){ var g = catInfo(c).g; if(g !== cur){ if(cur !== -1) out += '</optgroup>'; out += '<optgroup label="' + CAT_GROUPS[g] + '">'; cur = g; } out += '<option value="' + escapeHtml(c) + '"' + (state.exploreCat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>'; }); return out + (cur !== -1 ? '</optgroup>' : ''); })() + '</select>';
   if(state.exploreCat){
+    html += renderCatWeek(state.exploreCat);
+    html += '<h2 class="h2">Poules (' + extPoolsOf(state.exploreCat).length + ')</h2>';
     html += '<div class="list">' + extPoolsOf(state.exploreCat).map(function(p){
       return '<button class="li" data-action="goto-pool" data-pool="' + p[0] + '"><span class="li-t">' + escapeHtml(shortPool(p[1]).replace(state.exploreCat + " - ", "")) + (state.pools.indexOf(p[0]) !== -1 ? ' &#9733;' : '') + '</span><span class="li-go">&#8250;</span></button>';
     }).join("") + '</div>';
@@ -2591,6 +2601,51 @@ function renderMatchsBody(){
     return '<button class="li" data-action="goto-pool" data-pool="' + escapeHtml(pid) + '"><span class="li-t">' + escapeHtml(shortPoolName(pid)) + '</span>' +
       (st ? '<span class="li-s">1er : ' + escapeHtml(st.team) + ' &middot; ' + st.pts + ' pts</span>' : '') + '<span class="li-go">&#8250;</span></button>';
   }).join("") + '</div>';
+  return html;
+}
+/* ---- Categorie : tous les matchs de la semaine, un bloc par niveau (poule) ---- */
+function levelRank(name){
+  var m = /Nat\. *(Honour|Honneur|\d+)/i.exec(name);
+  if(m) return /^\d+$/.test(m[1]) ? +m[1] : 0;
+  m = /Reg\. *(\d+)/i.exec(name);
+  return m ? 10 + (+m[1]) : 50;
+}
+function renderCatWeek(cat){
+  var wr = weekRange(state.catWeek), pools = extPoolsOf(cat).slice();
+  pools.sort(function(a, b){ return levelRank(a[1]) - levelRank(b[1]) || a[1].localeCompare(b[1]); });
+  var byPool = {}, total = 0;
+  srcMatches().forEach(function(m){ if(m.date && m.date >= wr.start && m.date <= wr.end){ (byPool[m.pool] = byPool[m.pool] || []).push(m); } });
+  var blocks = pools.filter(function(p){ return byPool[p[0]]; });
+  blocks.forEach(function(p){ total += byPool[p[0]].length; });
+  var anyNat = blocks.some(function(p){ return /Nat\./i.test(p[1]); });
+  var html = '<h2 class="h2">Matchs de la semaine' + (total ? ' (' + total + ')' : '') + '</h2>' + weekNav(state.catWeek, "cweek");
+  if(SNAP.state !== "ok" && !total) return html + '<p class="points-sub">' + (SNAP.state === "error" ? 'Données de hockey.be indisponibles pour l\'instant.' : 'Chargement...') + '</p>';
+  if(!blocks.length){
+    /* semaine vide (vacances...) : proposer la semaine la plus proche avec des matchs */
+    var ids = {}; pools.forEach(function(p){ ids[p[0]] = 1; });
+    var near = null;
+    for(var k = 1; k <= 12 && near === null; k++){
+      [state.catWeek + k, state.catWeek - k].forEach(function(o){
+        if(near !== null) return;
+        var r = weekRange(o);
+        if(srcMatches().some(function(m){ return ids[m.pool] && m.date && m.date >= r.start && m.date <= r.end; })) near = o;
+      });
+    }
+    html += '<p class="points-sub">Aucun match cette semaine-la dans cette catégorie.</p>';
+    if(near !== null) html += '<button class="btn btn-sm" data-action="cweek" data-d="' + (near - state.catWeek) + '">' + (near > state.catWeek ? 'Prochains matchs' : 'Derniers matchs') + ' : ' + weekLabel(near).toLowerCase() + ' &#8250;</button>';
+    return html;
+  }
+  html += blocks.map(function(p, i){
+    var ms = sortMatches(byPool[p[0]]), played = ms.filter(hasScore).length;
+    var key = cat + "|" + p[0], def = anyNat ? /Nat\./i.test(p[1]) : (blocks.length <= 3 || i === 0);
+    var open = state.catOpen[key] !== undefined ? state.catOpen[key] : def;
+    var label = shortPool(p[1]).replace(cat + " - ", "");
+    return '<details class="cat-lvl" data-key="' + escapeHtml(key) + '"' + (open ? ' open' : '') + '><summary><span class="cat-lvl-t">' + escapeHtml(label) +
+      (state.pools.indexOf(p[0]) !== -1 ? ' &#9733;' : '') + '</span><span class="cat-lvl-n">' + ms.length + ' match' + (ms.length > 1 ? 's' : '') +
+      (played ? ' &middot; ' + played + ' joué' + (played > 1 ? 's' : '') : '') + ' &#9662;</span></summary>' +
+      '<div class="admin-form row-list">' + ms.map(function(m){ return matchRow(m).replace(' &middot; ' + escapeHtml(poolName(m.pool)), ''); }).join("") + '</div>' +
+      '<button class="btn btn-sm cat-lvl-go" data-action="goto-pool" data-pool="' + escapeHtml(p[0]) + '">Voir la poule &#8250;</button></details>';
+  }).join("");
   return html;
 }
 function renderSearchResults(q){
@@ -2953,6 +3008,7 @@ var ACTIONS = {
   "fav-open": function(el){ openTeam(el.getAttribute("data-team")); },
   "goto-pool": function(el){ openPool(el.getAttribute("data-pool")); },
   "mweek-mode": function(el){ state.mWeek = el.getAttribute("data-on") === "1" ? 0 : null; render(); },
+  "cweek": function(el){ var d = +el.getAttribute("data-d"); state.catWeek = d === 0 ? 0 : state.catWeek + d; refreshMatchsBody(); },
   "mweek": function(el){ var d = +el.getAttribute("data-d"); state.mWeek = d === 0 ? 0 : (state.mWeek || 0) + d; render(); },
   "goto-cat": function(el){ state.exploreCat = el.getAttribute("data-cat"); state.q = ""; state.teamSuggAll = false; render(); window.scrollTo(0, 0); },
   "others-all": function(){ state.othersAll = !state.othersAll; render(); },
@@ -3205,7 +3261,7 @@ async function setSeasonAnswer(qid, team){
 
 /* changements de listes, cases a cocher, dates */
 var CHANGES = {
-  "explore-cat": function(el){ state.exploreCat = el.value; render(); },
+  "explore-cat": function(el){ state.exploreCat = el.value; state.catWeek = 0; render(); },
   "sq-pool": function(el){ state.seasonPool = el.value; render(); }
 };
 var CHANGE_ACTIONS = {
@@ -3284,6 +3340,7 @@ function installEvents(){
   /* les <details> se souviennent s'ils sont ouverts quand l'ecran est redessine */
   document.addEventListener("toggle", function(e){
     var d = e.target;
+    if(d.classList && d.classList.contains("cat-lvl")){ state.catOpen[d.getAttribute("data-key")] = d.open; return; }
     if(d.id === "season-box") state.seasonBoxOpen = d.open;
     else if(d.id === "season-res") state.seasonResOpen = d.open;
     else if(d.id === "fix-scores") state.fixOpen = d.open;
