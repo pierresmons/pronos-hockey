@@ -1139,7 +1139,7 @@ details.cat-lvl .row-list{margin:0;padding:0;border:0;box-shadow:none;background
 .ann-text a{color:inherit;text-decoration:underline;}
 .ann-sheet{max-height:80vh;overflow-y:auto;}
 .ann-ok{width:100%;position:sticky;bottom:0;box-shadow:0 -8px 16px var(--panel);}
-.ann-input{width:100%;box-sizing:border-box;min-height:160px;font-size:16px;line-height:1.4;resize:vertical;}
+textarea.ann-input{display:block;width:100% !important;max-width:none !important;box-sizing:border-box;min-height:200px;padding:10px 12px !important;border-radius:12px !important;font-size:16px;line-height:1.45;resize:vertical;}
 </style>
 </head>
 <body>
@@ -2237,7 +2237,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 28/10 (message organisateur)";
+var APP_VERSION = "v2 du 28/10 (zone de message)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
