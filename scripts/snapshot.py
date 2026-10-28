@@ -83,18 +83,25 @@ LOGO_CHECK = {"ok": [], "missing": [], "full": None}
 LOGO_FULL_DAYS = 7
 
 
+LOGO_ERRORS = []
+
+
 def logo_status(code):
-    """200 -> True, 404/410 -> False, autre erreur (reseau...) -> None (on reessaiera au prochain passage)."""
+    """Image presente -> True, 404/410 -> False, autre erreur (reseau, refus...) -> None (on reessaiera)."""
     for i in range(2):
         try:
-            req = urllib.request.Request(LOGO_URL.format(code), method="HEAD", headers={"User-Agent": UA})
+            # GET (et pas HEAD : certains serveurs refusent HEAD) ; une image 50x50 pese quelques Ko
+            req = urllib.request.Request(LOGO_URL.format(code), headers={"User-Agent": UA, "Accept": "image/*,*/*"})
             with urllib.request.urlopen(req, timeout=20) as r:
-                return 200 <= r.status < 300
+                return 200 <= r.status < 300 and len(r.read(65536)) > 0
         except urllib.error.HTTPError as e:
             if e.code in (404, 410):
                 return False
-        except Exception:  # noqa
-            pass
+            err = f"HTTP {e.code}"
+        except Exception as e:  # noqa
+            err = f"{type(e).__name__}: {e}"
+        if len(LOGO_ERRORS) < 3:
+            LOGO_ERRORS.append(f"{code} -> {err}")
         time.sleep(2)
     return None
 
@@ -126,6 +133,8 @@ def check_logos():
                   "full": now.strftime("%Y-%m-%dT%H:%M:%SZ") if due else full}
     print(f"Logos : {len(todo)} verifie(s){' (verification complete)' if due else ''}, "
           f"{len(missing)} introuvable(s), {errors} erreur(s)", file=sys.stderr)
+    for e in LOGO_ERRORS:
+        print(f"  exemple d'erreur logo : {e}", file=sys.stderr)
 
 
 def logos_missing():
@@ -182,7 +191,21 @@ def pool_list(previous):
     raise SystemExit("Impossible d'obtenir la liste des poules")
 
 
+START = time.time()
+# GitHub coupe le robot apres timeout-minutes (snapshot.yml). On s'arrete avant, proprement :
+# les poules pas encore lues gardent leurs donnees du snapshot precedent et passent en premier la fois suivante.
+DEADLINE_MIN = float(os.environ.get("DEADLINE_MIN", "40"))
+LATE = "temps depasse"
+LATE_POOLS = set()
+
+
+def too_late():
+    return time.time() - START > DEADLINE_MIN * 60
+
+
 def fetch_pool(pid):
+    if too_late():
+        return pid, [], [], [], LATE
     try:
         return pid, api(pid, "program"), api(pid, "results"), api(pid, "standing"), None
     except Exception as e:
@@ -321,6 +344,10 @@ def main():
         LOGOS.update(old.get("logos") or {})
         LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
     pools = [p for p in pool_list(previous) if not p[0].startswith("ehl-")]
+    if old and old.get("failed"):
+        # poules non lues au dernier passage (echec ou temps depasse) : en premier cette fois
+        late = set(old["failed"])
+        pools.sort(key=lambda p: p[0] not in late)
     print(f"{len(pools)} poules a recuperer", file=sys.stderr)
 
     teams, tidx = [], {}
@@ -336,6 +363,8 @@ def main():
         for n, (pid, program, results, standing, err) in enumerate(ex.map(fetch_pool, [p[0] for p in pools]), 1):
             if err:
                 failed.append(pid)
+                if err == LATE:
+                    LATE_POOLS.add(pid)
             pi = next(i for i, p in enumerate(pools) if p[0] == pid)
             for r in program:
                 note_logos(r)
@@ -388,7 +417,12 @@ def main():
                 standings[pid] = old["standings"][pid]
 
     add_ehl(pools, matches, standings, t_id, old)
+    n_late = sum(1 for p in failed if p in LATE_POOLS)
+    if n_late:
+        print(f"Temps depasse : {n_late} poule(s) non lues, reprises du snapshot precedent", file=sys.stderr)
     try:
+        if too_late():
+            raise RuntimeError("temps depasse, reportee au prochain passage")
         check_logos()
     except Exception as e:  # noqa : la verification des logos ne doit jamais bloquer le snapshot
         print(f"Verification des logos impossible : {e}", file=sys.stderr)
