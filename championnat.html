@@ -1133,6 +1133,13 @@ details.cat-lvl > summary::-webkit-details-marker{display:none;}
 .cat-lvl-n{font-weight:400;font-size:13px;color:var(--ice-dim);white-space:nowrap;}
 details.cat-lvl .row-list{margin:0;padding:0;border:0;box-shadow:none;background:transparent;}
 .cat-lvl-go{margin:6px 0 12px;}
+
+/* Message de l'organisateur */
+.ann-text{font-size:15px;line-height:1.5;margin:10px 0 16px;overflow-wrap:anywhere;}
+.ann-text a{color:inherit;text-decoration:underline;}
+.ann-sheet{max-height:80vh;overflow-y:auto;}
+.ann-ok{width:100%;position:sticky;bottom:0;box-shadow:0 -8px 16px var(--panel);}
+.ann-input{width:100%;box-sizing:border-box;min-height:160px;font-size:16px;line-height:1.4;resize:vertical;}
 </style>
 </head>
 <body>
@@ -1384,6 +1391,7 @@ function applyRoom(data){
   state.seasonOn = !(data.settings && data.settings.seasonOn === false);
   state.pins = data.pins || {};
   state.owner = data.owner || null;
+  state.announce = data.announce || null;
 }
 async function saveCloud(){
   if(!state.room) return false;
@@ -2229,7 +2237,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 28/10 (abréviations)";
+var APP_VERSION = "v2 du 28/10 (message organisateur)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2264,7 +2272,7 @@ function render(){
   else if(state.invited && !state.me) html = renderTop(false) + '<div class="content">' + renderWelcome() + '</div>';
   else if(state.settings) html = renderTop(true) + '<div class="content">' + renderSettings() + '</div>';
   else html = renderTop(true) + staleLine() + renderTabs() + '<div class="content">' + renderContent() + '</div>';
-  app.innerHTML = html + renderPlayerSheet() + renderInviteSheet() + renderPinSheet();
+  app.innerHTML = html + renderPlayerSheet() + renderInviteSheet() + renderPinSheet() + renderAnnounce();
   document.querySelectorAll(".chips-scroll").forEach(function(row){
     var act = row.querySelector(".chip2.on");
     if(act && act.offsetLeft + act.offsetWidth > row.clientWidth) row.scrollLeft = act.offsetLeft - 12;
@@ -2602,6 +2610,37 @@ function renderMatchsBody(){
       (st ? '<span class="li-s">1er : ' + escapeHtml(st.team) + ' &middot; ' + st.pts + ' pts</span>' : '') + '<span class="li-go">&#8250;</span></button>';
   }).join("") + '</div>';
   return html;
+}
+/* ===================== Message de l'organisateur ===================== */
+/* hbrooms/<partie>/announce = {id, text, by, at} ; chaque appareil le montre une fois (cle locale par partie) */
+var ANN_DEFAULT = "Nouvelle version de l'app ! M\u00eame lien, m\u00eames pronos, rien n'est perdu.\n\n" +
+  "- 3 onglets : Pronos, Classement, Matchs. Les r\u00e9glages sont derri\u00e8re la roue en haut \u00e0 droite.\n" +
+  "- Pronos : semaine par semaine, score avec + et -. Touche un match pour le joker et les pronos des autres (visibles apr\u00e8s le coup d'envoi).\n" +
+  "- Classement : \u00e9volution des places et bouton pour partager le classement.\n" +
+  "- Matchs : tout hockey.be avec les logos. Cherche \"lln u16\" ou \"gand u19\", ou choisis une cat\u00e9gorie pour voir ses matchs de la semaine.";
+function annKey(){ return "hb-announce-seen-" + state.room; }
+function annSeen(){ try{ return localStorage.getItem(annKey()) || ""; }catch(e){ return ""; } }
+function annMarkSeen(id){ try{ localStorage.setItem(annKey(), String(id)); }catch(e){} }
+function annHtml(t){
+  return escapeHtml(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g, "<br>");
+}
+function annDate(an){ return an.at ? new Date(an.at).toLocaleDateString("fr-FR", {day:"numeric", month:"long"}) : ""; }
+function renderAnnounce(){
+  var an = state.announce;
+  if(!an || !an.text || !state.room || !state.me || state.pinSheet || state.settings || state.inviteOpen || state.playerSheet) return "";
+  if(annSeen() === String(an.id)) return "";
+  return '<div class="sheet-backdrop" data-action="ann-ok"></div><div class="sheet ann-sheet" role="dialog" aria-label="Message">' +
+    '<div class="sheet-grab"></div><h2 class="sheet-title">Message de ' + escapeHtml(an.by || "l'organisateur") + '</h2>' +
+    '<p class="sheet-room">' + annDate(an) + '</p><div class="ann-text">' + annHtml(an.text) + '</div>' +
+    '<button class="btn btn-primary ann-ok" data-action="ann-ok">Compris</button></div>';
+}
+function renderAnnounceAdmin(){
+  var an = state.announce, draft = state.annDraft !== undefined ? state.annDraft : (an && an.text ? an.text : ANN_DEFAULT);
+  return '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Message \u00e0 la famille</h2>' +
+    '<p class="section-hint">Chacun le voit une fois, en ouvrant l\'app. ' + (an && an.text ? 'Message actuel publi\u00e9 le ' + annDate(an) + '.' : 'Aucun message publi\u00e9.') + '</p>' +
+    '<textarea id="ann-text" class="inline-input ann-input" rows="8">' + escapeHtml(draft) + '</textarea>' +
+    '<p style="margin:10px 0 0;"><button class="btn btn-primary" data-action="ann-publish">' + (an && an.text ? 'Publier comme nouveau message' : 'Publier') + '</button>' +
+    (an && an.text ? ' <button class="btn btn-ghost btn-sm" data-action="ann-remove">Retirer le message</button>' : '') + '</p></div>';
 }
 /* ---- Recherche : sans accents, et autres noms des clubs (sigles, nom francais de la ville) ---- */
 var CLUB_ALIASES = {
@@ -2945,9 +2984,13 @@ function renderSettings(){
     '<button class="btn" data-action="sync-now"' + (state.syncing ? " disabled" : "") + '>' + (state.syncing ? "Mise à jour..." : "Actualiser") + '</button>' +
     '<p class="points-sub" style="margin:10px 0 0;">' + (state.lastSync ? "Dernière mise à jour hockey.be : " + new Date(state.lastSync).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) + " (automatique)" : "Jamais synchronisé") + '</p></div>';
   html += renderPinAdmin();
+  var an = state.announce;
+  if(an && an.text && !boss) html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Message de ' + escapeHtml(an.by || "l'organisateur") + '</h2>' +
+    '<p class="points-sub" style="margin:0 0 8px;">' + annDate(an) + '</p><div class="ann-text">' + annHtml(an.text) + '</div></div>';
   /* organisateur */
   if(boss){
     html += '<h3 class="set-h">Organisateur</h3>';
+    html += renderAnnounceAdmin();
     html += '<div class="admin-form"><h2 class="section-title" style="font-size:19px;">Poules suivies</h2><p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(shortPoolName(p)); }).join(" &middot; ") + '</p>' +
       '<details id="pool-editor"' + (state.poolEditorOpen ? ' open' : '') + '><summary class="btn btn-sm" style="display:inline-block;">Ajouter ou retirer des poules</summary><div style="margin-top:12px;">' + renderPoolPicker() +
       '<button class="btn btn-primary" data-action="save-pools">Enregistrer les poules</button></div></details></div>';
@@ -3022,6 +3065,19 @@ var ACTIONS = {
   "fav-open": function(el){ openTeam(el.getAttribute("data-team")); },
   "goto-pool": function(el){ openPool(el.getAttribute("data-pool")); },
   "mweek-mode": function(el){ state.mWeek = el.getAttribute("data-on") === "1" ? 0 : null; render(); },
+  "ann-ok": function(){ if(state.announce) annMarkSeen(state.announce.id); render(); },
+  "ann-publish": async function(){
+    var ta = document.getElementById("ann-text"), text = ta ? ta.value.trim() : "";
+    if(!text){ showToast("Le message est vide"); return; }
+    var an = {id:Date.now(), text:text, by:state.me || ownerName() || "", at:new Date().toISOString()};
+    if(!(await fbSet("announce", an))){ showToast("Publication impossible (connexion ?)"); return; }
+    state.announce = an; state.annDraft = undefined; annMarkSeen(an.id);
+    showToast("Message publi\u00e9 : chacun le verra en ouvrant l'app"); render();
+  },
+  "ann-remove": async function(){
+    if(!(await fbSet("announce", null))){ showToast("Impossible (connexion ?)"); return; }
+    state.announce = null; state.annDraft = undefined; showToast("Message retir\u00e9"); render();
+  },
   "cweek": function(el){ var d = +el.getAttribute("data-d"); state.catWeek = d === 0 ? 0 : state.catWeek + d; refreshMatchsBody(); },
   "mweek": function(el){ var d = +el.getAttribute("data-d"); state.mWeek = d === 0 ? 0 : (state.mWeek || 0) + d; render(); },
   "goto-cat": function(el){ state.exploreCat = el.getAttribute("data-cat"); state.q = ""; state.teamSuggAll = false; render(); window.scrollTo(0, 0); },
@@ -3352,6 +3408,7 @@ function installEvents(){
     else if(e.target.id === "match-search"){ e.preventDefault(); e.target.blur(); }
   });
   /* les <details> se souviennent s'ils sont ouverts quand l'ecran est redessine */
+  document.addEventListener("input", function(ev){ if(ev.target && ev.target.id === "ann-text") state.annDraft = ev.target.value; }, true);
   document.addEventListener("toggle", function(e){
     var d = e.target;
     if(d.classList && d.classList.contains("cat-lvl")){ state.catOpen[d.getAttribute("data-key")] = d.open; return; }
