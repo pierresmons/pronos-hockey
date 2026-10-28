@@ -32,7 +32,7 @@ concurrency:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50                           # le robot s'arrete seul apres 40 min de lecture (DEADLINE_MIN)
     steps:
       - uses: actions/checkout@v5
       - name: Verifier si une mise a jour est due
