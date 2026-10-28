@@ -7,7 +7,7 @@
 #
 # A chaque passage, l'EHL est mise a jour EN PREMIER (quelques secondes) et enregistree tout de suite :
 # meme si la longue lecture de hockey.be echoue ou traine, les scores EHL sont en ligne.
-# Euro Hockey League : les jours de match EHL, le robot met aussi a jour l'EHL seule
+# Euro Hockey League et FIH Pro League : les jours de match, le robot met aussi a jour ces deux-la seuls
 # (quelques secondes) toutes les 30 minutes entre 9h et minuit.
 #
 # GitHub lance les taches programmees avec du retard (parfois plusieurs heures) ou en saute.
@@ -72,7 +72,7 @@ jobs:
               today = now.date().isoformat(); yday = (now.date() - dt.timedelta(days=1)).isoformat()
               pools = snap.get("pools", [])
               for m in snap.get("matches", []):
-                  if not pools[m[0]][0].startswith("ehl-"):
+                  if not pools[m[0]][0].startswith(("ehl-", "fihpl-")):
                       continue
                   if m[1] == today or (m[1] == yday and m[5] is None):
                       ehl = True
@@ -96,11 +96,11 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         with:
           python-version: "3.12"
-      - name: EHL (rapide, toujours en premier)
+      - name: EHL et Pro League (rapide, toujours en premier)
         if: steps.gate.outputs.run == 'true'
         continue-on-error: true
         run: python scripts/snapshot.py --ehl-only
-      - name: Enregistrer l'EHL
+      - name: Enregistrer EHL et Pro League
         if: steps.gate.outputs.run == 'true'
         run: |
           git config user.name "robot-pronos-hockey"
@@ -109,7 +109,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Rien de neuf pour l'EHL"
           else
-            git commit -m "EHL $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git commit -m "EHL + Pro League $(date -u +'%Y-%m-%d %H:%M') UTC"
             git pull --rebase
             git push
           fi
