@@ -19,6 +19,7 @@ import re
 import sys
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -74,6 +75,62 @@ def note_logos(r):
         c, m = club_of(team_html), LOGO_RE.search(str(logo_html or "").replace("\\/", "/"))
         if c and m:
             LOGOS[c] = m.group(1).upper()
+
+
+LOGO_URL = "https://hockey.be/wp-content/uploads/logos/50x50/{}.png"
+# Verification des images de logos : codes connus bons / introuvables (404), date de la derniere verification complete
+LOGO_CHECK = {"ok": [], "missing": [], "full": None}
+LOGO_FULL_DAYS = 7
+
+
+def logo_status(code):
+    """200 -> True, 404/410 -> False, autre erreur (reseau...) -> None (on reessaiera au prochain passage)."""
+    for i in range(2):
+        try:
+            req = urllib.request.Request(LOGO_URL.format(code), method="HEAD", headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return 200 <= r.status < 300
+        except urllib.error.HTTPError as e:
+            if e.code in (404, 410):
+                return False
+        except Exception:  # noqa
+            pass
+        time.sleep(2)
+    return None
+
+
+def check_logos():
+    """Verifie seulement les nouveaux codes ; tout revoir une fois par semaine."""
+    global LOGO_CHECK
+    now = dt.datetime.now(dt.timezone.utc)
+    codes = set(LOGOS.values())
+    ok, missing = set(LOGO_CHECK.get("ok") or []) & codes, set(LOGO_CHECK.get("missing") or []) & codes
+    full = LOGO_CHECK.get("full")
+    try:
+        due = not full or (now - dt.datetime.strptime(full, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)).days >= LOGO_FULL_DAYS
+    except ValueError:
+        due = True
+    todo = sorted(codes if due else codes - ok - missing)
+    errors = 0
+    if todo:
+        with ThreadPoolExecutor(WORKERS) as ex:
+            for code, st in zip(todo, ex.map(logo_status, todo)):
+                if st is None:
+                    errors += 1
+                    continue
+                ok.discard(code); missing.discard(code)
+                (ok if st else missing).add(code)
+    if due and errors > len(todo) // 4:
+        due = False  # trop d'erreurs : la verification complete sera refaite au prochain passage
+    LOGO_CHECK = {"ok": sorted(ok), "missing": sorted(missing),
+                  "full": now.strftime("%Y-%m-%dT%H:%M:%SZ") if due else full}
+    print(f"Logos : {len(todo)} verifie(s){' (verification complete)' if due else ''}, "
+          f"{len(missing)} introuvable(s), {errors} erreur(s)", file=sys.stderr)
+
+
+def logos_missing():
+    miss = set(LOGO_CHECK.get("missing") or [])
+    return sorted(c for c, code in LOGOS.items() if code in miss)
 
 
 def iso(dmy):
@@ -190,13 +247,15 @@ def write(pools, teams, matches, standings, failed, generated=None):
         "ehlGenerated": now,
         "ehlStatus": {"ok": EHL_STATUS["ok"], "info": EHL_STATUS["info"], "at": now},
         "season": [SEASON_FROM, SEASON_TO],
-        "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts] ; logos = {club: code} -> https://hockey.be/wp-content/uploads/logos/50x50/<code>.png",
+        "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts] ; logos = {club: code} -> https://hockey.be/wp-content/uploads/logos/50x50/<code>.png ; logosMissing = clubs dont l'image n'existe pas sur hockey.be",
         "pools": out_pools,
         "teams": [teams[i] for i in used_t],
         "matches": out_matches,
         "standings": {p[0]: standings[p[0]] for p in out_pools if p[0] in standings},
         "failed": failed,
         "logos": dict(sorted(LOGOS.items())),
+        "logosMissing": logos_missing(),
+        "logoCheck": LOGO_CHECK,
     }
     if len(out_matches) < 100:
         raise SystemExit(f"Seulement {len(out_matches)} matchs : hockey.be semble indisponible, snapshot non ecrit")
@@ -212,6 +271,8 @@ def main_ehl_only():
     """Remplace seulement la partie EHL du snapshot existant (quelques secondes)."""
     old = json.load(open(OUT, encoding="utf-8"))
     LOGOS.update(old.get("logos") or {})
+    global LOGO_CHECK
+    LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
     teams = list(old["teams"])
     tidx = {t: i for i, t in enumerate(teams)}
 
@@ -255,8 +316,10 @@ def main():
             previous = old.get("pools")
         except Exception:
             pass
+    global LOGO_CHECK
     if old:
         LOGOS.update(old.get("logos") or {})
+        LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
     pools = [p for p in pool_list(previous) if not p[0].startswith("ehl-")]
     print(f"{len(pools)} poules a recuperer", file=sys.stderr)
 
@@ -325,6 +388,10 @@ def main():
                 standings[pid] = old["standings"][pid]
 
     add_ehl(pools, matches, standings, t_id, old)
+    try:
+        check_logos()
+    except Exception as e:  # noqa : la verification des logos ne doit jamais bloquer le snapshot
+        print(f"Verification des logos impossible : {e}", file=sys.stderr)
     write(pools, teams, matches, standings, failed)
 
 
