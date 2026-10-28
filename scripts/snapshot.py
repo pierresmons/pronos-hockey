@@ -26,6 +26,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ehl  # noqa: E402
+import fihpl  # noqa: E402
 
 PAGE = "https://hockey.be/fr/competition/calendrier-resultats-et-classements/"
 API = "https://hockey.be/wp-json/sportlink-api/cached"
@@ -368,7 +369,51 @@ def add_ehl(pools, matches, standings, t_id, old):
     return True
 
 
-def write(pools, teams, matches, standings, failed, generated=None):
+FIHPL_STATUS = {"ok": None, "info": ""}
+FLAGS = {}  # equipe Pro League -> url du drapeau (fih.hockey)
+QUICK = ("ehl-", "fihpl-")  # poules relues en mode rapide (--ehl-only), hors hockey.be
+
+
+def add_fihpl(pools, matches, standings, t_id, old):
+    """Ajoute les poules Pro League (fih.hockey) ; en cas d'echec, reprend celles du snapshot precedent."""
+    try:
+        res, flags = fihpl.collect(get, SEASON_FROM, SEASON_TO, log=lambda *a: print(*a, file=sys.stderr))
+        FIHPL_STATUS.update(ok=True, info=f"{sum(len(r[2]) for r in res)} match(s)")
+        FLAGS.update(flags)
+    except Exception as e:  # noqa
+        print("Pro League indisponible :", e, file=sys.stderr)
+        FIHPL_STATUS.update(ok=False, info=f"fih.hockey indisponible : {e}"[:200])
+        if old:
+            FLAGS.update(old.get("logoUrls") or {})
+            opools, oteams = old.get("pools", []), old.get("teams", [])
+            for p in opools:
+                if p[0].startswith("fihpl-"):
+                    pools.append(p)
+            for om in old.get("matches", []):
+                p = opools[om[0]] if om[0] < len(opools) else None
+                if p and p[0].startswith("fihpl-"):
+                    pi = next(i for i, x in enumerate(pools) if x[0] == p[0])
+                    a, b = oteams[om[3]], oteams[om[4]]
+                    leg = om[9] if len(om) > 9 else 1
+                    matches[(p[0], a, b, leg)] = [pi, om[1], om[2], t_id(a), t_id(b)] + om[5:]
+            for pid, st in old.get("standings", {}).items():
+                if pid.startswith("fihpl-"):
+                    standings[pid] = st
+        return False
+    for pid, name, ms, st in res:
+        pools.append([pid, name])
+        pi = len(pools) - 1
+        for m in ms:
+            status = m["status"]
+            if m["so"]:
+                status = f"Shoot-out {m['soa']}-{m['sob']}"
+            matches[(pid, m["a"], m["b"], m["leg"])] = [pi, m["date"], m["time"], t_id(m["a"]), t_id(m["b"]),
+                                                        m["sa"], m["sb"], status, m["venue"], m["leg"]]
+        standings[pid] = st
+    return True
+
+
+def write(pools, teams, matches, standings, failed, generated=None, ehl_generated=None):
     used = sorted({m[0] for m in matches.values()})
     remap = {old_i: new_i for new_i, old_i in enumerate(used)}
     out_pools = [pools[i] for i in used]
@@ -381,7 +426,7 @@ def write(pools, teams, matches, standings, failed, generated=None):
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     snap = {
         "generated": generated or now,
-        "ehlGenerated": now,
+        "ehlGenerated": ehl_generated or now,
         "ehlStatus": {"ok": EHL_STATUS["ok"], "info": EHL_STATUS["info"], "at": now},
         "season": [SEASON_FROM, SEASON_TO],
         "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts] ; logos = {club: code} -> https://hockey.be/wp-content/uploads/logos/50x50/<code>.png ; logosMissing = clubs dont l'image n'existe pas sur hockey.be",
@@ -394,6 +439,8 @@ def write(pools, teams, matches, standings, failed, generated=None):
         "logosMissing": logos_missing(),
         "logoCheck": LOGO_CHECK,
         "poolSeen": dict(sorted(POOL_SEEN.items())),
+        "logoUrls": dict(sorted(FLAGS.items())),
+        "fihplStatus": {"ok": FIHPL_STATUS["ok"], "info": FIHPL_STATUS["info"], "at": now},
     }
     if len(out_matches) < 100:
         raise SystemExit(f"Seulement {len(out_matches)} matchs : hockey.be semble indisponible, snapshot non ecrit")
@@ -401,7 +448,8 @@ def write(pools, teams, matches, standings, failed, generated=None):
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(snap, f, ensure_ascii=False, separators=(",", ":"))
     n_ehl = sum(1 for p in out_pools if p[0].startswith("ehl-"))
-    print(f"OK : {len(out_pools)} poules (dont {n_ehl} EHL), {len(out_matches)} matchs, {len(snap['teams'])} equipes, "
+    n_pl = sum(1 for p in out_pools if p[0].startswith("fihpl-"))
+    print(f"OK : {len(out_pools)} poules (dont {n_ehl} EHL, {n_pl} Pro League), {len(out_matches)} matchs, {len(snap['teams'])} equipes, "
           f"{len(failed)} echec(s), {os.path.getsize(OUT) // 1024} Ko", file=sys.stderr)
 
 
@@ -426,23 +474,23 @@ def main_ehl_only():
     matches = {}
     for om in old["matches"]:
         pid = pools[om[0]][0]
-        if not pid.startswith("ehl-"):
+        if not pid.startswith(QUICK):
             matches[(pid, teams[om[3]], teams[om[4]])] = list(om)
-    standings = {k: v for k, v in old.get("standings", {}).items() if not k.startswith("ehl-")}
-    keep = [i for i, p in enumerate(pools) if not p[0].startswith("ehl-")]
+    standings = {k: v for k, v in old.get("standings", {}).items() if not k.startswith(QUICK)}
+    keep = [i for i, p in enumerate(pools) if not p[0].startswith(QUICK)]
     remap = {o: n for n, o in enumerate(keep)}
     pools = [pools[i] for i in keep]
     for k, m in matches.items():
         m[0] = remap[m[0]]
-    if not add_ehl(pools, matches, standings, t_id, None):
-        # on note seulement l'echec (visible dans le fichier) ; ehlGenerated ne bouge pas -> nouvel essai au prochain reveil
-        print("EHL indisponible : seul le statut est mis a jour, nouvel essai au prochain reveil", file=sys.stderr)
-        now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        old["ehlStatus"] = {"ok": False, "info": EHL_STATUS["info"], "at": now}
-        with open(OUT, "w", encoding="utf-8") as f:
-            json.dump(old, f, ensure_ascii=False, separators=(",", ":"))
-        return
-    write(pools, teams, matches, standings, old.get("failed", []), generated=old.get("generated"))
+    ehl_ok = add_ehl(pools, matches, standings, t_id, old)
+    pl_ok = add_fihpl(pools, matches, standings, t_id, old)
+    if not ehl_ok:
+        # ehlGenerated ne bouge pas -> l'app sait que les scores EHL ne sont pas frais ; nouvel essai au prochain reveil
+        print("EHL indisponible : anciennes donnees EHL gardees, nouvel essai au prochain reveil", file=sys.stderr)
+    if not pl_ok:
+        print("Pro League indisponible : anciennes donnees gardees, nouvel essai au prochain reveil", file=sys.stderr)
+    write(pools, teams, matches, standings, old.get("failed", []), generated=old.get("generated"),
+          ehl_generated=None if ehl_ok else (old.get("ehlGenerated") or old.get("generated")))
 
 
 def main():
@@ -460,7 +508,7 @@ def main():
     if old:
         LOGOS.update(old.get("logos") or {})
         LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
-    pools = [p for p in pool_list(previous) if not p[0].startswith("ehl-")]
+    pools = [p for p in pool_list(previous) if not p[0].startswith(QUICK)]
     # ordre : parties/favoris, poules en retard, puis les autres ; certaines poules calmes ou vides sont gardees telles quelles
     pools, kept, cnt = plan_pools(pools, old)
     note_had(old)
@@ -546,6 +594,7 @@ def main():
                 standings[pid] = old["standings"][pid]
 
     add_ehl(pools, matches, standings, t_id, old)
+    add_fihpl(pools, matches, standings, t_id, old)
     n_late = sum(1 for p in failed if p in LATE_POOLS)
     if n_late:
         print(f"Temps depasse : {n_late} poule(s) non lues, reprises du snapshot precedent", file=sys.stderr)
