@@ -36,7 +36,7 @@ WORKERS = 6
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 PronosHockeyFamille/1.0"
 
 
-REQ = {"n": 0, "fail": 0, "examples": []}
+REQ = {"n": 0, "fail": 0, "lost": 0, "examples": []}
 
 
 def get(url, tries=3, timeout=45):
@@ -49,9 +49,10 @@ def get(url, tries=3, timeout=45):
         except Exception as e:  # noqa
             last = e
             REQ["fail"] += 1
-            if len(REQ["examples"]) < 3:
-                REQ["examples"].append(f"{type(e).__name__}: {e}"[:150])
             time.sleep(2 * (i + 1))
+    REQ["lost"] += 1
+    if len(REQ["examples"]) < 3:
+        REQ["examples"].append(f"{type(last).__name__}: {last}"[:150])
     raise last
 
 
@@ -108,9 +109,9 @@ def logo_status(code):
             err = f"HTTP {e.code}"
         except Exception as e:  # noqa
             err = f"{type(e).__name__}: {e}"
-        if len(LOGO_ERRORS) < 3:
-            LOGO_ERRORS.append(f"{code} -> {err}")
         time.sleep(2)
+    if len(LOGO_ERRORS) < 3:
+        LOGO_ERRORS.append(f"{code} -> {err}")
     return None
 
 
@@ -159,6 +160,24 @@ def shift(d, days):
     return (dt.date.fromisoformat(d) + dt.timedelta(days=days)).isoformat()
 
 
+HAD = {}  # poule -> endpoints qui avaient des donnees au snapshot precedent ({"program", "results", "standing"})
+
+
+def note_had(old):
+    if not old:
+        return
+    today = dt.date.today().isoformat()
+    opools = [p[0] for p in old.get("pools", [])]
+    for p in opools:
+        HAD[p] = set()
+    for m in old.get("matches", []):
+        pid = opools[m[0]]
+        HAD[pid].add("results" if m[5] is not None or (m[1] or "9999") < today else "program")
+    for pid in old.get("standings", {}):
+        if pid in HAD:
+            HAD[pid].add("standing")
+
+
 def api(pid, endpoint):
     """hockey.be garde parfois une reponse VIDE en cache pour une requete precise :
     on essaie plusieurs variantes de dates avant d'accepter une liste vide."""
@@ -167,6 +186,10 @@ def api(pid, endpoint):
         variants = [(shift(today, -1), SEASON_TO), (today, SEASON_TO), (SEASON_FROM, SEASON_TO), (shift(today, -2), shift(SEASON_TO, 1))]
     else:
         variants = [(SEASON_FROM, SEASON_TO), (shift(SEASON_FROM, 1), SEASON_TO), (shift(SEASON_FROM, -1), SEASON_TO), (shift(SEASON_FROM, 2), shift(SEASON_TO, 1))]
+    # hockey.be garde parfois une reponse vide en cache : on n'insiste (4 essais) que si cette poule
+    # avait des donnees pour cet endpoint au passage precedent ; sinon 2 essais suffisent
+    if (pid in HAD or pid in POOL_SEEN) and endpoint not in HAD.get(pid, ()):
+        variants = variants[:2]
     ok = False
     for f, t in variants:
         q = urllib.parse.urlencode({"lang": "fr", "dump": "", "clubid": "", "facilityid": "", "poolid": pid, "from": f, "to": t, "endpoint": endpoint})
@@ -440,6 +463,7 @@ def main():
     pools = [p for p in pool_list(previous) if not p[0].startswith("ehl-")]
     # ordre : parties/favoris, poules en retard, puis les autres ; certaines poules calmes ou vides sont gardees telles quelles
     pools, kept, cnt = plan_pools(pools, old)
+    note_had(old)
     print(f"{len(pools) + len(kept)} poules connues, {len(pools)} a lire : " +
           ", ".join(f"{k} {v}" for k, v in cnt.items() if v), file=sys.stderr)
     kept_ids = {p[0] for p in kept}
@@ -502,9 +526,10 @@ def main():
     reuse = set(failed) | kept_ids
     if failed:
         print(f"{len(failed)} poule(s) en echec, reprise des anciennes donnees", file=sys.stderr)
-    print(f"Demandes a hockey.be : {REQ['n']}, echecs : {REQ['fail']}, duree {int(time.time() - START)} s", file=sys.stderr)
+    print(f"Demandes a hockey.be : {REQ['n']}, essais rates puis refaits : {REQ['fail'] - REQ['lost']}, "
+          f"abandonnees : {REQ['lost']}, duree {int(time.time() - START)} s", file=sys.stderr)
     for e in REQ["examples"]:
-        print(f"  exemple d'echec : {e}", file=sys.stderr)
+        print(f"  exemple de demande abandonnee : {e}", file=sys.stderr)
     if reuse and old:
         oteams = old.get("teams", [])
         opools = [p[0] for p in old.get("pools", [])]
