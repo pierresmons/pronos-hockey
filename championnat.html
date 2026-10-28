@@ -1143,6 +1143,25 @@ textarea.ann-input{display:block;width:100% !important;max-width:none !important
 
 /* Reglages repliables */
 .set-fold .set-body{margin-top:12px;}
+
+/* Mes equipes : lignes compactes */
+.fav-grid{display:block !important;}
+details.fav-row{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:0 0 8px;box-shadow:var(--shadow);}
+details.fav-row > summary{list-style:none;display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;}
+details.fav-row > summary::-webkit-details-marker{display:none;}
+.fr-main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.fr-n{font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fr-n img.logo{vertical-align:-4px;margin:0 6px 0 0;}
+.fr-s{font-size:12.5px;color:var(--ice-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.fr-f{display:flex;gap:3px;flex:none;}
+.fr-f .form-chip{width:18px;height:18px;font-size:10px;line-height:18px;border-radius:4px;padding:0;text-align:center;}
+.fr-go{flex:none;color:var(--ice-dim);font-size:14px;width:12px;text-align:center;}
+.fr-go::after{content:"\25BE";}
+details.fav-row[open] .fr-go::after{content:"\25B4";}
+.fr-b{border-top:1px solid var(--line);padding:8px 12px 12px;}
+.fr-b .fav-line:first-of-type{margin-top:4px;}
+.fr-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;}
+@media (max-width:389px){ .fr-n img.logo{display:none;} .fr-s{white-space:normal;} .fr-f{gap:2px;} .fr-f .form-chip{width:16px;height:16px;font-size:9px;line-height:16px;} details.fav-row > summary{gap:8px;padding:9px 10px;} }
 </style>
 </head>
 <body>
@@ -1767,27 +1786,6 @@ function withAllData(fn){
   var keep = SRC; SRC = SNAP.state === "ok" ? mergedExt() : null;
   try{ return fn(); } finally { SRC = keep; }
 }
-function favCard(t, surf, showSurf){
-  var today = todayIso();
-  var mine = srcMatches().filter(function(m){ return (m.teamA === t || m.teamB === t) && (!surf || surfOfPid(m.pool) === surf); });
-  var next = sortMatches(mine.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }))[0];
-  var last = playedMatchesOf(t, surf)[0];
-  var s = null, sp = null;
-  mine.forEach(function(m){ var st = standingOf(t, m.pool); if(st && (!s || st.j > s.j)){ s = st; sp = m.pool; } });
-  var html = '<div class="fav-card"><div class="fav-head"><span class="fav-name" data-action="fav-open" data-team="' + escapeHtml(t) + '">' + escapeHtml(t) + (showSurf && surf ? ' <span class="surf-tag surf-' + surf + '">' + SURF_LABEL[surf] + '</span>' : '') + '</span>' +
-    '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733;</button></div>';
-  if(s) html += '<div class="fav-pos">' + escapeHtml(poolName(sp).replace(/ - A$/, "")) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts</div>';
-  html += '<div class="form-row">' + formChips(t, 5, surf) + '</div>';
-  if(last){
-    var gf = last.teamA === t ? last.scoreA : last.scoreB, ga = last.teamA === t ? last.scoreB : last.scoreA, opp = last.teamA === t ? last.teamB : last.teamA;
-    html += '<div class="fav-line"><span class="fav-k">Dernier</span><span class="fav-v"><span class="form-chip form-' + resultFor(t, last) + '">' + resultFor(t, last) + '</span> <b>' + gf + '-' + ga + '</b> vs ' + escapeHtml(opp) + '<br><span class="fav-d">' + formatDate(last.date) + '</span></span></div>';
-  }
-  if(next){
-    var o2 = next.teamA === t ? next.teamB : next.teamA;
-    html += '<div class="fav-line"><span class="fav-k">Prochain</span><span class="fav-v">vs ' + escapeHtml(o2) + '<br><b>' + formatDate(next.date, next.time) + '</b> <span class="fav-d">' + (next.teamA === t ? 'domicile' : 'extérieur') + '</span></span></div>';
-  } else html += '<div class="fav-line"><span class="fav-k">Prochain</span><span class="fav-v fav-d">aucun match prévu</span></div>';
-  return html + '</div>';
-}
 function renderFavBlock(){
   var favs = myFavs();
   if(!state.me) return "";
@@ -2244,7 +2242,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 28/10 (réglages repliables)";
+var APP_VERSION = "v2 du 28/10 (mes équipes compactes)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2981,6 +2979,37 @@ function renderPlayerSheet(){
 }
 
 /* ===================== v2 : Reglages (roue dentee) ===================== */
+/* Mes equipes : une ligne compacte par equipe ; un toucher ouvre le resume (dernier / prochain match) */
+function favOpenMap(){ try{ return JSON.parse(localStorage.getItem("hb-fav-open") || "{}") || {}; }catch(e){ return {}; } }
+function shortDay(d){ return d ? new Date(d + "T12:00:00").toLocaleDateString("fr-FR", {weekday:"short", day:"numeric", month:"numeric"}) : ""; }
+function favCard(t, surf, showSurf){
+  var today = todayIso();
+  var mine = srcMatches().filter(function(m){ return (m.teamA === t || m.teamB === t) && (!surf || surfOfPid(m.pool) === surf); });
+  var next = sortMatches(mine.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }))[0];
+  var last = playedMatchesOf(t, surf)[0];
+  var s = null, sp = null;
+  mine.forEach(function(m){ var st = standingOf(t, m.pool); if(st && (!s || st.j > s.j)){ s = st; sp = m.pool; } });
+  var key = t + "|" + (surf || ""), open = !!favOpenMap()[key];
+  var sub = [];
+  if(s) sub.push(s.rank + (s.rank === 1 ? "er" : "e") + " &middot; " + s.pts + " pts");
+  sub.push(next ? "prochain : " + (next.date ? shortDay(next.date) : "date à confirmer") : "aucun match prévu");
+  var html = '<details class="fav-row" data-key="' + escapeHtml(key) + '"' + (open ? ' open' : '') + '><summary class="fr-h">' +
+    '<span class="fr-main"><span class="fr-n">' + logoImg(t, "sm") + escapeHtml(t) + (showSurf && surf ? ' <span class="surf-tag surf-' + surf + '">' + SURF_LABEL[surf] + '</span>' : '') + '</span>' +
+    '<span class="fr-s">' + sub.join(" &middot; ") + '</span></span>' +
+    '<span class="fr-f">' + formChips(t, 5, surf) + '</span><span class="fr-go" aria-hidden="true"></span></summary><div class="fr-b">';
+  if(s) html += '<div class="fav-pos">' + escapeHtml(poolName(sp).replace(/ - A$/, "")) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts</div>';
+  if(last){
+    var gf = last.teamA === t ? last.scoreA : last.scoreB, ga = last.teamA === t ? last.scoreB : last.scoreA, opp = last.teamA === t ? last.teamB : last.teamA;
+    html += '<div class="fav-line"><span class="fav-k">Dernier</span><span class="fav-v"><span class="form-chip form-' + resultFor(t, last) + '">' + resultFor(t, last) + '</span> <b>' + gf + '-' + ga + '</b> vs ' + escapeHtml(opp) + '<br><span class="fav-d">' + formatDate(last.date) + '</span></span></div>';
+  }
+  if(next){
+    var o2 = next.teamA === t ? next.teamB : next.teamA;
+    html += '<div class="fav-line"><span class="fav-k">Prochain</span><span class="fav-v">vs ' + escapeHtml(o2) + '<br><b>' + formatDate(next.date, next.time) + '</b> <span class="fav-d">' + (next.teamA === t ? 'domicile' : 'extérieur') + '</span></span></div>';
+  } else html += '<div class="fav-line"><span class="fav-k">Prochain</span><span class="fav-v fav-d">aucun match prévu</span></div>';
+  html += '<div class="fr-actions"><button class="btn btn-sm" data-action="fav-open" data-team="' + escapeHtml(t) + '">Fiche équipe &#8250;</button>' +
+    '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733; Suivie</button></div>';
+  return html + '</div></details>';
+}
 /* Reglages : chaque bloc se replie comme "Corriger un score" ; ouvert/ferme retenu sur l'appareil */
 function setOpenMap(){ try{ return JSON.parse(localStorage.getItem("hb-set-open") || "{}") || {}; }catch(e){ return {}; } }
 function setFold(key, title, sub, inner){
@@ -3434,6 +3463,10 @@ function installEvents(){
   document.addEventListener("input", function(ev){ if(ev.target && ev.target.id === "ann-text") state.annDraft = ev.target.value; }, true);
   document.addEventListener("toggle", function(e){
     var d = e.target;
+    if(d.classList && d.classList.contains("fav-row")){
+      try{ var fo = favOpenMap(); if(d.open) fo[d.getAttribute("data-key")] = 1; else delete fo[d.getAttribute("data-key")]; localStorage.setItem("hb-fav-open", JSON.stringify(fo)); }catch(err){}
+      return;
+    }
     if(d.classList && d.classList.contains("set-fold")){
       try{ var mo = setOpenMap(); mo[d.getAttribute("data-key")] = d.open; localStorage.setItem("hb-set-open", JSON.stringify(mo)); }catch(err){}
       return;
