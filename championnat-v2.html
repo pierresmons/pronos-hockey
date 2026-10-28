@@ -2229,7 +2229,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 28/10 (matchs par catégorie)";
+var APP_VERSION = "v2 du 28/10 (abréviations)";
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2577,7 +2577,7 @@ function renderMatchsHome(){
    pour que l'iPhone garde son clavier (chiffres) au lieu de revenir aux lettres */
 function renderMatchsBody(){
   var html = "";
-  var q = state.q.trim().toLowerCase();
+  var q = fold(state.q.trim());
   if(q.length >= 2) return html + renderSearchResults(q);
   /* explorer */
   if(SNAP.state === "loading") html += '<p class="points-sub">Chargement de tout hockey.be...</p>';
@@ -2603,6 +2603,20 @@ function renderMatchsBody(){
   }).join("") + '</div>';
   return html;
 }
+/* ---- Recherche : sans accents, et autres noms des clubs (sigles, nom francais de la ville) ---- */
+var CLUB_ALIASES = {
+  "Louvain-La-Neuve": ["LLN"], "Waterloo Ducks": ["Ducks", "WatDucks"], "Uccle Sport": ["Uccle"], "Leopold": ["Leo"],
+  "Old Club": ["Old"], "White Star": ["White"], "Saint-Georges": ["St-Georges"], "Amicale Anderlecht": ["Anderlecht"],
+  "Rapide Hulst (NL)": ["Hulst"], "Gantoise": ["Gand"], "Brugge": ["Bruges"], "Antwerp": ["Anvers"], "Mechelse": ["Malines"],
+  "Aalst": ["Alost"], "Dendermonde": ["Termonde"], "Roeselare": ["Roulers"], "Sint-Truiden": ["Saint-Trond"],
+  "Koksijde": ["Coxyde"], "Leuven": ["Louvain"]
+};
+function fold(s){ return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+/* texte de recherche d'une equipe (ou d'un club) : nom sans accents + autres noms du club, ajoutes a la fin */
+function aliasesOf(t){ var a = CLUB_ALIASES[t] || CLUB_ALIASES[teamParts(t).club]; return a ? fold(a.join(" ")) : ""; }
+function skey(t){ var a = aliasesOf(t); return fold(t) + (a ? " " + a : ""); }
+/* un autre nom ne compte qu'au debut d'un mot ("lln", "gand"), jamais au milieu ("ve" ne doit pas trouver "anVErs") */
+function aliasStart(t, q){ var a = aliasesOf(t); return !!a && (" " + a.replace(/-/g, " ")).indexOf(" " + q) !== -1; }
 /* ---- Categorie : tous les matchs de la semaine, un bloc par niveau (poule) ---- */
 function levelRank(name){
   var m = /Nat\. *(Honour|Honneur|\d+)/i.exec(name);
@@ -2650,12 +2664,12 @@ function renderCatWeek(cat){
 }
 function renderSearchResults(q){
   var mine = {}; state.matches.forEach(function(m){ mine[m.teamA] = 1; mine[m.teamB] = 1; });
-  var tRank = function(t){ var l = t.toLowerCase(); return (mine[t] ? 0 : 3) + (l.indexOf(q) === 0 ? 0 : ((" " + l).indexOf(" " + q) !== -1 ? 1 : 2)); };
-  var teams = allTeams().filter(function(t){ return t.toLowerCase().indexOf(q) !== -1; });
+  var tRank = function(t){ var l = skey(t); return (mine[t] ? 0 : 3) + (l.indexOf(q) === 0 ? 0 : ((" " + l).indexOf(" " + q) !== -1 ? 1 : 2)); };
+  var teams = allTeams().filter(function(t){ return fold(t).indexOf(q) !== -1 || aliasStart(t, q); });
   var clubRank = {}; teams.forEach(function(t){ var c = teamParts(t).club, r = tRank(t); if(clubRank[c] === undefined || r < clubRank[c]) clubRank[c] = r; });
   teams.sort(function(a, b){ var x = teamParts(a), y = teamParts(b);
     return clubRank[x.club] - clubRank[y.club] || x.club.localeCompare(y.club) || x.kind - y.kind || x.num - y.num || a.localeCompare(b); });
-  var nq = function(s){ return s.toLowerCase().replace(/\./g, "").replace(/\s+/g, " "); }, qn = nq(q);
+  var nq = function(s){ return fold(s).replace(/\./g, "").replace(/\s+/g, " "); }, qn = nq(q);
   /* poules et categories : le texte tel quel ; sinon tous les mots, dans n'importe quel ordre (ex : u19 boys reg 1) */
   var words = qn.split(/[\s-]+/).filter(Boolean);
   /* un mot correspond au debut d'un mot ; un nombre seul correspond aussi au nombre d'une categorie (16 = U16, 19 = U19) */
@@ -2679,7 +2693,7 @@ function renderSearchResults(q){
   /* recherche combinee : club + niveau (ex : "nat old cl" = equipes de Old Club en Nat.) */
   var combo = [];
   /* le texte tel quel au debut d'un mot d'une equipe (ex : "racing h-1") : on garde la recherche simple */
-  var atWordStart = function(t){ var l = " " + t.toLowerCase(), i = l.indexOf(qn, 1); while(i !== -1){ if(/[\s-]/.test(l.charAt(i - 1))) return true; i = l.indexOf(qn, i + 1); } return false; };
+  var atWordStart = function(t){ var l = " " + skey(t), i = l.indexOf(qn, 1); while(i !== -1){ if(/[\s-]/.test(l.charAt(i - 1))) return true; i = l.indexOf(qn, i + 1); } return false; };
   var direct = teams.filter(function(t){ return atWordStart(t) || atWordStart(teamParts(t).club); });
   /* equipes ou le texte est au milieu d'un mot (ex : "ve" dans Louvain-la-Neuve) : rubrique a part */
   var others = direct.length ? teams.filter(function(t){ return direct.indexOf(t) === -1; }) : [];
@@ -2694,14 +2708,14 @@ function renderSearchResults(q){
       var out = [];
       Object.keys(tp).forEach(function(t){
         if(skip && skip[t]) return;
-        var ttoks = nq(t).split(/[\s-]+/), pids = Object.keys(tp[t]);
+        var ttoks = nq(t).split(/[\s-]+/), atoks = aliasesOf(t).split(/[\s-]+/).filter(Boolean), pids = Object.keys(tp[t]);
         var ok = words.every(function(w){
-          return ttoks.some(function(k){ return cm(k, w); }) || pids.some(function(pid){ return ptoks(pid).some(function(k){ return wm(k, w); }); });
+          return ttoks.some(function(k){ return cm(k, w); }) || atoks.some(function(k){ return wm(k, w); }) || pids.some(function(pid){ return ptoks(pid).some(function(k){ return wm(k, w); }); });
         });
         if(!ok) return;
         /* poules qui correspondent aux mots qui ne sont pas dans le nom du club */
         var ctoks = nq(teamParts(t).club).split(/[\s-]+/);
-        var rest = words.filter(function(w){ return !ctoks.some(function(k){ return cm(k, w); }); });
+        var rest = words.filter(function(w){ return !ctoks.some(function(k){ return cm(k, w); }) && !atoks.some(function(k){ return wm(k, w); }); });
         if(rest.length === words.length) return;
         var hit = pids.filter(function(pid){ var pt = ptoks(pid); return rest.every(function(w){ return pt.some(function(k){ return wm(k, w); }); }); });
         if(rest.length && !hit.length) return;
@@ -2858,13 +2872,13 @@ function renderPoolPicker(){
     '<div id="picker-body">' + renderPoolPickerBody() + '</div>';
 }
 function renderPoolPickerBody(){
-  var q = state.pickerSearch.toLowerCase();
+  var q = fold(state.pickerSearch);
   var groups = {}, order = [];
   ALL_POOLS.forEach(function(p){
     if(p[2] === 0) return;
     if(!state.showIsolated && isIsolatedPool(p[1]) && state.pickerSel.indexOf(p[0]) === -1) return;
     var label = shortPool(p[1]);
-    if(q && label.toLowerCase().indexOf(q) === -1 && p[1].toLowerCase().indexOf(q) === -1) return;
+    if(q && fold(label).indexOf(q) === -1 && fold(p[1]).indexOf(q) === -1) return;
     var g = poolGroup(p[1]);
     if(!groups[g]){ groups[g] = []; order.push(g); }
     groups[g].push(p);
@@ -2956,9 +2970,9 @@ function renderSettings(){
   return html;
 }
 function renderFixRows(){
-  var q = state.fixQ.trim().toLowerCase(), lim = addDaysIso(7), html = "";
+  var q = fold(state.fixQ.trim()), lim = addDaysIso(7), html = "";
   var list = sortMatches(state.matches.filter(function(m){
-    return (m.date ? m.date <= lim : true) && (!q || (m.teamA + " " + m.teamB).toLowerCase().indexOf(q) !== -1);
+    return (m.date ? m.date <= lim : true) && (!q || skey(m.teamA + " " + m.teamB).indexOf(q) !== -1);
   })).reverse();
   list.slice(0, q ? 60 : 25).forEach(function(m){
     var hs = hasScore(m);
@@ -2972,9 +2986,9 @@ function renderFixRows(){
   return html;
 }
 function renderFixScores(){
-  var q = state.fixQ.trim().toLowerCase(), lim = addDaysIso(7);
+  var q = fold(state.fixQ.trim()), lim = addDaysIso(7);
   var list = sortMatches(state.matches.filter(function(m){
-    return (m.date ? m.date <= lim : true) && (!q || (m.teamA + " " + m.teamB).toLowerCase().indexOf(q) !== -1);
+    return (m.date ? m.date <= lim : true) && (!q || skey(m.teamA + " " + m.teamB).indexOf(q) !== -1);
   })).reverse();
   var html = '<details class="admin-form fix-scores" id="fix-scores"' + (state.fixOpen ? ' open' : '') + '><summary><span class="section-title" style="font-size:19px;">Corriger un score</span><span class="fix-sub">Rarement utile : hockey.be envoie les scores tout seul</span></summary>';
   html += '<p class="section-hint" style="margin-top:10px;">Un score corrige à la main n\'est plus écrasé par hockey.be (bouton "Rendre à hockey.be" pour annuler).</p>';
