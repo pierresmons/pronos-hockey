@@ -1162,6 +1162,26 @@ details.fav-row[open] .fr-go::after{content:"\25B4";}
 .fr-b .fav-line:first-of-type{margin-top:4px;}
 .fr-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;}
 @media (max-width:389px){ .fr-n img.logo{display:none;} .fr-s{white-space:normal;} .fr-f{gap:2px;} .fr-f .form-chip{width:16px;height:16px;font-size:9px;line-height:16px;} details.fav-row > summary{gap:8px;padding:9px 10px;} }
+
+/* Discussion */
+.chat-btn{position:relative;}
+.chat-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;box-sizing:border-box;}
+.chat-content{padding-bottom:84px;}
+.chat-list{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px;}
+.chat-day{align-self:center;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--ice-faint);margin:10px 0 2px;}
+.chat-msg{display:flex;}
+.chat-msg.mine{justify-content:flex-end;}
+.chat-bubble{max-width:80%;background:var(--panel);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:7px 10px;box-shadow:var(--shadow);}
+.chat-msg.mine .chat-bubble{background:var(--panel-2);border-radius:14px 14px 4px 14px;}
+.chat-by{font-size:12px;font-weight:700;color:var(--gold);margin-bottom:2px;}
+.chat-text{font-size:15px;line-height:1.4;overflow-wrap:anywhere;}
+.chat-text a{color:inherit;text-decoration:underline;}
+.chat-meta{font-size:11px;color:var(--ice-faint);text-align:right;margin-top:3px;}
+.chat-del{background:none;border:0;padding:0 0 0 8px;color:var(--ice-faint);font-size:11px;text-decoration:underline;cursor:pointer;}
+.chat-empty{text-align:center;margin:24px 0;}
+.chat-form{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line);z-index:20;}
+input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !important;border-radius:20px;padding:10px 14px;font-size:16px;}
+.chat-form .btn{flex:none;}
 </style>
 </head>
 <body>
@@ -1416,6 +1436,7 @@ function applyRoom(data){
   state.pins = data.pins || {};
   state.owner = data.owner || null;
   state.announce = data.announce || null;
+  state.chat = data.chat || {};
 }
 async function saveCloud(){
   if(!state.room) return false;
@@ -2242,7 +2263,8 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 28/10 (mes équipes compactes)";
+var APP_VERSION = "v2 du 29/10 (discussion)";
+var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2271,11 +2293,13 @@ function render(){
      !state.playerSheet && !state.inviteOpen && !state.pinSheet && document.getElementById("msub")){ refreshMatchsBody(); return; }
   if(ae && ae.id === "pool-search" && document.getElementById("picker-body")){ refreshPicker(true); return; }
   if(ae && ae.id === "fix-q" && document.getElementById("fix-body")){ refreshFix(); return; }
+  if(ae && ae.id === "chat-input" && state.chatOpen && document.getElementById("chat-list")){ refreshChatList(); return; }
   if(state.room) checkMeLock();
   var app = document.getElementById("app"), html;
   if(!state.room) html = renderTop(false) + '<div class="content">' + renderSetup() + '</div>';
   else if(state.invited && !state.me) html = renderTop(false) + '<div class="content">' + renderWelcome() + '</div>';
   else if(state.settings) html = renderTop(true) + '<div class="content">' + renderSettings() + '</div>';
+  else if(state.chatOpen && state.me) html = renderTop(true) + '<div class="content chat-content">' + renderChat() + '</div>';
   else html = renderTop(true) + staleLine() + renderTabs() + '<div class="content">' + renderContent() + '</div>';
   app.innerHTML = html + renderPlayerSheet() + renderInviteSheet() + renderPinSheet() + renderAnnounce();
   document.querySelectorAll(".chips-scroll").forEach(function(row){
@@ -2290,6 +2314,8 @@ function renderTop(inRoom){
   if(inRoom) html += '<div class="top-room">' + escapeHtml(state.room) + (state.syncing ? ' &middot; mise à jour...' : '') + '</div>';
   html += '</div>';
   if(inRoom) html += '<div class="top-r"><button class="me-pill" data-action="player-sheet">' + (state.me ? escapeHtml(state.me) : 'Qui es-tu ?') + ' <span class="chev">&#9662;</span></button>' +
+    (state.me ? '<button class="icon-btn chat-btn' + (state.chatOpen ? ' on' : '') + '" data-action="chat" aria-label="Discussion">' + ICON_CHAT +
+      (function(){ var n = chatUnread(); return n ? '<span class="chat-badge">' + (n > 9 ? "9+" : n) + '</span>' : ''; })() + '</button>' : '') +
     '<button class="icon-btn' + (state.settings ? ' on' : '') + '" data-action="settings" aria-label="Réglages">' + ICON_GEAR + '</button></div>';
   return html + '</header>';
 }
@@ -2979,6 +3005,66 @@ function renderPlayerSheet(){
 }
 
 /* ===================== v2 : Reglages (roue dentee) ===================== */
+/* ===================== Discussion (chat de la partie) ===================== */
+/* hbrooms/<partie>/chat/<id> = {by, text, at} ; on garde les CHAT_MAX derniers */
+var CHAT_MAX = 200;
+function chatKey(){ return "hb-chat-seen-" + state.room; }
+function chatList(){
+  var c = state.chat || {};
+  return Object.keys(c).map(function(id){ var m = c[id] || {}; return {id:id, by:m.by, text:m.text, at:m.at}; })
+    .filter(function(m){ return m.text; }).sort(function(a, b){ return (a.at || "").localeCompare(b.at || "") || a.id.localeCompare(b.id); });
+}
+function chatSeen(){ try{ return localStorage.getItem(chatKey()) || ""; }catch(e){ return ""; } }
+function chatMarkSeen(){ var l = chatList(); if(!l.length) return; try{ localStorage.setItem(chatKey(), l[l.length - 1].at || ""); }catch(e){} }
+function chatUnread(){
+  if(!state.me || state.chatOpen) return 0;
+  var seen = chatSeen();
+  return chatList().filter(function(m){ return m.by !== state.me && (m.at || "") > seen; }).length;
+}
+function chatTime(at){ var d = new Date(at); return isNaN(d) ? "" : d.toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}); }
+function chatDay(at){
+  var d = new Date(at); if(isNaN(d)) return "";
+  var iso = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  return iso;
+}
+function renderChatList(){
+  var l = chatList(), boss = isOwner(), html = "", lastDay = "";
+  if(!l.length) return '<p class="points-sub chat-empty">Pas encore de message. Lance la discussion !</p>';
+  l.forEach(function(m){
+    var day = chatDay(m.at);
+    if(day && day !== lastDay){ html += '<div class="chat-day">' + escapeHtml(dayTitle(day)) + '</div>'; lastDay = day; }
+    var mine = m.by === state.me;
+    html += '<div class="chat-msg' + (mine ? ' mine' : '') + '"><div class="chat-bubble">' +
+      (mine ? '' : '<div class="chat-by">' + escapeHtml(m.by || "?") + '</div>') +
+      '<div class="chat-text">' + annHtml(m.text) + '</div>' +
+      '<div class="chat-meta">' + chatTime(m.at) +
+      (mine || boss ? ' <button class="chat-del" data-action="chat-del" data-id="' + escapeHtml(m.id) + '" aria-label="Supprimer">Supprimer</button>' : '') +
+      '</div></div></div>';
+  });
+  return html;
+}
+function renderChat(){
+  return '<div class="set-head"><button class="btn btn-sm back" data-action="chat">&#8249; Retour</button><h2 class="section-title">Discussion</h2></div>' +
+    '<div id="chat-list" class="chat-list">' + renderChatList() + '</div>' +
+    '<div class="chat-form"><input type="text" id="chat-input" class="inline-input chat-input" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Ton message" value="' + escapeHtml(state.chatDraft || "") + '">' +
+    '<button class="btn btn-primary" data-action="chat-send">Envoyer</button></div>';
+}
+function chatScrollEnd(){ var el = document.getElementById("chat-list"); if(el) el.scrollTop = el.scrollHeight; window.scrollTo(0, document.body.scrollHeight); }
+function refreshChatList(){
+  var el = document.getElementById("chat-list"); if(!el) return;
+  var atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  el.innerHTML = renderChatList(); chatMarkSeen();
+  if(atEnd) el.scrollTop = el.scrollHeight;
+}
+async function chatPoll(){
+  if(!state.room) return;
+  try{
+    var r = await fetch(FIREBASE_URL.replace(/\/$/, "") + "/" + ROOMS_PATH + "/" + encodeURIComponent(state.room) + "/chat.json");
+    if(!r.ok) return;
+    state.chat = (await r.json()) || {};
+    if(state.chatOpen) refreshChatList(); else render();
+  }catch(e){}
+}
 /* Mes equipes : une ligne compacte par equipe ; un toucher ouvre le resume (dernier / prochain match) */
 function favOpenMap(){ try{ return JSON.parse(localStorage.getItem("hb-fav-open") || "{}") || {}; }catch(e){ return {}; } }
 function shortDay(d){ return d ? new Date(d + "T12:00:00").toLocaleDateString("fr-FR", {weekday:"short", day:"numeric", month:"numeric"}) : ""; }
@@ -3129,6 +3215,30 @@ var ACTIONS = {
   "ann-remove": async function(){
     if(!(await fbSet("announce", null))){ showToast("Impossible (connexion ?)"); return; }
     state.announce = null; state.annDraft = undefined; showToast("Message retir\u00e9"); render();
+  },
+  "chat": function(){
+    state.chatOpen = !state.chatOpen; state.settings = false; state.playerSheet = false;
+    if(state.chatOpen){ chatMarkSeen(); render(); chatScrollEnd(); chatPoll(); } else { render(); window.scrollTo(0, 0); }
+  },
+  "chat-send": async function(){
+    var inp = document.getElementById("chat-input"), text = (inp ? inp.value : "").trim().slice(0, 500);
+    if(!text || !state.me) return;
+    var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    var msg = {by:state.me, text:text, at:new Date().toISOString()};
+    if(!(await fbSet("chat/" + id, msg))){ showToast("Envoi impossible (connexion ?)"); return; }
+    state.chat = state.chat || {}; state.chat[id] = msg; state.chatDraft = "";
+    if(inp){ inp.value = ""; inp.focus(); }
+    refreshChatList(); chatScrollEnd();
+    /* on ne garde que les CHAT_MAX derniers messages */
+    var l = chatList();
+    l.slice(0, Math.max(0, l.length - CHAT_MAX)).forEach(function(m){ fbSet("chat/" + m.id, null); delete state.chat[m.id]; });
+  },
+  "chat-del": async function(el){
+    var id = el.getAttribute("data-id"), m = (state.chat || {})[id];
+    if(!m || !(m.by === state.me || isOwner())) return;
+    if(!window.confirm("Supprimer ce message ?")) return;
+    if(!(await fbSet("chat/" + id, null))){ showToast("Suppression impossible (connexion ?)"); return; }
+    delete state.chat[id]; refreshChatList();
   },
   "cweek": function(el){ var d = +el.getAttribute("data-d"); state.catWeek = d === 0 ? 0 : state.catWeek + d; refreshMatchsBody(); },
   "mweek": function(el){ var d = +el.getAttribute("data-d"); state.mWeek = d === 0 ? 0 : (state.mWeek || 0) + d; render(); },
@@ -3421,7 +3531,7 @@ var INPUTS = {
   "pool-search": function(el){ state.pickerSearch = el.value; },
   "fix-q": function(el){ state.fixQ = el.value; }
 };
-var ENTER = {"new-player-name":"confirm-add-player", "welcome-name":"welcome-join", "create-room-code":"create-room", "join-room-code":"join-room"};
+var ENTER = {"chat-input":"chat-send", "new-player-name":"confirm-add-player", "welcome-name":"welcome-join", "create-room-code":"create-room", "join-room-code":"join-room"};
 
 function installEvents(){
   document.addEventListener("click", function(e){
@@ -3460,7 +3570,7 @@ function installEvents(){
     else if(e.target.id === "match-search"){ e.preventDefault(); e.target.blur(); }
   });
   /* les <details> se souviennent s'ils sont ouverts quand l'ecran est redessine */
-  document.addEventListener("input", function(ev){ if(ev.target && ev.target.id === "ann-text") state.annDraft = ev.target.value; }, true);
+  document.addEventListener("input", function(ev){ if(ev.target && ev.target.id === "ann-text") state.annDraft = ev.target.value; if(ev.target && ev.target.id === "chat-input") state.chatDraft = ev.target.value; }, true);
   document.addEventListener("toggle", function(e){
     var d = e.target;
     if(d.classList && d.classList.contains("fav-row")){
@@ -3499,6 +3609,9 @@ async function init(){
   render();
   if(state.room && isStale()){ await syncFromHockeyBe(); render(); }
 }
+
+/* discussion ouverte : nouveaux messages toutes les 15 s */
+setInterval(function(){ if(state.chatOpen && document.visibilityState === "visible") chatPoll(); }, 15000);
 
 init();
 document.addEventListener("visibilitychange", function(){
