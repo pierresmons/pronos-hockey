@@ -1,6 +1,7 @@
 # Sauvegarde Pronos Hockey : copie chaque nuit toutes les parties de Firebase
 # (championnat : hbrooms, Coupe du monde : rooms), chiffree avec le mot de passe
 # BACKUP_PASSWORD (Settings > Secrets and variables > Actions).
+# Lecture de toute la base avec la cle secrete Firebase FIREBASE_SECRET (meme endroit).
 #
 # La sauvegarde n'est PAS mise dans le repo (il est public) : elle est rangee dans
 # les "artifacts" du robot, gardes 30 jours (onglet Actions > Sauvegarde Firebase > un passage).
@@ -31,10 +32,14 @@ jobs:
       - name: Telecharger et verifier les parties
         env:
           FIREBASE_URL: https://pronos-hockey-default-rtdb.europe-west1.firebasedatabase.app
+          FIREBASE_SECRET: ${{ secrets.FIREBASE_SECRET }}
         run: |
           set -euo pipefail
+          # depuis le 29/10 la base ne se lit plus en entier sans la cle secrete FIREBASE_SECRET (GitHub secret)
+          AUTH=""
+          if [ -n "${FIREBASE_SECRET:-}" ]; then AUTH="?auth=$FIREBASE_SECRET"; fi
           for path in hbrooms rooms; do
-            curl -sS --fail --retry 3 --retry-delay 5 -m 60 "$FIREBASE_URL/$path.json" -o "$path.json"
+            curl -sS --fail --retry 3 --retry-delay 5 -m 60 "$FIREBASE_URL/$path.json$AUTH" -o "$path.json"
           done
           python3 - <<'PY'
           import json, datetime as dt
