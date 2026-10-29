@@ -99,6 +99,8 @@ jobs:
       - name: EHL et Pro League (rapide, toujours en premier)
         if: steps.gate.outputs.run == 'true'
         continue-on-error: true
+        env:
+          FIREBASE_SECRET: ${{ secrets.FIREBASE_SECRET }}
         run: python scripts/snapshot.py --ehl-only
       - name: Enregistrer EHL et Pro League
         if: steps.gate.outputs.run == 'true'
@@ -115,6 +117,8 @@ jobs:
           fi
       - name: Recuperer hockey.be
         if: steps.gate.outputs.run == 'true' && steps.gate.outputs.mode == 'full'
+        env:
+          FIREBASE_SECRET: ${{ secrets.FIREBASE_SECRET }}
         run: python scripts/snapshot.py
       - name: Enregistrer hockey.be
         if: steps.gate.outputs.run == 'true' && steps.gate.outputs.mode == 'full'
