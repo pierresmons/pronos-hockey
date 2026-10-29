@@ -231,8 +231,12 @@ EMPTY_DAYS = 7        # poule vide : relue une fois par semaine
 ACTIVE_BEFORE, ACTIVE_AFTER = 2, 3   # match il y a 2 jours ou moins, ou dans 3 jours ou moins : poule relue a chaque passage
 
 
-def fb_get(path):
-    req = urllib.request.Request(f"{FIREBASE_URL}/{path}.json", headers={"User-Agent": UA})
+FIREBASE_SECRET = os.environ.get("FIREBASE_SECRET", "")  # cle secrete (GitHub secret) : lecture de toutes les parties
+
+
+def fb_get(path, query=""):
+    q = "&".join(x for x in (query, "auth=" + urllib.parse.quote(FIREBASE_SECRET) if FIREBASE_SECRET else "") if x)
+    req = urllib.request.Request(f"{FIREBASE_URL}/{path}.json" + ("?" + q if q else ""), headers={"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=20) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -242,8 +246,7 @@ def priority_pools(old):
     On ne lit que des numeros de poules et des noms d'equipes ; rien n'est recopie dans le snapshot."""
     pools, fav_teams = set(), set()
     try:
-        rooms = list((json.loads(urllib.request.urlopen(urllib.request.Request(
-            f"{FIREBASE_URL}/hbrooms.json?shallow=true", headers={"User-Agent": UA}), timeout=20).read().decode("utf-8")) or {}).keys())
+        rooms = list((fb_get("hbrooms", "shallow=true") or {}).keys())
         for room in rooms:
             q = urllib.parse.quote(room, safe="")
             for p in (fb_get(f"hbrooms/{q}/pools") or []):
