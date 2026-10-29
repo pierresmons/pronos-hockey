@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ehl  # noqa: E402
 import fihpl  # noqa: E402
+import nlhk  # noqa: E402
 
 PAGE = "https://hockey.be/fr/competition/calendrier-resultats-et-classements/"
 API = "https://hockey.be/wp-json/sportlink-api/cached"
@@ -374,46 +375,58 @@ def add_ehl(pools, matches, standings, t_id, old):
 
 FIHPL_STATUS = {"ok": None, "info": ""}
 FLAGS = {}  # equipe Pro League -> url du drapeau (fih.hockey)
-QUICK = ("ehl-", "fihpl-")  # poules relues en mode rapide (--ehl-only), hors hockey.be
+QUICK = ("ehl-", "fihpl-", "nlhk-")  # poules relues en mode rapide (--ehl-only), hors hockey.be
 
 
-def add_fihpl(pools, matches, standings, t_id, old):
-    """Ajoute les poules Pro League (fih.hockey) ; en cas d'echec, reprend celles du snapshot precedent."""
+NLHK_STATUS = {"ok": None, "info": ""}
+
+
+def add_league(prefix, collect, status, label, pools, matches, standings, t_id, old):
+    """Ajoute les poules d'une ligue lue sur son site (Pro League, Hoofdklasse) ;
+    en cas d'echec, reprend celles du snapshot precedent."""
     try:
-        res, flags = fihpl.collect(get, SEASON_FROM, SEASON_TO, log=lambda *a: print(*a, file=sys.stderr))
-        FIHPL_STATUS.update(ok=True, info=f"{sum(len(r[2]) for r in res)} match(s)")
+        res, flags = collect(get, SEASON_FROM, SEASON_TO, log=lambda *a: print(*a, file=sys.stderr))
+        status.update(ok=True, info=f"{sum(len(r[2]) for r in res)} match(s)")
         FLAGS.update(flags)
     except Exception as e:  # noqa
-        print("Pro League indisponible :", e, file=sys.stderr)
-        FIHPL_STATUS.update(ok=False, info=f"fih.hockey indisponible : {e}"[:200])
+        print(f"{label} indisponible :", e, file=sys.stderr)
+        status.update(ok=False, info=f"{label} indisponible : {e}"[:200])
         if old:
             FLAGS.update(old.get("logoUrls") or {})
             opools, oteams = old.get("pools", []), old.get("teams", [])
             for p in opools:
-                if p[0].startswith("fihpl-"):
+                if p[0].startswith(prefix):
                     pools.append(p)
             for om in old.get("matches", []):
                 p = opools[om[0]] if om[0] < len(opools) else None
-                if p and p[0].startswith("fihpl-"):
+                if p and p[0].startswith(prefix):
                     pi = next(i for i, x in enumerate(pools) if x[0] == p[0])
                     a, b = oteams[om[3]], oteams[om[4]]
                     leg = om[9] if len(om) > 9 else 1
                     matches[(p[0], a, b, leg)] = [pi, om[1], om[2], t_id(a), t_id(b)] + om[5:]
             for pid, st in old.get("standings", {}).items():
-                if pid.startswith("fihpl-"):
+                if pid.startswith(prefix):
                     standings[pid] = st
         return False
     for pid, name, ms, st in res:
         pools.append([pid, name])
         pi = len(pools) - 1
         for m in ms:
-            status = m["status"]
-            if m["so"]:
-                status = f"Shoot-out {m['soa']}-{m['sob']}"
+            stt = m.get("status")
+            if m.get("so"):
+                stt = f"Shoot-out {m['soa']}-{m['sob']}"
             matches[(pid, m["a"], m["b"], m["leg"])] = [pi, m["date"], m["time"], t_id(m["a"]), t_id(m["b"]),
-                                                        m["sa"], m["sb"], status, m["venue"], m["leg"]]
+                                                        m["sa"], m["sb"], stt, m.get("venue"), m["leg"]]
         standings[pid] = st
     return True
+
+
+def add_fihpl(pools, matches, standings, t_id, old):
+    return add_league("fihpl-", fihpl.collect, FIHPL_STATUS, "Pro League", pools, matches, standings, t_id, old)
+
+
+def add_nlhk(pools, matches, standings, t_id, old):
+    return add_league("nlhk-", nlhk.collect, NLHK_STATUS, "Hoofdklasse", pools, matches, standings, t_id, old)
 
 
 def write(pools, teams, matches, standings, failed, generated=None, ehl_generated=None):
@@ -444,6 +457,7 @@ def write(pools, teams, matches, standings, failed, generated=None, ehl_generate
         "poolSeen": dict(sorted(POOL_SEEN.items())),
         "logoUrls": dict(sorted(FLAGS.items())),
         "fihplStatus": {"ok": FIHPL_STATUS["ok"], "info": FIHPL_STATUS["info"], "at": now},
+        "nlhkStatus": {"ok": NLHK_STATUS["ok"], "info": NLHK_STATUS["info"], "at": now},
     }
     if len(out_matches) < 100:
         raise SystemExit(f"Seulement {len(out_matches)} matchs : hockey.be semble indisponible, snapshot non ecrit")
@@ -452,7 +466,8 @@ def write(pools, teams, matches, standings, failed, generated=None, ehl_generate
         json.dump(snap, f, ensure_ascii=False, separators=(",", ":"))
     n_ehl = sum(1 for p in out_pools if p[0].startswith("ehl-"))
     n_pl = sum(1 for p in out_pools if p[0].startswith("fihpl-"))
-    print(f"OK : {len(out_pools)} poules (dont {n_ehl} EHL, {n_pl} Pro League), {len(out_matches)} matchs, {len(snap['teams'])} equipes, "
+    n_nl = sum(1 for p in out_pools if p[0].startswith("nlhk-"))
+    print(f"OK : {len(out_pools)} poules (dont {n_ehl} EHL, {n_pl} Pro League, {n_nl} Hoofdklasse), {len(out_matches)} matchs, {len(snap['teams'])} equipes, "
           f"{len(failed)} echec(s), {os.path.getsize(OUT) // 1024} Ko", file=sys.stderr)
 
 
@@ -487,6 +502,8 @@ def main_ehl_only():
         m[0] = remap[m[0]]
     ehl_ok = add_ehl(pools, matches, standings, t_id, old)
     pl_ok = add_fihpl(pools, matches, standings, t_id, old)
+    if not add_nlhk(pools, matches, standings, t_id, old):
+        print("Hoofdklasse indisponible : anciennes donnees gardees, nouvel essai au prochain reveil", file=sys.stderr)
     if not ehl_ok:
         # ehlGenerated ne bouge pas -> l'app sait que les scores EHL ne sont pas frais ; nouvel essai au prochain reveil
         print("EHL indisponible : anciennes donnees EHL gardees, nouvel essai au prochain reveil", file=sys.stderr)
@@ -598,6 +615,7 @@ def main():
 
     add_ehl(pools, matches, standings, t_id, old)
     add_fihpl(pools, matches, standings, t_id, old)
+    add_nlhk(pools, matches, standings, t_id, old)
     n_late = sum(1 for p in failed if p in LATE_POOLS)
     if n_late:
         print(f"Temps depasse : {n_late} poule(s) non lues, reprises du snapshot precedent", file=sys.stderr)
