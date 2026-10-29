@@ -23,7 +23,19 @@ POOL_NAME = {"M": "Hoofdklasse Men - {season}", "W": "Hoofdklasse Women - {seaso
 
 CARD_RE = re.compile(r'<a\s+class="match-card[^"]*"([^>]*)>(.*?)</a>', re.S)
 ATTR_RE = re.compile(r'data-([a-z-]+)="([^"]*)"')
-LOGO_RE = re.compile(r'<img\s+alt="Logo:\s*([^"]+)"[^>]*\ssrc="([^"]+)"')
+IMG_RE = re.compile(r'<img\b[^>]*>', re.S)
+ALT_RE = re.compile(r'\balt="Logo:\s*([^"]+)"')
+SRC_RE = re.compile(r'\b(?:data-src|src)="(https://[^"]+)"')
+
+
+def logo_tags(body):
+    """[(nom, url)] des <img alt="Logo: ..."> dans l'ordre (attributs dans n'importe quel ordre)"""
+    out = []
+    for tag in IMG_RE.findall(body):
+        a, s = ALT_RE.search(tag), SRC_RE.search(tag)
+        if a and s:
+            out.append((a.group(1), s.group(1)))
+    return out
 NAME_RE = re.compile(r'<span class="[^"]*col-span-3[^"]*">\s*([^<]+?)\s*</span>')
 
 
@@ -72,9 +84,9 @@ def parse(page, season_from, season_to):
         if soa is not None and sa == sb and soa != sob:
             st = f"Shoot-out {soa}-{sob}"
         g = "W" if (a.get("type") or "").lower() == "women" else "M"
-        for alt, src in LOGO_RE.findall(body):
+        for alt, src in logo_tags(body):
             t = team_name(alt)
-            if t and src.startswith("https://"):
+            if t:
                 logos.setdefault(club_of(t), html.unescape(src))
         mid = a.get("match-id") or ""
         out.setdefault(g, []).append({"id": mid, "date": date, "time": time, "a": ta, "b": tb,
@@ -133,6 +145,7 @@ def collect(get, season_from, season_to, log=print):
             last = e
     else:
         raise last or ValueError("Hoofdklasse illisible")
+    log(f"Hoofdklasse : {len(logos)} logo(s) de club")
     res, label = [], season_label(season_from)
     for g in ("M", "W"):
         ms = by_g.get(g) or []
