@@ -2252,7 +2252,8 @@ function noteLogos(r){
   });
 }
 /* logos absents de hockey.be (erreur 404) : copie dans le repo, sinon site du club */
-var LOGO_EXTRA = {"Uccle Sport": ["logo-uccle-sport.svg", "https://www.ucclesport.be/blason/assets/logo.svg"]};
+/* adresse complete (et ?v= pour forcer un nouveau chargement) : marche aussi si la page est ouverte ailleurs que sur github.io */
+var LOGO_EXTRA = {"Uccle Sport": ["https://pierresmons.github.io/pronos-hockey/logo-uccle-sport.svg?v=2", "https://www.ucclesport.be/blason/assets/logo.svg"]};
 function logoImg(team, cls){
   var club = teamParts(team).club, code = LOGOS[club], ex = LOGO_EXTRA[club], src, alt = "";
   if(ex){ src = ex[0]; alt = ex[1] || ""; }
@@ -2263,7 +2264,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "v2 du 29/10 (discussion)";
+var APP_VERSION = "v2 du 29/10 (logo Uccle)";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
