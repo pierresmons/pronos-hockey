@@ -1,0 +1,51 @@
+# Rappels de pronos (notifications push) : la veille du premier match de la semaine, vers 19h (heure belge),
+# seulement aux joueurs a qui il manque des pronos et qui ont active les rappels dans l'app.
+# Le script verifie lui-meme l'heure de Bruxelles (ete/hiver) et n'envoie qu'une fois par semaine et par partie.
+# Plusieurs reveils car GitHub lance parfois les taches programmees en retard.
+#
+# Bouton "Run workflow" : mode "test" = notification d'essai tout de suite au joueur indique ;
+# mode "simulation" = montre ce qui serait envoye la veille du prochain match, sans rien envoyer.
+name: Rappels pronos
+
+on:
+  schedule:
+    - cron: "41 17 * * *"
+    - cron: "41 18 * * *"
+    - cron: "41 19 * * *"
+    - cron: "41 20 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "test, simulation ou rappel"
+        type: choice
+        options: [test, simulation, rappel]
+        default: test
+      joueur:
+        description: "Pour le test : prenom exactement comme dans l'app"
+        default: "Piet"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installer pywebpush
+        run: pip install --quiet "pywebpush>=2,<3"
+      - name: Envoyer les rappels
+        env:
+          FIREBASE_SECRET: ${{ secrets.FIREBASE_SECRET }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          MODE: ${{ github.event.inputs.mode || 'rappel' }}
+          JOUEUR: ${{ github.event.inputs.joueur }}
+        run: python scripts/notify.py
