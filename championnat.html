@@ -1182,6 +1182,15 @@ details.fav-row[open] .fr-go::after{content:"\25B4";}
 .chat-form{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line);z-index:20;}
 input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !important;border-radius:20px;padding:10px 14px;font-size:16px;}
 .chat-form .btn{flex:none;}
+
+/* Suivi des pronos (organisateur) */
+.suivi-list{display:flex;flex-direction:column;}
+.suivi-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:8px 0;border-top:1px solid var(--line);font-size:14px;}
+.suivi-name{font-weight:700;flex:1 1 30%;min-width:0;}
+.suivi-n{font-family:var(--font-mono);color:var(--ice-dim);}
+.suivi-todo{color:var(--red);font-weight:700;}
+.suivi-ok{color:var(--green,#2e8b57);font-weight:600;}
+.suivi-j,.suivi-miss{font-size:12px;color:var(--ice-faint);}
 </style>
 </head>
 <body>
@@ -2266,7 +2275,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.1 · 29/10/2026";
+var APP_VERSION = "2.2 · 30/10/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
@@ -3099,6 +3108,47 @@ function favCard(t, surf, showSurf){
     '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733; Suivie</button></div>';
   return html + '</div></details>';
 }
+/* ===================== Suivi des pronos (organisateur) ===================== */
+function suiviOffset(){ return state.suiviWeek === undefined ? currentPronoWeek() : state.suiviWeek; }
+function suiviData(){
+  var off = suiviOffset(), wr = weekRange(off), wk = weekKey(wr.start);
+  var ms = state.matches.filter(function(m){ return m.date && m.date >= wr.start && m.date <= wr.end; });
+  var open = ms.filter(function(m){ return !isLocked(m); });
+  var rows = state.players.map(function(p){
+    var done = ms.filter(function(m){ return hasPred(m, p); }).length;
+    var todo = open.filter(function(m){ return !hasPred(m, p); }).length;
+    var missed = ms.filter(function(m){ return isLocked(m) && !hasPred(m, p); }).length;
+    return {p:p, done:done, todo:todo, missed:missed, joker:!!jokerMatchOf(p, wk)};
+  });
+  rows.sort(function(a, b){ return b.todo - a.todo || b.missed - a.missed || a.p.localeCompare(b.p); });
+  return {off:off, wr:wr, total:ms.length, open:open.length, rows:rows, late:rows.filter(function(r){ return r.todo; }).length};
+}
+function renderSuivi(sv){
+  var html = weekNav(sv.off, "suivi-week");
+  if(!sv.total) return html + '<p class="points-sub" style="margin:8px 0 0;">Aucun match de la partie cette semaine-là.</p>';
+  html += '<p class="section-hint" style="margin:8px 0;">' + sv.total + ' match' + (sv.total > 1 ? 's' : '') + ' dans la semaine, dont ' + sv.open + ' encore ouvert' + (sv.open > 1 ? 's' : '') + ' aux pronos.</p>';
+  html += '<div class="suivi-list">' + sv.rows.map(function(r){
+    var st = r.todo ? '<span class="suivi-todo">' + r.todo + ' à faire</span>' : '<span class="suivi-ok">à jour</span>';
+    return '<div class="suivi-row"><span class="suivi-name">' + escapeHtml(r.p) + '</span><span class="suivi-n">' + r.done + '/' + sv.total + '</span>' + st +
+      '<span class="suivi-j">' + (r.joker ? 'joker &#10003;' : 'sans joker') + '</span>' +
+      (r.missed ? '<span class="suivi-miss">' + r.missed + ' oublié' + (r.missed > 1 ? 's' : '') + '</span>' : '') + '</div>';
+  }).join("") + '</div>';
+  if(sv.late) html += '<p style="margin:12px 0 0;"><button class="btn btn-primary btn-sm" data-action="suivi-relance">Relancer les retardataires</button></p>' +
+    '<p class="points-sub" style="margin:6px 0 0;">Publie un message dans la discussion avec les prénoms et le nombre de pronos manquants.</p>';
+  return html;
+}
+function suiviText(sv){
+  var fd = function(x){ return x.toLocaleDateString("fr-FR", {day:"numeric", month:"long"}).replace(/^1 /, "1er "); };
+  var who = sv.rows.filter(function(r){ return r.todo; }).map(function(r){ return r.p + " (" + r.todo + ")"; }).join(", ");
+  return "Il manque encore des pronos pour la semaine du " + fd(sv.wr.startD) + " au " + fd(sv.wr.endD) + " : " + who + ". Pensez à les remplir avant le coup d'envoi !";
+}
+async function chatPost(text){
+  var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  var msg = {by:state.me, text:text.slice(0, 500), at:new Date().toISOString()};
+  if(!(await fbSet("chat/" + id, msg))) return false;
+  state.chat = state.chat || {}; state.chat[id] = msg; chatMarkSeen();
+  return true;
+}
 /* Reglages : chaque bloc se replie comme "Corriger un score" ; ouvert/ferme retenu sur l'appareil */
 function setOpenMap(){ try{ return JSON.parse(localStorage.getItem("hb-set-open") || "{}") || {}; }catch(e){ return {}; } }
 function setFold(key, title, sub, inner){
@@ -3127,6 +3177,8 @@ function renderSettings(){
   /* organisateur */
   if(boss){
     html += '<h3 class="set-h">Organisateur</h3>';
+    var sv = suiviData();
+    html += setFold("suivi", "Pronos de la semaine", sv.late ? sv.late + " joueur" + (sv.late > 1 ? "s" : "") + " en retard" : (sv.total ? "tout le monde est \u00e0 jour" : "pas de match cette semaine"), renderSuivi(sv));
     html += setFold("annonce", "Message à la famille", an && an.text ? "publié le " + annDate(an) : "aucun message publié", unwrapBlock(renderAnnounceAdmin(), "Message à la famille"));
     html += setFold("poules", "Poules suivies", state.pools.length + " poule" + (state.pools.length > 1 ? "s" : ""),
       '<p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(shortPoolName(p)); }).join(" &middot; ") + '</p>' +
@@ -3242,6 +3294,13 @@ var ACTIONS = {
     if(!window.confirm("Supprimer ce message ?")) return;
     if(!(await fbSet("chat/" + id, null))){ showToast("Suppression impossible (connexion ?)"); return; }
     delete state.chat[id]; refreshChatList();
+  },
+  "suivi-week": function(el){ var d = +el.getAttribute("data-d"); state.suiviWeek = d === 0 ? currentPronoWeek() : suiviOffset() + d; render(); },
+  "suivi-relance": async function(){
+    if(!isOwner() || !state.me) return;
+    var text = suiviText(suiviData());
+    if(!window.confirm("Publier ce message dans la discussion ?\n\n" + text)) return;
+    if(await chatPost(text)) showToast("Message publi\u00e9 dans la discussion"); else showToast("Envoi impossible (connexion ?)");
   },
   "cweek": function(el){ var d = +el.getAttribute("data-d"); state.catWeek = d === 0 ? 0 : state.catWeek + d; refreshMatchsBody(); },
   "mweek": function(el){ var d = +el.getAttribute("data-d"); state.mWeek = d === 0 ? 0 : (state.mWeek || 0) + d; render(); },
