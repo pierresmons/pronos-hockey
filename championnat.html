@@ -1194,6 +1194,8 @@ input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !import
 
 .suivi-btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;}
 .suivi-btns a.btn{text-decoration:none;}
+
+.sq-admin #ren-name{width:100%;max-width:220px;font-size:16px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);margin:0;}
 </style>
 </head>
 <body>
@@ -2278,7 +2280,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.5 · 30/10/2026";
+var APP_VERSION = "2.6 · 30/10/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
@@ -3111,6 +3113,61 @@ function favCard(t, surf, showSurf){
     '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733; Suivie</button></div>';
   return html + '</div></details>';
 }
+/* ===================== Renommer un joueur (organisateur) ===================== */
+function renderRenamePlayer(){
+  var own = ownerName(), others = state.players.filter(function(p){ return p !== own && p !== state.me; });
+  if(!others.length) return "";
+  return '<div class="del-player"><h2 class="section-title" style="font-size:16px;margin:16px 0 6px;">Renommer un joueur</h2>' +
+    '<p class="section-hint" style="margin:0 0 8px;">Garde ses pronos, ses favoris et ses messages. Son code est remis à zéro : il en choisira un nouveau à sa prochaine ouverture (ou définis-le ici).</p>' +
+    '<div class="sq-admin"><select class="sq-select" id="ren-player">' + others.map(function(p){ return '<option value="' + escapeHtml(p) + '">' + escapeHtml(p) + '</option>'; }).join("") +
+    '</select><input type="text" class="inline-input" id="ren-name" maxlength="30" placeholder="Nouveau nom" autocomplete="off">' +
+    '<button class="btn btn-ghost btn-sm" data-action="player-rename">Renommer</button></div></div>';
+}
+async function renamePlayer(oldN, newN){
+  var up = {players: state.players.map(function(x){ return x === oldN ? newN : x; })};
+  var mv = function(base, obj){ Object.keys(obj || {}).forEach(function(k){ var x = obj[k] || {}; if(x[oldN] !== undefined){ up[base + "/" + k + "/" + newN] = x[oldN]; up[base + "/" + k + "/" + oldN] = null; } }); };
+  mv("predictions", state.predictions); mv("seasonPicks", state.seasonPicks);
+  if((state.favs || {})[oldN] !== undefined){ up["favs/" + newN] = state.favs[oldN]; up["favs/" + oldN] = null; }
+  if((state.pins || {})[oldN] !== undefined) up["pins/" + oldN] = null;  /* le code depend du nom : remis a zero */
+  Object.keys(state.chat || {}).forEach(function(id){ if((state.chat[id] || {}).by === oldN) up["chat/" + id + "/by"] = newN; });
+  if(state.owner === oldN) up.owner = newN;
+  try{
+    var r = await fetch(roomUrl(state.room), {method:"PATCH", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify(up)});
+    if(!r.ok) return false;
+  }catch(e){ return false; }
+  await refreshCloud();
+  return true;
+}
+/* ===================== Relance en image ===================== */
+function suiviImage(sv){
+  var late = sv.rows, W = 1080, rowH = 96, top = 300, H = top + late.length * rowH + 150;
+  var c = document.createElement("canvas"); c.width = W; c.height = H;
+  var g = c.getContext("2d"), F = '-apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+  var fd = function(x){ return x.toLocaleDateString("fr-FR", {day:"numeric", month:"long"}).replace(/^1 /, "1er "); };
+  g.fillStyle = "#0d1b2a"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#d62b36"; g.fillRect(0, 196, W, 6);
+  g.fillStyle = "#ffffff"; g.font = "bold 64px " + F; g.fillText("PRONOS", 60, 100);
+  var w1 = g.measureText("PRONOS ").width; g.fillStyle = "#d62b36"; g.fillText("HOCKEY", 60 + w1, 100);
+  g.fillStyle = "#c9d6e6"; g.font = "34px " + F; g.fillText("Rappel : semaine du " + fd(sv.wr.startD) + " au " + fd(sv.wr.endD), 60, 160);
+  var next = sortMatches(state.matches.filter(function(m){ return m.date && m.date >= sv.wr.start && m.date <= sv.wr.end && !isLocked(m); }))[0];
+  g.font = "30px " + F; g.fillStyle = "#8fa3ba";
+  g.fillText(sv.total + " matchs · " + (next ? "prochain : " + new Date(next.date + "T12:00:00").toLocaleDateString("fr-FR", {weekday:"long", day:"numeric", month:"long"}).replace(/ 1 /, " 1er ") + (next.time ? " à " + next.time : "") : "plus de match ouvert"), 60, 262);
+  late.forEach(function(r, i){
+    var y = top + i * rowH;
+    g.fillStyle = i % 2 ? "#13263b" : "#162d45"; g.fillRect(40, y, W - 80, rowH - 10);
+    g.fillStyle = "#ffffff"; g.font = "bold 40px " + F;
+    var name = r.p.length > 22 ? r.p.slice(0, 21) + "…" : r.p; g.fillText(name, 70, y + 58);
+    g.textAlign = "right";
+    g.font = "bold 40px " + F;
+    if(r.todo){ g.fillStyle = "#ff5a64"; g.fillText(r.todo + " à faire", W - 70, y + 58); }
+    else { g.fillStyle = "#4cc38a"; g.fillText("à jour", W - 70, y + 58); }
+    g.font = "34px " + F; g.fillStyle = "#8fa3ba"; g.fillText(r.done + "/" + sv.total, W - 330, y + 58);
+    g.textAlign = "left";
+  });
+  g.fillStyle = "#c9d6e6"; g.font = "32px " + F;
+  g.fillText("Pensez à remplir vos pronos avant le coup d'envoi !", 60, H - 60);
+  return c;
+}
 /* ===================== Supprimer un joueur (organisateur) ===================== */
 function renderDeletePlayer(){
   var own = ownerName(), others = state.players.filter(function(p){ return p !== own && p !== state.me; });
@@ -3165,7 +3222,8 @@ function renderSuivi(sv){
       (r.missed ? '<span class="suivi-miss">' + r.missed + ' oublié' + (r.missed > 1 ? 's' : '') + '</span>' : '') + '</div>';
   }).join("") + '</div>';
   if(sv.late) html += '<p class="suivi-btns"><button class="btn btn-primary btn-sm" data-action="suivi-relance">Relancer dans la discussion</button>' +
-    '<a class="btn btn-sm" href="https://wa.me/?text=' + encodeURIComponent(suiviText(sv, true)) + '" target="_blank" rel="noopener">Envoyer sur WhatsApp</a></p>' +
+    '<a class="btn btn-sm" href="https://wa.me/?text=' + encodeURIComponent(suiviText(sv, true)) + '" target="_blank" rel="noopener">Envoyer sur WhatsApp</a>' +
+    '<button class="btn btn-sm" data-action="suivi-image">Partager en image</button></p>' +
     '<p class="points-sub" style="margin:6px 0 0;">Le message donne les prénoms et le nombre de pronos manquants. WhatsApp s’ouvre avec le message prêt : choisis le groupe et envoie.</p>';
   return html;
 }
@@ -3216,7 +3274,7 @@ function renderSettings(){
     '<button class="btn" data-action="sync-now"' + (state.syncing ? " disabled" : "") + '>' + (state.syncing ? "Mise à jour..." : "Actualiser") + '</button>' +
     '<p class="points-sub" style="margin:10px 0 0;">' + (state.lastSync ? "Dernière mise à jour hockey.be : " + new Date(state.lastSync).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) + " (automatique)" : "Jamais synchronisé") + '</p>' +
     '<h2 class="section-title" style="font-size:16px;margin:18px 0 6px;">Joueurs et codes</h2>' +
-    unwrapBlock(renderPinAdmin(), "Joueurs et codes") + (boss ? renderDeletePlayer() : ""));
+    unwrapBlock(renderPinAdmin(), "Joueurs et codes") + (boss ? renderRenamePlayer() + renderDeletePlayer() : ""));
   var an = state.announce;
   if(an && an.text && !boss) html += setFold("message", "Message de " + escapeHtml(an.by || "l'organisateur"), annDate(an), '<div class="ann-text">' + annHtml(an.text) + '</div>');
   /* organisateur */
@@ -3339,6 +3397,31 @@ var ACTIONS = {
     if(!window.confirm("Supprimer ce message ?")) return;
     if(!(await fbSet("chat/" + id, null))){ showToast("Suppression impossible (connexion ?)"); return; }
     delete state.chat[id]; refreshChatList();
+  },
+  "player-rename": async function(){
+    if(!isOwner()) return;
+    var sel = document.getElementById("ren-player"), inp = document.getElementById("ren-name");
+    var oldN = sel ? sel.value : "", newN = (inp ? inp.value : "").trim().replace(/\s+/g, " ");
+    if(!oldN || oldN === ownerName() || oldN === state.me) return;
+    if(!newN){ showToast("Entre le nouveau nom"); return; }
+    if(/[.#$\[\]\/]/.test(newN)){ showToast("Le nom ne peut pas contenir . # $ [ ] /"); return; }
+    if(newN === oldN) return;
+    if(state.players.indexOf(newN) !== -1){ showToast(newN + " existe d\u00e9j\u00e0 dans la partie"); return; }
+    if(!window.confirm("Renommer \u00ab " + oldN + " \u00bb en \u00ab " + newN + " \u00bb ?\n\nSes pronos sont gard\u00e9s. Son code est remis \u00e0 z\u00e9ro.")) return;
+    if(await renamePlayer(oldN, newN)){ showToast(oldN + " s'appelle maintenant " + newN); render(); }
+    else showToast("Impossible (connexion ?)");
+  },
+  "suivi-image": async function(){
+    if(!isOwner()) return;
+    var sv = suiviData(), c = suiviImage(sv);
+    var blob = await new Promise(function(res){ c.toBlob(res, "image/png"); });
+    if(!blob){ showToast("Image impossible"); return; }
+    var file = new File([blob], "rappel-pronos.png", {type:"image/png"});
+    try{
+      if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], text:suiviText(sv, true)}); return; }
+    }catch(err){ if(err && err.name === "AbortError") return; }
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "rappel-pronos.png"; document.body.appendChild(a); a.click(); a.remove();
+    showToast("Image t\u00e9l\u00e9charg\u00e9e : ajoute-la dans WhatsApp");
   },
   "player-delete": async function(){
     if(!isOwner()) return;
