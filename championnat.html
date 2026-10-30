@@ -2278,7 +2278,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.4 · 30/10/2026";
+var APP_VERSION = "2.5 · 30/10/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
@@ -3165,14 +3165,25 @@ function renderSuivi(sv){
       (r.missed ? '<span class="suivi-miss">' + r.missed + ' oublié' + (r.missed > 1 ? 's' : '') + '</span>' : '') + '</div>';
   }).join("") + '</div>';
   if(sv.late) html += '<p class="suivi-btns"><button class="btn btn-primary btn-sm" data-action="suivi-relance">Relancer dans la discussion</button>' +
-    '<a class="btn btn-sm" href="https://wa.me/?text=' + encodeURIComponent(suiviText(sv)) + '" target="_blank" rel="noopener">Envoyer sur WhatsApp</a></p>' +
+    '<a class="btn btn-sm" href="https://wa.me/?text=' + encodeURIComponent(suiviText(sv, true)) + '" target="_blank" rel="noopener">Envoyer sur WhatsApp</a></p>' +
     '<p class="points-sub" style="margin:6px 0 0;">Le message donne les prénoms et le nombre de pronos manquants. WhatsApp s’ouvre avec le message prêt : choisis le groupe et envoie.</p>';
   return html;
 }
-function suiviText(sv){
+/* message de relance : une ligne par joueur ; wa = version WhatsApp (titre en gras avec *...*) */
+function suiviText(sv, wa){
   var fd = function(x){ return x.toLocaleDateString("fr-FR", {day:"numeric", month:"long"}).replace(/^1 /, "1er "); };
-  var who = sv.rows.filter(function(r){ return r.todo; }).map(function(r){ return r.p + " (" + r.todo + ")"; }).join(", ");
-  return "Il manque encore des pronos pour la semaine du " + fd(sv.wr.startD) + " au " + fd(sv.wr.endD) + " : " + who + ". Pensez à les remplir avant le coup d'envoi !";
+  var late = sv.rows.filter(function(r){ return r.todo; });
+  var next = sortMatches(state.matches.filter(function(m){ return m.date && m.date >= sv.wr.start && m.date <= sv.wr.end && !isLocked(m); }))[0];
+  var title = "Rappel pronos : semaine du " + fd(sv.wr.startD) + " au " + fd(sv.wr.endD);
+  var lines = [wa ? "*" + title + "*" : title, "", "Il manque encore :"];
+  late.forEach(function(r){ lines.push("- " + r.p + " : " + r.todo + " prono" + (r.todo > 1 ? "s" : "")); });
+  if(next){
+    var d = new Date(next.date + "T12:00:00").toLocaleDateString("fr-FR", {weekday:"long", day:"numeric", month:"long"}).replace(/ 1 /, " 1er ");
+    lines.push("", "Prochain match : " + d + (next.time ? " à " + next.time : "") + ".");
+  }
+  lines.push("Pensez à les remplir avant le coup d'envoi !");
+  if(wa && typeof PUBLIC_APP_URL !== "undefined") lines.push("", PUBLIC_APP_URL);
+  return lines.join("\n");
 }
 async function chatPost(text){
   var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
