@@ -1191,6 +1191,9 @@ input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !import
 .suivi-todo{color:var(--red);font-weight:700;}
 .suivi-ok{color:var(--green,#2e8b57);font-weight:600;}
 .suivi-j,.suivi-miss{font-size:12px;color:var(--ice-faint);}
+
+.suivi-btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;}
+.suivi-btns a.btn{text-decoration:none;}
 </style>
 </head>
 <body>
@@ -2275,7 +2278,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.2 · 30/10/2026";
+var APP_VERSION = "2.3 · 30/10/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
@@ -3108,6 +3111,34 @@ function favCard(t, surf, showSurf){
     '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733; Suivie</button></div>';
   return html + '</div></details>';
 }
+/* ===================== Supprimer un joueur (organisateur) ===================== */
+function renderDeletePlayer(){
+  var own = ownerName(), others = state.players.filter(function(p){ return p !== own && p !== state.me; });
+  if(!others.length) return "";
+  return '<div class="del-player"><h2 class="section-title" style="font-size:16px;margin:16px 0 6px;">Supprimer un joueur</h2>' +
+    '<p class="section-hint" style="margin:0 0 8px;">Supprime le joueur, ses pronos, son code et ses favoris. Ses messages dans la discussion restent. Irréversible (sauf restauration de la sauvegarde de la nuit).</p>' +
+    '<div class="sq-admin"><select class="sq-select" id="del-player">' + others.map(function(p){ return '<option value="' + escapeHtml(p) + '">' + escapeHtml(p) + '</option>'; }).join("") +
+    '</select><button class="btn btn-ghost btn-sm" data-action="player-delete">Supprimer</button></div></div>';
+}
+function countPredsOf(p){ var n = 0; Object.keys(state.predictions || {}).forEach(function(mid){ var x = state.predictions[mid] || {}; if(x[p] && x[p].a !== undefined) n++; }); return n; }
+async function deletePlayer(p){
+  /* une seule ecriture (PATCH multi-chemins) : tout ou rien */
+  var up = {players: state.players.filter(function(x){ return x !== p; })};
+  Object.keys(state.predictions || {}).forEach(function(mid){ if((state.predictions[mid] || {})[p] !== undefined) up["predictions/" + mid + "/" + p] = null; });
+  Object.keys(state.seasonPicks || {}).forEach(function(q){ if((state.seasonPicks[q] || {})[p] !== undefined) up["seasonPicks/" + q + "/" + p] = null; });
+  if((state.pins || {})[p] !== undefined) up["pins/" + p] = null;
+  if((state.favs || {})[p] !== undefined) up["favs/" + p] = null;
+  try{
+    var r = await fetch(roomUrl(state.room), {method:"PATCH", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify(up)});
+    if(!r.ok) return false;
+  }catch(e){ return false; }
+  state.players = up.players;
+  Object.keys(state.predictions || {}).forEach(function(mid){ if(state.predictions[mid]) delete state.predictions[mid][p]; });
+  Object.keys(state.seasonPicks || {}).forEach(function(q){ if(state.seasonPicks[q]) delete state.seasonPicks[q][p]; });
+  if(state.pins) delete state.pins[p];
+  if(state.favs) delete state.favs[p];
+  return true;
+}
 /* ===================== Suivi des pronos (organisateur) ===================== */
 function suiviOffset(){ return state.suiviWeek === undefined ? currentPronoWeek() : state.suiviWeek; }
 function suiviData(){
@@ -3133,8 +3164,9 @@ function renderSuivi(sv){
       '<span class="suivi-j">' + (r.joker ? 'joker &#10003;' : 'sans joker') + '</span>' +
       (r.missed ? '<span class="suivi-miss">' + r.missed + ' oublié' + (r.missed > 1 ? 's' : '') + '</span>' : '') + '</div>';
   }).join("") + '</div>';
-  if(sv.late) html += '<p style="margin:12px 0 0;"><button class="btn btn-primary btn-sm" data-action="suivi-relance">Relancer les retardataires</button></p>' +
-    '<p class="points-sub" style="margin:6px 0 0;">Publie un message dans la discussion avec les prénoms et le nombre de pronos manquants.</p>';
+  if(sv.late) html += '<p class="suivi-btns"><button class="btn btn-primary btn-sm" data-action="suivi-relance">Relancer dans la discussion</button>' +
+    '<a class="btn btn-sm" href="https://wa.me/?text=' + encodeURIComponent(suiviText(sv)) + '" target="_blank" rel="noopener">Envoyer sur WhatsApp</a></p>' +
+    '<p class="points-sub" style="margin:6px 0 0;">Le message donne les prénoms et le nombre de pronos manquants. WhatsApp s’ouvre avec le message prêt : choisis le groupe et envoie.</p>';
   return html;
 }
 function suiviText(sv){
@@ -3171,7 +3203,7 @@ function renderSettings(){
     '<button class="btn btn-primary" data-action="invite">+ Inviter quelqu\'un</button> ' +
     '<button class="btn" data-action="sync-now"' + (state.syncing ? " disabled" : "") + '>' + (state.syncing ? "Mise à jour..." : "Actualiser") + '</button>' +
     '<p class="points-sub" style="margin:10px 0 0;">' + (state.lastSync ? "Dernière mise à jour hockey.be : " + new Date(state.lastSync).toLocaleString("fr-FR", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"}) + " (automatique)" : "Jamais synchronisé") + '</p>');
-  html += setFold("codes", "Joueurs et codes", boss ? "ton code, codes des joueurs, organisateur" : "changer ton code", unwrapBlock(renderPinAdmin(), "Joueurs et codes"));
+  html += setFold("codes", "Joueurs et codes", boss ? "ton code, codes des joueurs, organisateur, supprimer un joueur" : "changer ton code", unwrapBlock(renderPinAdmin(), "Joueurs et codes") + (boss ? renderDeletePlayer() : ""));
   var an = state.announce;
   if(an && an.text && !boss) html += setFold("message", "Message de " + escapeHtml(an.by || "l'organisateur"), annDate(an), '<div class="ann-text">' + annHtml(an.text) + '</div>');
   /* organisateur */
@@ -3294,6 +3326,16 @@ var ACTIONS = {
     if(!window.confirm("Supprimer ce message ?")) return;
     if(!(await fbSet("chat/" + id, null))){ showToast("Suppression impossible (connexion ?)"); return; }
     delete state.chat[id]; refreshChatList();
+  },
+  "player-delete": async function(){
+    if(!isOwner()) return;
+    var sel = document.getElementById("del-player"), p = sel ? sel.value : "";
+    if(!p || p === ownerName() || p === state.me) return;
+    var n = countPredsOf(p);
+    if(!window.confirm("Supprimer " + p + " de la partie ?\n\n" + n + " prono" + (n > 1 ? "s" : "") + ", son code et ses favoris seront effac\u00e9s. C'est d\u00e9finitif.")) return;
+    if(!window.confirm("Derni\u00e8re confirmation : supprimer " + p + " ?")) return;
+    if(await deletePlayer(p)){ showToast(p + " a \u00e9t\u00e9 supprim\u00e9 de la partie"); render(); }
+    else showToast("Suppression impossible (connexion ?)");
   },
   "suivi-week": function(el){ var d = +el.getAttribute("data-d"); state.suiviWeek = d === 0 ? currentPronoWeek() : suiviOffset() + d; render(); },
   "suivi-relance": async function(){
