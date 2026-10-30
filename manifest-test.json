@@ -1,0 +1,10 @@
+{
+  "name": "Pronos Hockey (test)",
+  "short_name": "Pronos test",
+  "start_url": "./championnat-test.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a1420",
+  "theme_color": "#0a1420",
+  "lang": "fr"
+}
