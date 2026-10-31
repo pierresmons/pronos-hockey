@@ -1196,6 +1196,9 @@ input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !import
 .suivi-btns a.btn{text-decoration:none;}
 
 .sq-admin #ren-name{width:100%;max-width:220px;font-size:16px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);margin:0;}
+
+.suivi-push{font-size:12px;color:var(--ice-dim);border:1px solid var(--line);border-radius:999px;padding:0 7px;}
+.push-box{margin:0;}
 </style>
 </head>
 <body>
@@ -1204,6 +1207,43 @@ input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !import
 
 <script>
 (function(){
+
+/* ===================== Connexion anonyme Firebase (V3.1) ===================== */
+/* Chaque appareil recoit un laissez-passer (jeton) de Firebase, sans compte ni mot de passe.
+   Il est ajoute (?auth=...) a chaque appel de la base. Sans cle ou si Firebase ne repond pas : appel sans jeton. */
+var FB_API_KEY = "AIzaSyApJG5JO6hCn4u2nFF6gDKBZA0lc5z95jg";
+var FB_AUTH_KEY = "hb-fb-auth";
+var _fbTok = null, _fbPending = null;
+function _fbLoad(){ try{ return JSON.parse(localStorage.getItem(FB_AUTH_KEY) || "null"); }catch(e){ return null; } }
+function _fbStore(t){ try{ localStorage.setItem(FB_AUTH_KEY, JSON.stringify(t)); }catch(e){} }
+async function _fbGetToken(force){
+  var t = _fbTok || _fbLoad(), r, d;
+  if(!force && t && t.id && t.exp > Date.now() + 120000) return (_fbTok = t).id;
+  if(t && t.refresh){
+    r = await window.fetch("https://securetoken.googleapis.com/v1/token?key=" + FB_API_KEY, {method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:"grant_type=refresh_token&refresh_token=" + encodeURIComponent(t.refresh)});
+    if(r.ok){ d = await r.json(); t = {id:d.id_token, refresh:d.refresh_token, exp:Date.now() + (+d.expires_in || 3600) * 1000}; _fbStore(t); return (_fbTok = t).id; }
+  }
+  r = await window.fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + FB_API_KEY, {method:"POST",
+    headers:{"Content-Type":"application/json"}, body:'{"returnSecureToken":true}'});
+  if(!r.ok) throw new Error("auth-" + r.status);
+  d = await r.json(); t = {id:d.idToken, refresh:d.refreshToken, exp:Date.now() + (+d.expiresIn || 3600) * 1000}; _fbStore(t);
+  return (_fbTok = t).id;
+}
+function fbToken(force){
+  if(!FB_API_KEY || FB_API_KEY.indexOf("__") === 0) return Promise.resolve(null);
+  if(force) _fbTok = null;
+  if(!_fbPending) _fbPending = _fbGetToken(force).catch(function(){ return null; }).then(function(x){ _fbPending = null; return x; });
+  return _fbPending;
+}
+/* remplace fetch dans tout le script : les appels a la base recoivent le jeton */
+var fetch = async function(url, opts){
+  if(typeof url !== "string" || url.indexOf("firebasedatabase.app") === -1) return window.fetch(url, opts);
+  var add = function(t){ return t ? url + (url.indexOf("?") === -1 ? "?" : "&") + "auth=" + encodeURIComponent(t) : url; };
+  var tok = await fbToken(false), res = await window.fetch(add(tok), opts);
+  if((res.status === 401 || res.status === 403) && tok) res = await window.fetch(add(await fbToken(true)), opts);
+  return res;
+};
 
 var SEASON_FROM = "2026-07-01";
 var SEASON_TO   = "2027-06-30";
@@ -1453,6 +1493,7 @@ function applyRoom(data){
   state.owner = data.owner || null;
   state.announce = data.announce || null;
   state.chat = data.chat || {};
+  state.pushOn = data.pushOn || {};
 }
 async function saveCloud(){
   if(!state.room) return false;
@@ -2280,7 +2321,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.6 · 30/10/2026";
+var APP_VERSION = "2.7 · 31/10/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
@@ -3113,6 +3154,84 @@ function favCard(t, surf, showSurf){
     '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733; Suivie</button></div>';
   return html + '</div></details>';
 }
+/* ===================== Rappels push (V3) ===================== */
+/* Notifications envoyees par le robot GitHub (notify.py) la veille du premier match de la semaine,
+   seulement aux joueurs a qui il manque des pronos. Abonnements dans Firebase hbpush/<partie>/<joueur>/<id>
+   (ecriture seule, illisible depuis l'app) ; hbrooms/<partie>/pushOn/<joueur> = date, pour le suivi de l'organisateur. */
+var PUSH_ON = false;
+var VAPID_PUBLIC = "BPWiK4iy-M73H9p1QkvMcig-yMD4cLj888IeL5H1tfRwDvTeAfUyHakBzifduyOMQG3JoT38AemgfIz3imHjVNY";
+var PUSH = {state:"?"};
+function isStandalone(){ try{ return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches; }catch(e){ return false; } }
+function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+function pushSupported(){ return PUSH_ON && !!navigator.serviceWorker && !!window.PushManager && !!window.Notification; }
+function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while(s.length % 4) s += "="; var r = atob(s), a = new Uint8Array(r.length); for(var i = 0; i < r.length; i++) a[i] = r.charCodeAt(i); return a; }
+function pushUrl(room, p, id){ return FIREBASE_URL.replace(/\/$/, "") + "/hbpush/" + encodeURIComponent(room) + "/" + encodeURIComponent(p) + "/" + id + ".json"; }
+async function pushReg(){ return navigator.serviceWorker.register("sw.js", {scope:"./"}); }
+async function pushSave(sub, force){
+  if(!state.room || !state.me || !sub) return false;
+  var j = sub.toJSON ? sub.toJSON() : sub, id = sha256hex(j.endpoint).slice(0, 20);
+  var mark = state.room + "|" + state.me + "|" + id, old = getLocal("hb-push-at") || "", day = todayIso();
+  if(!force && old.split("#")[0] === mark && old.split("#")[1] === day) return true;
+  try{
+    var prev = old.split("#")[0].split("|");
+    if(prev.length === 3 && old.split("#")[0] !== mark){
+      await fetch(pushUrl(prev[0], prev[1], prev[2]), {method:"DELETE"}).catch(function(){});
+      if(prev[0] === state.room && prev[1] !== state.me) fbSet("pushOn/" + prev[1], null);
+    }
+    var body = {endpoint:j.endpoint, keys:j.keys, at:new Date().toISOString(), url:PUBLIC_APP_URL, ios:isIOS()};
+    var r = await fetch(pushUrl(state.room, state.me, id), {method:"PUT", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify(body)});
+    if(!r.ok) return false;
+    await fbSet("pushOn/" + state.me, day);
+    state.pushOn = state.pushOn || {}; state.pushOn[state.me] = day;
+    setLocal("hb-push-at", mark + "#" + day);
+    return true;
+  }catch(e){ return false; }
+}
+async function pushCheck(){
+  if(!PUSH_ON) return;
+  if(isIOS() && !isStandalone()){ PUSH.state = "home"; return; }   /* iPhone : seulement depuis l'icone de l'ecran d'accueil */
+  if(!pushSupported()){ PUSH.state = "off"; return; }
+  if(Notification.permission === "denied"){ PUSH.state = "denied"; return; }
+  try{
+    var reg = await navigator.serviceWorker.getRegistration("./"), sub = reg ? await reg.pushManager.getSubscription() : null;
+    PUSH.state = sub && Notification.permission === "granted" ? "yes" : "no";
+    if(PUSH.state === "yes") pushSave(sub, false);
+  }catch(e){ PUSH.state = "no"; }
+}
+async function pushEnable(){
+  if(!pushSupported()) return pushCheck();
+  var perm = await Notification.requestPermission();   /* d'abord, pendant le toucher (exigence iPhone) */
+  if(perm !== "granted"){ PUSH.state = perm === "denied" ? "denied" : "no"; return false; }
+  try{
+    var reg = await pushReg(); await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64uBytes(VAPID_PUBLIC)});
+    if(!(await pushSave(sub, true))){ showToast("Enregistrement impossible (connexion ?)"); return false; }
+    PUSH.state = "yes";
+    try{ reg.showNotification("Rappels activés", {body:"Tu recevras un rappel la veille du premier match de la semaine s'il te manque des pronos.", tag:"push-ok"}); }catch(e){}
+    return true;
+  }catch(e){ showToast("Activation impossible : " + (e && e.message ? e.message : "erreur")); return false; }
+}
+async function pushDisable(){
+  try{
+    var reg = await navigator.serviceWorker.getRegistration("./"), sub = reg ? await reg.pushManager.getSubscription() : null;
+    if(sub){ var id = sha256hex(sub.endpoint).slice(0, 20); await fetch(pushUrl(state.room, state.me, id), {method:"DELETE"}).catch(function(){}); await sub.unsubscribe(); }
+  }catch(e){}
+  await fbSet("pushOn/" + state.me, null);
+  if(state.pushOn) delete state.pushOn[state.me];
+  setLocal("hb-push-at", null);
+  PUSH.state = "no";
+}
+function renderPush(){
+  var st = PUSH.state, h = '<div class="push-box">';
+  if(st === "yes") h += '<p class="section-hint" style="margin:0 0 8px;"><span class="suivi-ok">Rappels activés</span> sur cet appareil pour ' + escapeHtml(state.me || "") + '. Un rappel arrive la veille du premier match de la semaine (vers 19h) s\'il te manque des pronos.</p>' +
+    '<button class="btn btn-ghost btn-sm" data-action="push-off">Désactiver sur cet appareil</button>';
+  else if(st === "no" || st === "?") h += '<p class="section-hint" style="margin:0 0 8px;">Reçois une notification la veille du premier match de la semaine (vers 19h), seulement s\'il te manque des pronos.</p>' +
+    '<button class="btn btn-primary btn-sm" data-action="push-on">Activer les rappels</button>';
+  else if(st === "home") h += '<p class="section-hint" style="margin:0;">Pour recevoir les rappels sur iPhone, l\'app doit être sur l\'écran d\'accueil : dans Safari, bouton Partager puis « Sur l\'écran d\'accueil ». Ouvre ensuite l\'app depuis cette icône et reviens ici. (iPhone à jour : iOS 16.4 minimum.)</p>';
+  else if(st === "denied") h += '<p class="section-hint" style="margin:0;">Les notifications sont bloquées pour l\'app. Sur iPhone : Réglages &gt; Notifications &gt; Pronos Hockey &gt; Autoriser les notifications, puis rouvre l\'app.</p>';
+  else h += '<p class="section-hint" style="margin:0;">Ce navigateur ne permet pas les rappels.</p>';
+  return h + '</div>';
+}
 /* ===================== Renommer un joueur (organisateur) ===================== */
 function renderRenamePlayer(){
   var own = ownerName(), others = state.players.filter(function(p){ return p !== own && p !== state.me; });
@@ -3219,7 +3338,8 @@ function renderSuivi(sv){
     var st = r.todo ? '<span class="suivi-todo">' + r.todo + ' à faire</span>' : '<span class="suivi-ok">à jour</span>';
     return '<div class="suivi-row"><span class="suivi-name">' + escapeHtml(r.p) + '</span><span class="suivi-n">' + r.done + '/' + sv.total + '</span>' + st +
       '<span class="suivi-j">' + (r.joker ? 'joker &#10003;' : 'sans joker') + '</span>' +
-      (r.missed ? '<span class="suivi-miss">' + r.missed + ' oublié' + (r.missed > 1 ? 's' : '') + '</span>' : '') + '</div>';
+      (r.missed ? '<span class="suivi-miss">' + r.missed + ' oublié' + (r.missed > 1 ? 's' : '') + '</span>' : '') +
+      (PUSH_ON && (state.pushOn || {})[r.p] ? '<span class="suivi-push">rappel auto</span>' : '') + '</div>';
   }).join("") + '</div>';
   if(sv.late) html += '<p class="suivi-btns"><button class="btn btn-primary btn-sm" data-action="suivi-relance">Relancer dans la discussion</button>' +
     '<a class="btn btn-sm" href="https://wa.me/?text=' + encodeURIComponent(suiviText(sv, true)) + '" target="_blank" rel="noopener">Envoyer sur WhatsApp</a>' +
@@ -3301,9 +3421,10 @@ function renderSettings(){
   if(notifBridge()){
     dev += '<label class="pool-opt"><input type="checkbox" data-action="notif-set" data-k="fav"' + (notifOn("fav") ? " checked" : "") + '> Match de mes équipes &#9733; : 1 h avant</label>' +
       '<label class="pool-opt"><input type="checkbox" data-action="notif-set" data-k="miss"' + (notifOn("miss") ? " checked" : "") + '> Pronostic oublié : 2 h avant le premier match du jour</label>';
-  } else dev += '<p class="section-hint" style="margin:0;">Uniquement dans l\'app iPhone Pronos Hockey, pas dans Safari.</p>';
+  } else if(PUSH_ON) dev += renderPush();
+  else dev += '<p class="section-hint" style="margin:0;">Uniquement dans l\'app iPhone Pronos Hockey, pas dans Safari.</p>';
   dev += '<p style="margin:14px 0 0;"><button class="btn btn-ghost btn-sm" data-action="leave-room">Quitter cette partie sur cet appareil</button></p>';
-  html += '<h3 class="set-h">Cet appareil</h3>' + setFold("appareil", "Apparence et rappels", "apparence : " + tl[tc], dev);
+  html += '<h3 class="set-h">Cet appareil</h3>' + setFold("appareil", "Apparence et rappels", "apparence : " + tl[tc] + (PUSH_ON ? (PUSH.state === "yes" ? " \u00b7 rappels activ\u00e9s" : " \u00b7 rappels non activ\u00e9s") : ""), dev);
   html += '<p class="points-sub" style="margin:14px 0 0;">Les parties ne peuvent plus être supprimées depuis l\'app (protection des données) ; elles sont sauvegardées chaque nuit.</p>';
   html += '<p class="points-sub" style="text-align:center;margin:18px 0 0;">Version ' + APP_VERSION + '</p>';
   return html;
@@ -3397,6 +3518,14 @@ var ACTIONS = {
     if(!window.confirm("Supprimer ce message ?")) return;
     if(!(await fbSet("chat/" + id, null))){ showToast("Suppression impossible (connexion ?)"); return; }
     delete state.chat[id]; refreshChatList();
+  },
+  "push-on": async function(){
+    if(!state.me){ showToast("Choisis d'abord ton nom"); return; }
+    await pushEnable(); render();
+  },
+  "push-off": async function(){
+    if(!window.confirm("Ne plus recevoir les rappels sur cet appareil ?")) return;
+    await pushDisable(); render();
   },
   "player-rename": async function(){
     if(!isOwner()) return;
@@ -3807,6 +3936,7 @@ async function init(){
   if(!state.me && !joined && state.players.length === 1 && !hasPin(state.players[0])) state.me = state.players[0];
   state.weekOffset = currentPronoWeek();
   render();
+  if(PUSH_ON && state.room) pushCheck().then(function(){ if(document.querySelector('details.set-fold[data-key="appareil"]')) render(); });
   if(state.room && isStale()){ await syncFromHockeyBe(); render(); }
 }
 

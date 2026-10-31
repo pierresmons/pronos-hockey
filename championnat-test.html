@@ -1209,6 +1209,43 @@ input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !import
 <script>
 (function(){
 
+/* ===================== Connexion anonyme Firebase (V3.1) ===================== */
+/* Chaque appareil recoit un laissez-passer (jeton) de Firebase, sans compte ni mot de passe.
+   Il est ajoute (?auth=...) a chaque appel de la base. Sans cle ou si Firebase ne repond pas : appel sans jeton. */
+var FB_API_KEY = "AIzaSyApJG5JO6hCn4u2nFF6gDKBZA0lc5z95jg";
+var FB_AUTH_KEY = "hb-fb-auth";
+var _fbTok = null, _fbPending = null;
+function _fbLoad(){ try{ return JSON.parse(localStorage.getItem(FB_AUTH_KEY) || "null"); }catch(e){ return null; } }
+function _fbStore(t){ try{ localStorage.setItem(FB_AUTH_KEY, JSON.stringify(t)); }catch(e){} }
+async function _fbGetToken(force){
+  var t = _fbTok || _fbLoad(), r, d;
+  if(!force && t && t.id && t.exp > Date.now() + 120000) return (_fbTok = t).id;
+  if(t && t.refresh){
+    r = await window.fetch("https://securetoken.googleapis.com/v1/token?key=" + FB_API_KEY, {method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:"grant_type=refresh_token&refresh_token=" + encodeURIComponent(t.refresh)});
+    if(r.ok){ d = await r.json(); t = {id:d.id_token, refresh:d.refresh_token, exp:Date.now() + (+d.expires_in || 3600) * 1000}; _fbStore(t); return (_fbTok = t).id; }
+  }
+  r = await window.fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + FB_API_KEY, {method:"POST",
+    headers:{"Content-Type":"application/json"}, body:'{"returnSecureToken":true}'});
+  if(!r.ok) throw new Error("auth-" + r.status);
+  d = await r.json(); t = {id:d.idToken, refresh:d.refreshToken, exp:Date.now() + (+d.expiresIn || 3600) * 1000}; _fbStore(t);
+  return (_fbTok = t).id;
+}
+function fbToken(force){
+  if(!FB_API_KEY || FB_API_KEY.indexOf("__") === 0) return Promise.resolve(null);
+  if(force) _fbTok = null;
+  if(!_fbPending) _fbPending = _fbGetToken(force).catch(function(){ return null; }).then(function(x){ _fbPending = null; return x; });
+  return _fbPending;
+}
+/* remplace fetch dans tout le script : les appels a la base recoivent le jeton */
+var fetch = async function(url, opts){
+  if(typeof url !== "string" || url.indexOf("firebasedatabase.app") === -1) return window.fetch(url, opts);
+  var add = function(t){ return t ? url + (url.indexOf("?") === -1 ? "?" : "&") + "auth=" + encodeURIComponent(t) : url; };
+  var tok = await fbToken(false), res = await window.fetch(add(tok), opts);
+  if((res.status === 401 || res.status === 403) && tok) res = await window.fetch(add(await fbToken(true)), opts);
+  return res;
+};
+
 var SEASON_FROM = "2026-07-01";
 var SEASON_TO   = "2027-06-30";
 var API = "https://hockey.be/wp-json/sportlink-api/cached";
@@ -2285,7 +2322,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.0 test · 30/10/2026";
+var APP_VERSION = "3.0 test · 31/10/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }

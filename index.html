@@ -606,6 +606,43 @@
 
 <script>
 (function(){
+/* ===================== Connexion anonyme Firebase (V3.1) ===================== */
+/* Chaque appareil recoit un laissez-passer (jeton) de Firebase, sans compte ni mot de passe.
+   Il est ajoute (?auth=...) a chaque appel de la base. Sans cle ou si Firebase ne repond pas : appel sans jeton. */
+var FB_API_KEY = "AIzaSyApJG5JO6hCn4u2nFF6gDKBZA0lc5z95jg";
+var FB_AUTH_KEY = "hb-fb-auth";
+var _fbTok = null, _fbPending = null;
+function _fbLoad(){ try{ return JSON.parse(localStorage.getItem(FB_AUTH_KEY) || "null"); }catch(e){ return null; } }
+function _fbStore(t){ try{ localStorage.setItem(FB_AUTH_KEY, JSON.stringify(t)); }catch(e){} }
+async function _fbGetToken(force){
+  var t = _fbTok || _fbLoad(), r, d;
+  if(!force && t && t.id && t.exp > Date.now() + 120000) return (_fbTok = t).id;
+  if(t && t.refresh){
+    r = await window.fetch("https://securetoken.googleapis.com/v1/token?key=" + FB_API_KEY, {method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:"grant_type=refresh_token&refresh_token=" + encodeURIComponent(t.refresh)});
+    if(r.ok){ d = await r.json(); t = {id:d.id_token, refresh:d.refresh_token, exp:Date.now() + (+d.expires_in || 3600) * 1000}; _fbStore(t); return (_fbTok = t).id; }
+  }
+  r = await window.fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + FB_API_KEY, {method:"POST",
+    headers:{"Content-Type":"application/json"}, body:'{"returnSecureToken":true}'});
+  if(!r.ok) throw new Error("auth-" + r.status);
+  d = await r.json(); t = {id:d.idToken, refresh:d.refreshToken, exp:Date.now() + (+d.expiresIn || 3600) * 1000}; _fbStore(t);
+  return (_fbTok = t).id;
+}
+function fbToken(force){
+  if(!FB_API_KEY || FB_API_KEY.indexOf("__") === 0) return Promise.resolve(null);
+  if(force) _fbTok = null;
+  if(!_fbPending) _fbPending = _fbGetToken(force).catch(function(){ return null; }).then(function(x){ _fbPending = null; return x; });
+  return _fbPending;
+}
+/* remplace fetch dans tout le script : les appels a la base recoivent le jeton */
+var fetch = async function(url, opts){
+  if(typeof url !== "string" || url.indexOf("firebasedatabase.app") === -1) return window.fetch(url, opts);
+  var add = function(t){ return t ? url + (url.indexOf("?") === -1 ? "?" : "&") + "auth=" + encodeURIComponent(t) : url; };
+  var tok = await fbToken(false), res = await window.fetch(add(tok), opts);
+  if((res.status === 401 || res.status === 403) && tok) res = await window.fetch(add(await fbToken(true)), opts);
+  return res;
+};
+
 
 var OFFICIAL_MATCHES = [
   {id:"W1", cat:"F", pool:"A", date:"2026-08-15", time:"10:00", teamA:"Australie", teamB:"Japon", venue:"Amsterdam"},
