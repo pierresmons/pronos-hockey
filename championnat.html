@@ -1199,6 +1199,9 @@ input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !import
 
 .suivi-push{font-size:12px;color:var(--ice-dim);border:1px solid var(--line);border-radius:999px;padding:0 7px;}
 .push-box{margin:0;}
+
+.refresh-btn.spin svg{animation:hbspin 1s linear infinite;}
+@keyframes hbspin{to{transform:rotate(360deg);}}
 </style>
 </head>
 <body>
@@ -2321,8 +2324,9 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.7 · 31/10/2026";
+var APP_VERSION = "2.8 · 31/10/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
+var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
 function emptyBox(title, text){ return '<div class="empty"><div class="big">' + title + '</div>' + (text ? '<p>' + text + '</p>' : '') + '</div>'; }
 function shortPoolName(pid){ return poolName(pid).replace(/ - A$/, "").replace(/^(.+) - \1$/, "$1"); }
@@ -2372,6 +2376,7 @@ function renderTop(inRoom){
   if(inRoom) html += '<div class="top-room">' + escapeHtml(state.room) + (state.syncing ? ' &middot; mise à jour...' : '') + '</div>';
   html += '</div>';
   if(inRoom) html += '<div class="top-r"><button class="me-pill" data-action="player-sheet">' + (state.me ? escapeHtml(state.me) : 'Qui es-tu ?') + ' <span class="chev">&#9662;</span></button>' +
+    '<button class="icon-btn refresh-btn' + (state.refreshing ? ' spin' : '') + '" data-action="refresh-all" aria-label="Actualiser les scores">' + ICON_REFRESH + '</button>' +
     (state.me ? '<button class="icon-btn chat-btn' + (state.chatOpen ? ' on' : '') + '" data-action="chat" aria-label="Discussion">' + ICON_CHAT +
       (function(){ var n = chatUnread(); return n ? '<span class="chat-badge">' + (n > 9 ? "9+" : n) + '</span>' : ''; })() + '</button>' : '') +
     '<button class="icon-btn' + (state.settings ? ' on' : '') + '" data-action="settings" aria-label="Réglages">' + ICON_GEAR + '</button></div>';
@@ -3154,6 +3159,61 @@ function favCard(t, surf, showSurf){
     '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733; Suivie</button></div>';
   return html + '</div></details>';
 }
+/* ===================== Actualiser les scores depuis l'app (V2.8) ===================== */
+/* Bouton en haut : relit la partie, le fichier du robot, puis hockey.be en direct pour les poules
+   de mes equipes (matchs a +/- 10 jours) et de l'ecran Matchs ouvert. Les lectures en direct sont gardees
+   12 h sur l'appareil et passent devant un fichier du robot plus ancien. */
+var LIVE_KEY = "hb-live";
+var LIVE = (function(){ try{ var o = JSON.parse(getLocal(LIVE_KEY) || "{}") || {}, lim = Date.now() - 12 * 3600e3;
+  Object.keys(o).forEach(function(p){ if(!o[p] || !(o[p].at > lim)) delete o[p]; }); return o; }catch(e){ return {}; } })();
+function saveLive(){
+  var ks = Object.keys(LIVE).sort(function(a, b){ return LIVE[b].at - LIVE[a].at; });
+  ks.slice(25).forEach(function(k){ delete LIVE[k]; });
+  try{ setLocal(LIVE_KEY, JSON.stringify(LIVE)); }catch(e){}
+}
+function applyLive(){
+  var gen = SNAP.generated ? new Date(SNAP.generated).getTime() : 0;
+  Object.keys(LIVE).forEach(function(pid){
+    var L = LIVE[pid]; if(!L || !(L.at > gen) || !L.m) return;
+    EXT.matches = EXT.matches.filter(function(m){ return m.pool !== pid; }).concat(L.m.map(function(m){ return Object.assign({}, m); }));
+    if(L.st && L.st.length) EXT.standings[pid] = L.st;
+    EXT.loaded[pid] = true; EXT.live = EXT.live || {}; EXT.live[pid] = new Date(L.at);
+  });
+}
+loadSnapshotNow = (function(orig){ return async function(){ await orig(); applyLive(); render(); }; })(loadSnapshotNow);
+loadExtPools = (function(orig){ return async function(pids, force){
+  var t0 = Date.now(); await orig(pids, force); var ch = false;
+  pids.forEach(function(pid){ var lv = EXT.live && EXT.live[pid];
+    if(lv && lv.getTime() >= t0){ LIVE[pid] = {at:lv.getTime(), m:EXT.matches.filter(function(m){ return m.pool === pid; }), st:EXT.standings[pid] || []}; ch = true; } });
+  if(ch) saveLive();
+}; })(loadExtPools);
+function livePoolsToRefresh(){
+  var list = [], add = function(p){ p = String(p || ""); if(/^\d+$/.test(p) && state.pools.indexOf(p) === -1 && list.indexOf(p) === -1) list.push(p); };
+  var src = SNAP.state === "ok" ? mergedExt().matches : EXT.matches, favs = myFavs(), lo = addDaysIso(-10), hi = addDaysIso(10);
+  var near = function(m){ return m.date && m.date >= lo && m.date <= hi; };
+  src.forEach(function(m){ if(near(m) && (favs.indexOf(m.teamA) !== -1 || favs.indexOf(m.teamB) !== -1)) add(m.pool); });
+  if(state.tab === "matchs"){
+    var v = state.mview || {};
+    if(v.type === "pool") add(v.id);
+    else if(v.type === "team") src.forEach(function(m){ if(near(m) && (m.teamA === v.id || m.teamB === v.id)) add(m.pool); });
+    else if(state.exploreCat) extPoolsOf(state.exploreCat).forEach(function(p){ add(p[0]); });
+  }
+  return list.slice(0, 15);
+}
+async function refreshAll(){
+  if(state.refreshing) return;
+  state.refreshing = true; render();
+  var t = Date.now();
+  try{
+    await refreshCloud();
+    await loadSnapshot(true);
+    if(state.pools.length) await syncFromHockeyBe();
+    var lp = livePoolsToRefresh();
+    if(lp.length) await loadExtPools(lp, true);
+  }catch(e){}
+  state.refreshing = false; render();
+  showToast(EXT.failed && EXT.failed.length ? "hockey.be n'a pas tout renvoyé, réessaie dans un moment" : "Scores à jour (" + new Date().toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}) + ")");
+}
 /* ===================== Rappels push (V3) ===================== */
 /* Notifications envoyees par le robot GitHub (notify.py) la veille du premier match de la semaine,
    seulement aux joueurs a qui il manque des pronos. Abonnements dans Firebase hbpush/<partie>/<joueur>/<id>
@@ -3519,6 +3579,7 @@ var ACTIONS = {
     if(!(await fbSet("chat/" + id, null))){ showToast("Suppression impossible (connexion ?)"); return; }
     delete state.chat[id]; refreshChatList();
   },
+  "refresh-all": function(){ refreshAll(); },
   "push-on": async function(){
     if(!state.me){ showToast("Choisis d'abord ton nom"); return; }
     await pushEnable(); render();
