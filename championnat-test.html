@@ -1203,6 +1203,8 @@ input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !import
 
 .refresh-btn.spin svg{animation:hbspin 1s linear infinite;}
 @keyframes hbspin{to{transform:rotate(360deg);}}
+
+.recap-prev{white-space:pre-wrap;font-size:13px;line-height:1.45;background:var(--input-bg,#050b12);border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:340px;overflow:auto;}
 </style>
 </head>
 <body>
@@ -1498,6 +1500,7 @@ function applyRoom(data){
   state.announce = data.announce || null;
   state.chat = data.chat || {};
   state.pushOn = data.pushOn || {};
+  state.recapAuto = !!(data.settings && data.settings.recapAuto);
 }
 async function saveCloud(){
   if(!state.room) return false;
@@ -2325,7 +2328,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.2 test · 04/11/2026";
+var APP_VERSION = "3.3 test · 04/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3160,6 +3163,86 @@ function favCard(t, surf, showSurf){
     '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733; Suivie</button></div>';
   return html + '</div></details>';
 }
+/* ===================== Récap du lundi (V2.10) ===================== */
+/* Message dans la discussion : points de la semaine passée, scores exacts et meilleur joker, classement général
+   avec les places gagnées ou perdues. Calculé dans l'app (mêmes règles que le classement).
+   Organisateur : aperçu + Publier dans Réglages. Mode automatique (settings/recapAuto) : le premier appareil
+   ouvert à partir du lundi 8h publie le récap de la semaine passée (identifiant fixe chat/recap-<lundi>,
+   donc jamais en double). */
+function recapData(){
+  var wr = weekRange(-1), wk = wr.start, inWeek = weekFilter(-1);
+  var ms = state.matches.filter(function(m){ return inWeek(m) && hasScore(m); });
+  if(!ms.length) return null;
+  var wrows = rankRows(playerTotals(inWeek)).filter(function(r){ return r.played; });
+  if(!wrows.length) return null;
+  var withSeason = function(t){
+    if(state.seasonOn && seasonList().length){ var st = seasonTotals(); Object.keys(t).forEach(function(p){ t[p].points += (st[p] || {pts:0}).pts; }); }
+    return rankRows(t);
+  };
+  var rankOf = function(rows){ var o = {}; rows.forEach(function(r){ o[r.name] = 1 + rows.filter(function(x){ return x.points > r.points || (x.points === r.points && x.exact > r.exact); }).length; }); return o; };
+  var gen = withSeason(playerTotals()), before = rankOf(withSeason(playerTotals(function(m){ return m.date < wk; })));
+  var exacts = [], joker = null;
+  sortMatches(ms).forEach(function(m){
+    var preds = state.predictions[m.id] || {};
+    Object.keys(preds).forEach(function(p){
+      if(state.players.indexOf(p) === -1) return;
+      var pr = preds[p], base = basePoints(pr, m); if(base === null) return;
+      if(base === 3) exacts.push({p:p, m:m});
+      var pts = computePoints(pr, m);
+      if(pr.j && pts > 0 && (!joker || pts > joker.pts)) joker = {p:p, m:m, pts:pts};
+    });
+  });
+  var missing = state.matches.filter(function(m){ return inWeek(m) && !hasScore(m) && !/remis|annul|arr/i.test(m.status || ""); }).length;
+  return {wk:wk, wr:wr, n:ms.length, wrows:wrows, gen:gen, genRank:rankOf(gen), before:before, exacts:exacts, joker:joker, missing:missing};
+}
+function recapText(rc){
+  var fd = function(x){ return x.toLocaleDateString("fr-FR", {day:"numeric", month:"long"}).replace(/^1 /, "1er "); };
+  var sc = function(m){ return m.teamA + " - " + m.teamB + " " + m.scoreA + "-" + m.scoreB; };
+  var L = ["Récap de la semaine du " + fd(rc.wr.startD) + " au " + fd(rc.wr.endD) + " (" + rc.n + " match" + (rc.n > 1 ? "s" : "") + ")", "", "Points de la semaine :"];
+  var wr = {}; rc.wrows.forEach(function(r){ wr[r.name] = 1 + rc.wrows.filter(function(x){ return x.points > r.points || (x.points === r.points && x.exact > r.exact); }).length; });
+  rc.wrows.forEach(function(r){ L.push(wr[r.name] + ". " + r.name + " : " + r.points + " pt" + (r.points > 1 ? "s" : "") + (r.exact ? " (" + r.exact + " exact" + (r.exact > 1 ? "s" : "") + ")" : "")); });
+  var idle = state.players.filter(function(p){ return !rc.wrows.some(function(r){ return r.name === p; }); });
+  if(idle.length) L.push("Pas de prono : " + idle.join(", "));
+  if(rc.exacts.length){
+    L.push("", "Scores exacts :");
+    rc.exacts.slice(0, 8).forEach(function(x){ L.push("- " + x.p + " : " + sc(x.m)); });
+    if(rc.exacts.length > 8) L.push("- et " + (rc.exacts.length - 8) + " autre(s)");
+  }
+  if(rc.joker) L.push("", "Meilleur joker : " + rc.joker.p + ", " + rc.joker.pts + " pts sur " + sc(rc.joker.m));
+  L.push("", "Classement général :");
+  rc.gen.forEach(function(r){
+    var now = rc.genRank[r.name], was = rc.before[r.name], d = was - now;
+    L.push(now + ". " + r.name + " : " + r.points + " pt" + (r.points > 1 ? "s" : "") + (d > 0 ? " (gagne " + d + " place" + (d > 1 ? "s" : "") + ")" : (d < 0 ? " (perd " + (-d) + " place" + (d < -1 ? "s" : "") + ")" : "")));
+  });
+  return L.join("\n");
+}
+async function recapPublish(rc, auto){
+  var msg = {by:"Récap", text:recapText(rc).slice(0, 2000), at:new Date().toISOString(), auto:!!auto};
+  if(!(await fbSet("chat/recap-" + rc.wk, msg))) return false;
+  state.chat = state.chat || {}; state.chat["recap-" + rc.wk] = msg;
+  return true;
+}
+/* mode automatique : à partir du lundi 8h ; si des scores manquent encore, on attend jusqu'au lundi 14h */
+async function recapAuto(){
+  if(!state.recapAuto || !state.room) return;
+  var rc = recapData(); if(!rc || (state.chat && state.chat["recap-" + rc.wk])) return;
+  var mon = weekRange(0).startD, now = new Date(), h = now.getHours(), isMon = localIso(now) === localIso(mon);
+  if(isMon && h < 8) return;
+  if(isMon && h < 14 && rc.missing) return;
+  await refreshCloud();
+  if(state.chat && state.chat["recap-" + rc.wk]) return;
+  await recapPublish(recapData() || rc, true);
+}
+function renderRecapAdmin(rc){
+  var h = '<label class="sw"><span>Publier automatiquement chaque lundi (dès 8h)</span><input type="checkbox" data-action="recap-auto"' + (state.recapAuto ? " checked" : "") + '><i></i></label>';
+  if(!rc) return h + '<p class="points-sub" style="margin:8px 0 0;">Aucun match terminé avec des pronos la semaine passée : rien à publier.</p>';
+  var done = state.chat && state.chat["recap-" + rc.wk];
+  h += '<p class="section-hint" style="margin:10px 0 6px;">Aperçu du message' + (rc.missing ? ' (attention : ' + rc.missing + ' match' + (rc.missing > 1 ? 's' : '') + ' de la semaine sans score)' : '') + ' :</p>';
+  h += '<div class="recap-prev">' + escapeHtml(recapText(rc)) + '</div>';
+  h += '<p class="suivi-btns"><button class="btn ' + (done ? '' : 'btn-primary ') + 'btn-sm" data-action="recap-publish">' + (done ? 'Republier (remplace)' : 'Publier dans la discussion') + '</button></p>';
+  if(done) h += '<p class="points-sub" style="margin:6px 0 0;">Déjà publié le ' + new Date(done.at).toLocaleString("fr-FR", {weekday:"long", hour:"2-digit", minute:"2-digit"}) + (done.auto ? ' (automatique)' : '') + '.</p>';
+  return h;
+}
 /* ===================== Actualiser les scores depuis l'app (V2.8) ===================== */
 /* Bouton en haut : relit la partie, le fichier du robot, puis hockey.be en direct pour les poules
    de mes equipes (matchs a +/- 10 jours) et de l'ecran Matchs ouvert. Les lectures en direct sont gardees
@@ -3463,6 +3546,8 @@ function renderSettings(){
     html += '<h3 class="set-h">Organisateur</h3>';
     var sv = suiviData();
     html += setFold("suivi", "Pronos de la semaine", sv.late ? sv.late + " joueur" + (sv.late > 1 ? "s" : "") + " en retard" : (sv.total ? "tout le monde est \u00e0 jour" : "pas de match cette semaine"), renderSuivi(sv));
+    var rc = recapData(), rid = rc ? "recap-" + rc.wk : "";
+    html += setFold("recap", "Récap du lundi", (state.recapAuto ? "automatique" : "manuel") + (rc ? (state.chat && state.chat[rid] ? " \u00b7 publié" : " \u00b7 prêt") : " \u00b7 rien à publier"), renderRecapAdmin(rc));
     html += setFold("annonce", "Message à la famille", an && an.text ? "publié le " + annDate(an) : "aucun message publié", unwrapBlock(renderAnnounceAdmin(), "Message à la famille"));
     html += setFold("poules", "Poules suivies", state.pools.length + " poule" + (state.pools.length > 1 ? "s" : ""),
       '<p class="section-hint">' + state.pools.map(function(p){ return escapeHtml(shortPoolName(p)); }).join(" &middot; ") + '</p>' +
@@ -3581,6 +3666,12 @@ var ACTIONS = {
     delete state.chat[id]; refreshChatList();
   },
   "refresh-all": function(){ refreshAll(); },
+  "recap-publish": async function(){
+    if(!isOwner()) return;
+    var rc = recapData(); if(!rc) return;
+    if(!window.confirm("Publier le récap de la semaine dans la discussion ?")) return;
+    if(await recapPublish(rc, false)){ showToast("Récap publié"); render(); } else showToast("Impossible (connexion ?)");
+  },
   "push-on": async function(){
     if(!state.me){ showToast("Choisis d'abord ton nom"); return; }
     await pushEnable(); render();
@@ -3888,6 +3979,12 @@ var CHANGES = {
   "sq-pool": function(el){ state.seasonPool = el.value; render(); }
 };
 var CHANGE_ACTIONS = {
+  "recap-auto": async function(el){
+    if(!isOwner()){ render(); return; }
+    state.recapAuto = el.checked; render();
+    var ok = await fbSet("settings/recapAuto", el.checked);
+    showToast(ok ? (el.checked ? "Récap automatique activé (lundi dès 8h)" : "Récap automatique désactivé") : "Enregistrement impossible (connexion ?)");
+  },
   "season-on": async function(el){
     state.seasonOn = el.checked; render();
     var ok = await fbSet("settings/seasonOn", el.checked);
@@ -4000,6 +4097,7 @@ async function init(){
   render();
   if(PUSH_ON && state.room) pushCheck().then(function(){ if(document.querySelector('details.set-fold[data-key="appareil"]')) render(); });
   if(state.room && isStale()){ await syncFromHockeyBe(); render(); }
+  recapAuto().then(function(){ render(); });
 }
 
 /* discussion ouverte : nouveaux messages toutes les 15 s */
