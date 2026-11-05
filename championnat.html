@@ -2327,7 +2327,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.10 · 04/11/2026";
+var APP_VERSION = "2.11 · 05/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3162,6 +3162,42 @@ function favCard(t, surf, showSurf){
     '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733; Suivie</button></div>';
   return html + '</div></details>';
 }
+/* ===================== Noms d'équipes hockey.be (V2.11) ===================== */
+/* Depuis le 05/11/2026, hockey.be écrit « Wellington U19B-1 Outdoor » (avant : « ... Outdoor Semaine »).
+   On enlève le suffixe dans les deux cas, et on fusionne les matchs déjà enregistrés en double. */
+var SUFFIX_RE = / (Outdoor|Indoor|Récréatif|Recreatif|Trimmers)( Semaine| Week)?$/i;
+teamName = function(h){
+  return stripHtml(h).replace(/\s*\|\s*/, " ").replace(/ (Outdoor|Indoor|Récréatif|Recreatif|Trimmers) Semaine/i, "").trim().replace(SUFFIX_RE, "").trim();
+};
+async function cleanSuffixDupes(){
+  if(!state.room || !state.matches.length) return 0;
+  var byId = {}, up = {}, keep = [], n = 0;
+  state.matches.forEach(function(m){ byId[m.id] = m; });
+  state.matches.forEach(function(m){
+    var a = (m.teamA || "").replace(SUFFIX_RE, ""), b = (m.teamB || "").replace(SUFFIX_RE, "");
+    if(a === m.teamA && b === m.teamB){ keep.push(m); return; }
+    n++;
+    var oldId = m.id, nid = matchKey(m.pool, a, b, m.leg), target = byId[nid];
+    if(!target || target === m){ m.id = nid; m.teamA = a; m.teamB = b; byId[nid] = m; keep.push(m); }
+    else if(!target.manual){
+      if(hasScore(m) && !hasScore(target)){ target.scoreA = m.scoreA; target.scoreB = m.scoreB; target.status = m.status || null; }
+      if(m.date && !hasScore(target)){ target.date = m.date; if(m.time) target.time = m.time; }
+    }
+    var preds = state.predictions[oldId] || {};
+    if(oldId !== nid && Object.keys(preds).length){
+      var tp = state.predictions[nid] = state.predictions[nid] || {};
+      Object.keys(preds).forEach(function(p){ if(!tp[p] || tp[p].a === undefined){ tp[p] = preds[p]; up["predictions/" + nid + "/" + p] = preds[p]; } });
+      delete state.predictions[oldId]; up["predictions/" + oldId] = null;
+    }
+  });
+  if(!n) return 0;
+  state.matches = keep; up.matches = keep;
+  try{ await fetch(roomUrl(state.room), {method:"PATCH", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify(up)}); }catch(e){}
+  return n;
+}
+syncFromHockeyBe = (function(orig){ return async function(){
+  await cleanSuffixDupes(); var r = await orig(); await cleanSuffixDupes(); return r;
+}; })(syncFromHockeyBe);
 /* ===================== Récap du lundi (V2.10) ===================== */
 /* Message dans la discussion : points de la semaine passée, scores exacts et meilleur joker, classement général
    avec les places gagnées ou perdues. Calculé dans l'app (mêmes règles que le classement).
@@ -3246,7 +3282,7 @@ function renderRecapAdmin(rc){
 /* Bouton en haut : relit la partie, le fichier du robot, puis hockey.be en direct pour les poules
    de mes equipes (matchs a +/- 10 jours) et de l'ecran Matchs ouvert. Les lectures en direct sont gardees
    12 h sur l'appareil et passent devant un fichier du robot plus ancien. */
-var LIVE_KEY = "hb-live";
+var LIVE_KEY = "hb-live2";
 var LIVE = (function(){ try{ var o = JSON.parse(getLocal(LIVE_KEY) || "{}") || {}, lim = Date.now() - 12 * 3600e3;
   Object.keys(o).forEach(function(p){ if(!o[p] || !(o[p].at > lim)) delete o[p]; }); return o; }catch(e){ return {}; } })();
 function saveLive(){
@@ -4094,6 +4130,7 @@ async function init(){
   if(!state.me && !joined && state.players.length === 1 && !hasPin(state.players[0])) state.me = state.players[0];
   state.weekOffset = currentPronoWeek();
   render();
+  if(state.room && (await cleanSuffixDupes())) render();
   if(PUSH_ON && state.room) pushCheck().then(function(){ if(document.querySelector('details.set-fold[data-key="appareil"]')) render(); });
   if(state.room && isStale()){ await syncFromHockeyBe(); render(); }
   recapAuto().then(function(){ render(); });
