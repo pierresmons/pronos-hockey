@@ -1206,23 +1206,35 @@ input.chat-input{flex:1;min-width:0;max-width:none !important;width:auto !import
 
 .recap-prev{white-space:pre-wrap;font-size:13px;line-height:1.45;background:var(--input-bg,#050b12);border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:340px;overflow:auto;}
 
-.club-head{display:flex;align-items:center;gap:12px;margin:4px 0 10px;}
-.club-head img,.club-head .logo-fallback{width:44px;height:44px;}
+.club-page{max-width:720px;margin:0 auto;}
+.club-head{display:flex;align-items:center;gap:14px;margin:6px 0 14px;}
+.club-crest{width:56px;height:56px;flex:0 0 56px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 1px 0 var(--line);}
+.club-crest img.logo{width:46px;height:46px;object-fit:contain;margin:0;}
+.club-crest b{color:#0a1420;font-size:18px;}
+.club-title{flex:1;min-width:0;}
+.club-name{font-family:Teko,"Inter",sans-serif;font-weight:600;font-size:30px;line-height:1;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.club-meta{color:var(--ice-dim);font-size:13px;margin-top:4px;}
+.club-follow{flex:0 0 auto;border:1px solid var(--gold,#f0a93b);color:var(--gold,#f0a93b);background:none;border-radius:999px;padding:7px 12px;font:600 13px Inter,sans-serif;cursor:pointer;}
+.club-follow.on{background:var(--gold,#f0a93b);color:#0a1420;}
 .link-btn{background:none;border:0;padding:0;color:var(--gold,#f0a93b);font:inherit;cursor:pointer;}
 .club-bilan{display:flex;gap:8px;margin:8px 0 4px;}
 .club-bilan div{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px;text-align:center;}
 .club-bilan b{display:block;font-size:22px;} .club-bilan small{color:var(--ice-dim);font-size:11px;text-transform:uppercase;letter-spacing:.5px;}
 .cb-V b{color:var(--green,#2fae66);} .cb-N b{color:var(--ice-dim);} .cb-D b{color:#ff5a64;}
-.club-day{margin:16px 0 6px;font-size:13px;letter-spacing:.8px;text-transform:uppercase;color:var(--gold,#f0a93b);font-family:"JetBrains Mono",monospace;}
+.club-day{margin:18px 0 6px;font-size:13px;letter-spacing:.8px;text-transform:uppercase;color:var(--gold,#f0a93b);font-family:"JetBrains Mono",monospace;}
 .club-day span{color:var(--ice-faint);}
 .club-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
-.club-row{display:grid;grid-template-columns:24px 86px minmax(0,1fr) auto;align-items:center;gap:8px;width:100%;padding:9px 10px;border:0;border-top:1px solid var(--panel-3);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;}
+.club-row{display:grid;grid-template-columns:24px 74px minmax(0,1fr) 40px;align-items:center;gap:8px;width:100%;padding:10px 12px;border:0;border-top:1px solid var(--panel-3);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;}
 .club-row:first-child{border-top:0;}
 .club-res{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;}
 .club-res.rV{background:#1f8f50;} .club-res.rD{background:#c4313a;} .club-res.rN{background:#4b6378;} .club-res.rT{background:none;border:1px dashed var(--line);}
-.club-who b{display:block;font-size:14px;} .club-who small{color:var(--ice-faint);font-size:11px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.club-opp{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;}
-.club-sc,.club-time{font-weight:800;font-family:"JetBrains Mono",monospace;font-size:14px;} .club-time{font-weight:600;color:var(--ice-dim);}
+.club-who b{display:block;font-size:14px;white-space:nowrap;} .club-who small{color:var(--ice-faint);font-size:11px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.club-opp{display:flex;align-items:center;gap:6px;min-width:0;font-size:14px;}
+.club-at{color:var(--ice-faint);font-size:11px;width:14px;flex:0 0 14px;text-align:center;}
+.club-olw{width:22px;height:22px;flex:0 0 22px;display:flex;align-items:center;justify-content:center;}
+img.club-ologo{width:22px;height:22px;object-fit:contain;margin:0;border-radius:4px;background:#fff;}
+.club-oname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.club-sc,.club-time{font-weight:800;font-family:"JetBrains Mono",monospace;font-size:14px;text-align:right;} .club-time{font-weight:600;color:var(--ice-dim);}
 .club-favs{margin-bottom:10px;}
 </style>
 </head>
@@ -2348,7 +2360,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.5 test · 05/11/2026";
+var APP_VERSION = "3.6 test · 05/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3228,9 +3240,9 @@ function renderClubPage(club){
   var small = items.filter(function(i){ return clubAge(i.code) < 14 && !isFav(i.me); });
   if(!state.clubSmall) items = items.filter(function(i){ return small.indexOf(i) === -1; });
   var followed = myClubs().indexOf(club) !== -1;
-  var html = '<div class="club-head">' + logoImg(teams[0] || club) + '<div><h2 class="h2" style="margin:0;">' + escapeHtml(club) + '</h2>' +
-    '<div class="points-sub">' + teams.length + ' équipe' + (teams.length > 1 ? 's' : '') +
-    (state.me ? ' &middot; <button class="link-btn" data-action="club-fav" data-club="' + escapeHtml(club) + '">' + (followed ? '&#9733; club suivi' : '&#9734; suivre le club') + '</button>' : '') + '</div></div></div>';
+  var html = '<div class="club-page"><div class="club-head"><span class="club-crest">' + (logoImg(teams[0] || club) || '<b>' + escapeHtml(club.slice(0, 2).toUpperCase()) + '</b>') + '</span>' +
+    '<div class="club-title"><div class="club-name">' + escapeHtml(club) + '</div><div class="club-meta">' + teams.length + ' équipe' + (teams.length > 1 ? 's' : '') + '</div></div>' +
+    (state.me ? '<button class="club-follow' + (followed ? ' on' : '') + '" data-action="club-fav" data-club="' + escapeHtml(club) + '">' + (followed ? '&#9733; Suivi' : '&#9734; Suivre') + '</button>' : '') + '</div>';
   html += weekNav(state.clubWeek || 0, "clubweek");
   if(hasOut && hasIn || hasIn) html += '<div class="seg">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){
     return '<button class="seg-btn' + (surf === o[0] ? ' on' : '') + '" data-action="club-surf" data-surf="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
@@ -3239,7 +3251,7 @@ function renderClubPage(club){
     var c = {V:0, N:0, D:0}; played.forEach(function(i){ c[i.res]++; });
     html += '<div class="club-bilan"><div class="cb-V"><b>' + c.V + '</b><small>victoire' + (c.V > 1 ? 's' : '') + '</small></div><div class="cb-N"><b>' + c.N + '</b><small>nul' + (c.N > 1 ? 's' : '') + '</small></div><div class="cb-D"><b>' + c.D + '</b><small>défaite' + (c.D > 1 ? 's' : '') + '</small></div></div>';
   }
-  if(SNAP.state === "loading" && !items.length) return html + '<p class="points-sub">Chargement des données hockey.be...</p>';
+  if(SNAP.state === "loading" && !items.length) return html + '<p class="points-sub">Chargement des données hockey.be...</p></div>';
   if(!items.length) html += '<p class="points-sub" style="margin:12px 0;">Aucun match ' + (surf === "in" ? "indoor" : "outdoor") + ' cette semaine' + (small.length && !state.clubSmall ? ' (hors U7 à U12)' : '') + '.</p>';
   var days = {}; items.forEach(function(i){ (days[i.m.date] = days[i.m.date] || []).push(i); });
   Object.keys(days).sort().forEach(function(d){
@@ -3250,11 +3262,11 @@ function renderClubPage(club){
       var pill = i.played ? '<span class="club-res r' + i.res + '">' + i.res + '</span>' : '<span class="club-res rT"></span>';
       return '<button class="club-row" data-action="goto-team" data-team="' + escapeHtml(i.me) + '">' + pill +
         '<span class="club-who"><b>' + escapeHtml(i.code || i.me) + (isFav(i.me) ? ' &#9733;' : '') + '</b><small>' + escapeHtml(clubLevel(i.m.pool)) + '</small></span>' +
-        '<span class="club-opp">' + (i.home ? 'vs ' : '@ ') + escapeHtml(i.opp) + '</span>' + right + '</button>';
+        '<span class="club-opp"><span class="club-at">' + (i.home ? 'vs' : '@') + '</span>' + ('<span class="club-olw">' + logoImg(i.opp, "club-ologo") + '</span>') + '<span class="club-oname">' + escapeHtml(i.opp) + '</span></span>' + right + '</button>';
     }).join("") + '</div>';
   });
   if(small.length) html += '<button class="btn btn-sm btn-ghost clear-btn" data-action="club-small">' + (state.clubSmall ? 'Masquer U7 à U12' : 'Afficher aussi U7 à U12 (' + small.length + ' match' + (small.length > 1 ? 's' : '') + ')') + '</button>';
-  return html;
+  return html + '</div>';
 }
 async function toggleClubFav(c){
   if(!state.me) return;
