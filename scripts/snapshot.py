@@ -66,7 +66,9 @@ def strip(h):
 
 def team(h):
     t = re.sub(r"\s*\|\s*", " ", strip(h), count=1)
-    return re.sub(r" (Outdoor|Indoor|Récréatif|Recreatif|Trimmers) Semaine", "", t, flags=re.I).strip()
+    t = re.sub(r" (Outdoor|Indoor|Récréatif|Recreatif|Trimmers) Semaine", "", t, flags=re.I).strip()
+    # depuis le 05/11/2026 hockey.be ecrit "... U19B-1 Outdoor" (sans "Semaine")
+    return re.sub(r" (Outdoor|Indoor|Récréatif|Recreatif|Trimmers)$", "", t, flags=re.I).strip()
 
 
 LOGOS = {}  # nom du club (ex. "Old Club") -> code du logo hockey.be (logos/50x50/<code>.png)
