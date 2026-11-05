@@ -228,7 +228,7 @@ def pool_list(previous):
 FIREBASE_URL = os.environ.get("FIREBASE_URL", "https://pronos-hockey-default-rtdb.europe-west1.firebasedatabase.app")
 BXL = ZoneInfo("Europe/Brussels")
 POOL_SEEN = {}        # poule -> date (AAAA-MM-JJ, heure belge) de la derniere lecture reussie
-EMPTY_DAYS = 7        # poule vide : relue une fois par semaine
+EMPTY_DAYS = 1        # poule vide : relue une fois par jour (calendriers publies en cours de saison, ex. indoor jeunes le 05/11)
 ACTIVE_BEFORE, ACTIVE_AFTER = 2, 3   # match il y a 2 jours ou moins, ou dans 3 jours ou moins : poule relue a chaque passage
 
 
