@@ -1246,6 +1246,10 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
   .club-sc{font-size:13px;}
   .club-name{font-size:24px;white-space:normal;}
 }
+
+.club-res.rVD,.club-res.rDV{background:linear-gradient(90deg,#1f8f50 50%,#c4313a 50%);font-size:9px;gap:1px;letter-spacing:0;}
+.club-res.rDV{background:linear-gradient(90deg,#c4313a 50%,#1f8f50 50%);}
+.club-res.rVD i,.club-res.rDV i{font-style:normal;width:9px;text-align:center;}
 </style>
 </head>
 <body>
@@ -2370,7 +2374,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.7 test · 06/11/2026";
+var APP_VERSION = "3.8 test · 06/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3244,7 +3248,7 @@ function renderClubPage(club){
   var items = week.map(function(m){
     var home = isMine(m.teamA), me = home ? m.teamA : m.teamB, opp = home ? m.teamB : m.teamA, tp = teamParts(me);
     var it = {m:m, home:home, me:me, opp:opp, code:me.slice(club.length).trim(), kind:tp.kind, num:tp.num, played:hasScore(m), derby:isMine(m.teamA) && isMine(m.teamB)};
-    if(it.played){ it.gf = home ? m.scoreA : m.scoreB; it.ga = home ? m.scoreB : m.scoreA; it.res = it.derby ? "=" : (it.gf > it.ga ? "V" : (it.gf < it.ga ? "D" : "N")); }
+    if(it.played){ it.gf = home ? m.scoreA : m.scoreB; it.ga = home ? m.scoreB : m.scoreA; it.res = it.gf > it.ga ? "V" : (it.gf < it.ga ? "D" : "N"); if(it.derby && it.res !== "N") it.res = "VD"; }
     return it;
   });
   var small = items.filter(function(i){ return clubAge(i.code) < 14 && !isFav(i.me); });
@@ -3258,7 +3262,8 @@ function renderClubPage(club){
     return '<button class="seg-btn' + (surf === o[0] ? ' on' : '') + '" data-action="club-surf" data-surf="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
   var played = items.filter(function(i){ return i.played; });
   if(played.length){
-    var c = {V:0, N:0, D:0}; played.forEach(function(i){ if(c[i.res] !== undefined) c[i.res]++; });
+    /* derby : les deux équipes du club comptent (une victoire et une défaite, ou deux nuls) */
+    var c = {V:0, N:0, D:0}; played.forEach(function(i){ if(i.derby){ if(i.res === "N") c.N += 2; else { c.V++; c.D++; } } else c[i.res]++; });
     html += '<div class="club-bilan"><div class="cb-V"><b>' + c.V + '</b><small>victoire' + (c.V > 1 ? 's' : '') + '</small></div><div class="cb-N"><b>' + c.N + '</b><small>nul' + (c.N > 1 ? 's' : '') + '</small></div><div class="cb-D"><b>' + c.D + '</b><small>défaite' + (c.D > 1 ? 's' : '') + '</small></div></div>';
   }
   if(SNAP.state === "loading" && !items.length) return html + '<p class="points-sub">Chargement des données hockey.be...</p></div>';
@@ -3278,7 +3283,8 @@ function renderClubPage(club){
       };
       var mid = i.played ? '<span class="club-sc">' + (sa > sb ? '<b>' + sa + '</b>' : sa) + '-' + (sb > sa ? '<b>' + sb + '</b>' : sb) + '</span>'
         : '<span class="club-time">' + escapeHtml(m.status || m.time || "") + '</span>';
-      var pill = i.played ? '<span class="club-res r' + (i.res === "=" ? "E" : i.res) + '">' + i.res + '</span>' : '<span class="club-res rT"></span>';
+      var pill = !i.played ? '<span class="club-res rT"></span>'
+        : (i.res === "VD" ? (m.scoreA > m.scoreB ? '<span class="club-res rVD" title="derby"><i>V</i><i>D</i></span>' : '<span class="club-res rDV" title="derby"><i>D</i><i>V</i></span>') : '<span class="club-res r' + i.res + '">' + i.res + '</span>');
       var cat = poolName(m.pool).split(" - ")[0];
       return '<button class="club-row" data-action="goto-team" data-team="' + escapeHtml(i.me) + '">' + pill + side(m.teamA, false) + mid + side(m.teamB, true) +
         '<span class="club-lvl">' + escapeHtml(cat) + ' &middot; ' + escapeHtml(clubLevel(m.pool)) + '</span></button>';
