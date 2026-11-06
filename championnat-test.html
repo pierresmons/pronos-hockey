@@ -1268,6 +1268,11 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .club-table .ct-t{text-align:left;font-family:Inter,sans-serif;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .club-table .ct-h span:first-child{text-align:left;}
 .ct-v{color:var(--green,#2fae66);} .ct-d{color:#ff5a64;}
+
+.ds-row{grid-template-columns:40px minmax(0,1fr) 34px minmax(0,1fr);}
+.ds-time{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--gold,#f0a93b);}
+.ds-vs{color:var(--ice-faint);}
+@media (max-width:380px){ .ds-row{grid-template-columns:36px minmax(0,1fr) 30px minmax(0,1fr);} }
 </style>
 </head>
 <body>
@@ -2392,7 +2397,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.9 test · 06/11/2026";
+var APP_VERSION = "3.10 test · 06/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -2740,7 +2745,7 @@ function renderMatchs(){
   } finally { SRC = null; }
 }
 function renderMatchsHome(){
-  var html = '<div class="search"><span class="clr-wrap"><input type="search" class="inline-input search-input" id="match-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Équipe, club, catégorie ou poule" value="' + escapeHtml(state.q) + '">' +
+  var html = '<div class="search"><span class="clr-wrap"><input type="search" class="inline-input search-input" id="match-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Équipe, club, catégorie, poule ou date (8/11)" value="' + escapeHtml(state.q) + '">' +
     '<button type="button" class="clr-x" data-action="clear-q" aria-label="Effacer"' + (state.q || state.exploreCat ? '' : ' hidden') + '>&times;</button></span></div>';
   return html + '<div id="msub">' + renderMatchsBody() + '</div>';
 }
@@ -2866,6 +2871,8 @@ function renderCatWeek(cat){
   return html;
 }
 function renderSearchResults(q){
+  var dq = parseDateQuery(q);
+  if(dq) return renderDateSearch(dq);
   var mine = {}; state.matches.forEach(function(m){ mine[m.teamA] = 1; mine[m.teamB] = 1; });
   var tRank = function(t){ var l = skey(t); return (mine[t] ? 0 : 3) + (l.indexOf(q) === 0 ? 0 : ((" " + l).indexOf(" " + q) !== -1 ? 1 : 2)); };
   var teams = allTeams().filter(function(t){ return fold(t).indexOf(q) !== -1 || aliasStart(t, q); });
@@ -3228,6 +3235,89 @@ function favCard(t, surf, showSurf){
   html += '<div class="fr-actions"><button class="btn btn-sm" data-action="fav-open" data-team="' + escapeHtml(t) + '">Fiche équipe &#8250;</button>' +
     '<button class="fav-star on" data-action="toggle-fav" data-team="' + escapeHtml(t) + '" aria-label="Ne plus suivre">&#9733; Suivie</button></div>';
   return html + '</div></details>';
+}
+/* ===================== Recherche par date (V2.17) ===================== */
+/* Ex. « 8/11 h1 old club arlon verviers ascalon » : les matchs du 8 novembre des H-1 de ces 4 clubs, avec heure et terrain.
+   Date : 8/11, 08-11, 8.11, 8/11/2026, aujourd'hui, demain, samedi, dimanche… (le prochain).
+   Le reste : codes d'équipe (h1, h-1, u19b1, d2…), noms de clubs (et autres noms connus), sinon mots cherchés
+   dans la compétition (ex. « u19 boys »). */
+var DQ_DAYS = ["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+function parseDateQuery(q){
+  var words = q.replace(/[,;]/g, " ").split(/\s+/).filter(Boolean), date = null, rest = [];
+  words.forEach(function(w){
+    var m = /^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/.exec(w);
+    if(!date && m){
+      var d = +m[1], mo = +m[2], y = m[3] ? +m[3] : null;
+      if(y !== null && y < 100) y += 2000;
+      if(y === null){ var y0 = +SEASON_FROM.slice(0, 4); y = mo >= 7 ? y0 : y0 + 1; }
+      if(mo >= 1 && mo <= 12 && d >= 1 && d <= 31){ date = y + "-" + String(mo).padStart(2, "0") + "-" + String(d).padStart(2, "0"); return; }
+    }
+    if(!date && /^(aujourd'?hui|auj)$/.test(w)){ date = todayIso(); return; }
+    if(!date && w === "demain"){ date = addDaysIso(1); return; }
+    var di = DQ_DAYS.indexOf(w);
+    if(!date && di !== -1){ var n = (di - new Date().getDay() + 7) % 7; date = addDaysIso(n); return; }
+    rest.push(w);
+  });
+  if(!date) return null;
+  /* codes d'équipe */
+  var codes = [], left = [];
+  rest.forEach(function(w){
+    var m = /^(u\d{1,2}[bgm]|h|d|g|l|jl)-?(\d{1,2})$/.exec(w) || /^(u\d{1,2})-(\d{1,2})$/.exec(w);
+    if(m) codes.push(m[1].toUpperCase() + "-" + (+m[2])); else left.push(w);
+  });
+  /* clubs : suite de mots = nom du club, ou un autre nom connu (lln, ducks…) */
+  var clubs = [], used = {}, seen = {};
+  var all = allTeams(); all.forEach(function(t){ var c = teamParts(t).club; if(!seen[c]) seen[c] = t; });
+  Object.keys(seen).sort(function(a, b){ return b.length - a.length; }).forEach(function(c){
+    var cw = fold(c).replace(/[-']/g, " ").split(/\s+/).filter(Boolean);
+    for(var i = 0; i + cw.length <= left.length; i++){
+      var ok = true;
+      for(var j = 0; j < cw.length; j++) if(used[i + j] || left[i + j] !== cw[j]) { ok = false; break; }
+      if(ok){ clubs.push(c); for(j = 0; j < cw.length; j++) used[i + j] = 1; return; }
+    }
+    var al = aliasesOf(seen[c]).split(/\s+/).filter(Boolean);
+    for(i = 0; i < left.length; i++) if(!used[i] && left[i].length >= 3 && al.indexOf(left[i]) !== -1){ clubs.push(c); used[i] = 1; return; }
+  });
+  var other = left.filter(function(w, i){ return !used[i]; });
+  return {date:date, codes:codes, clubs:clubs, words:other};
+}
+function renderDateSearch(dq){
+  var dl = new Date(dq.date + "T12:00:00").toLocaleDateString("fr-FR", {weekday:"long", day:"numeric", month:"long", year:"numeric"});
+  var inClub = function(t){ return !dq.clubs.length || dq.clubs.indexOf(teamParts(t).club) !== -1; };
+  var codeOf = function(t){ var tp = teamParts(t); return tp.code ? tp.code.toUpperCase() + "-" + tp.num : ""; };
+  var hitTeam = function(t){ return inClub(t) && (!dq.codes.length || dq.codes.indexOf(codeOf(t)) !== -1); };
+  var list = srcMatches().filter(function(m){
+    if(m.date !== dq.date) return false;
+    if((dq.clubs.length || dq.codes.length) && !hitTeam(m.teamA) && !hitTeam(m.teamB)) return false;
+    if(dq.words.length){ var txt = fold(poolName(m.pool) + " " + m.teamA + " " + m.teamB); if(!dq.words.every(function(w){ return txt.indexOf(w) !== -1; })) return false; }
+    return true;
+  });
+  list = sortMatches(list);
+  var crit = [];
+  if(dq.codes.length) crit.push(dq.codes.join(", "));
+  if(dq.clubs.length) crit.push(dq.clubs.join(", "));
+  if(dq.words.length) crit.push("« " + dq.words.join(" ") + " »");
+  var html = '<h2 class="h2">Matchs du ' + escapeHtml(dl) + (list.length ? ' (' + list.length + ')' : '') + '</h2>';
+  html += '<p class="points-sub" style="margin:0 0 8px;">' + (crit.length ? 'Filtre : ' + escapeHtml(crit.join(" · ")) : 'Tous les matchs du jour. Ajoute un club ou une équipe pour réduire la liste (ex. « 8/11 h1 old club verviers »).') + '</p>';
+  if(SNAP.state === "loading" && !list.length) return html + '<p class="points-sub">Chargement des données hockey.be...</p>';
+  if(!list.length) return html + emptyBox("Aucun match trouvé", "Vérifie la date et l'orthographe des clubs. Les matchs viennent du calendrier hockey.be.");
+  var shown = list.slice(0, 120);
+  html += '<div class="club-page"><div class="club-card">' + shown.map(function(m){
+    var played = hasScore(m), sa = m.scoreA, sb = m.scoreB;
+    var side = function(t, right){
+      var hit = (dq.clubs.length || dq.codes.length) && hitTeam(t), tp = teamParts(t), code = tp.code ? tp.code + "-" + tp.num : "";
+      var nm = code ? '<span class="cn">' + escapeHtml(tp.club) + '</span><em>' + escapeHtml(code) + '</em>' : '<span class="cn">' + escapeHtml(t) + '</span>';
+      var crest = '<span class="club-olw">' + logoImg(t, "club-ologo") + '</span>';
+      return '<span class="club-tm' + (right ? ' b' : '') + (hit ? ' me' : '') + '">' + (right ? nm + crest : crest + nm) + '</span>';
+    };
+    var mid = played ? '<span class="club-sc">' + (sa > sb ? '<b>' + sa + '</b>' : sa) + '-' + (sb > sa ? '<b>' + sb + '</b>' : sb) + '</span>' : '<span class="club-sc ds-vs">-</span>';
+    var when = escapeHtml(m.status && !played ? m.status : (m.time || "?"));
+    var cat = poolName(m.pool).split(" - ")[0];
+    return '<button class="club-row ds-row" data-action="goto-team" data-team="' + escapeHtml(hitTeam(m.teamB) && !hitTeam(m.teamA) ? m.teamB : m.teamA) + '"><span class="ds-time">' + when + '</span>' + side(m.teamA, false) + mid + side(m.teamB, true) +
+      '<span class="club-lvl">' + escapeHtml(cat) + ' &middot; ' + escapeHtml(clubLevel(m.pool)) + (m.venue ? ' &middot; terrain ' + escapeHtml(m.venue) : '') + '</span></button>';
+  }).join("") + '</div></div>';
+  if(list.length > shown.length) html += '<p class="points-sub" style="margin:8px 0 0;">Et ' + (list.length - shown.length) + ' autres : ajoute un club, une équipe (h1, u19b1…) ou une catégorie pour affiner.</p>';
+  return html;
 }
 /* ===================== Page club (V2.12) ===================== */
 /* Recherche « old club » -> section Clubs -> page du club : tous ses matchs de la semaine (par jour, puis seniors,
