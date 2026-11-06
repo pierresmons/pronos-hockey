@@ -1273,6 +1273,9 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .ds-time{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--gold,#f0a93b);}
 .ds-vs{color:var(--ice-faint);}
 @media (max-width:380px){ .ds-row{grid-template-columns:36px minmax(0,1fr) 30px minmax(0,1fr);} }
+
+.fav-surf{margin:4px 0 8px;}
+.fav-surf ~ .fav-row .surf-tag, .fav-surf ~ * .fav-row .surf-tag{display:none;}
 </style>
 </head>
 <body>
@@ -2397,7 +2400,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.10 test · 06/11/2026";
+var APP_VERSION = "3.11 test · 07/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3414,7 +3417,17 @@ async function toggleClubFav(c){
 }
 /* Mes équipes : les clubs suivis en tête */
 renderFavBlock = (function(orig){ return function(){
-  var h = orig(), clubs = myClubs();
+  /* Mes équipes : une seule surface à la fois (bascule Outdoor / Indoor, V2.18) */
+  var keep = state.surf, fs = favSurfNow(), h;
+  state.surf = fs;
+  var hidden = 0;
+  try{ h = orig(); hidden = myFavs().filter(function(t){ return !withAllData(function(){ return teamSurfaces(t, srcMatches()).length; }); }).length; } finally { state.surf = keep; }
+  var tog = '<div class="seg fav-surf">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){
+    return '<button class="seg-btn' + (fs === o[0] ? ' on' : '') + '" data-action="fav-surf" data-surf="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>' +
+    (hidden ? '<p class="points-sub" style="margin:0 0 8px;">' + hidden + ' équipe' + (hidden > 1 ? 's' : '') + ' sans match ' + (fs === "in" ? "indoor" : "outdoor") + ' cette saison.</p>' : '');
+  var title = '<h2 class="section-title" style="font-size:18px;margin-top:4px;">Mes équipes &#9733;</h2>';
+  if(myFavs().length && h.indexOf(title) !== -1) h = h.replace(title, title + tog);
+  var clubs = myClubs();
   if(!state.me || !clubs.length) return h;
   var cl = '<div class="list club-favs">' + clubs.map(function(c){
     return '<button class="li" data-action="goto-club" data-club="' + escapeHtml(c) + '"><span class="li-t">' + escapeHtml(c) + ' &#9733;</span><span class="li-s">tous les matchs du club</span><span class="li-go">&#8250;</span></button>';
@@ -3422,6 +3435,15 @@ renderFavBlock = (function(orig){ return function(){
   if(!myFavs().length) return '<h2 class="section-title" style="font-size:18px;margin-top:4px;">Mes équipes &#9733;</h2>' + cl;
   return h.indexOf('<div class="fav-grid">') !== -1 ? h.replace('<div class="fav-grid">', cl + '<div class="fav-grid">') : h + cl;
 }; })(renderFavBlock);
+/* Bascule Outdoor / Indoor de Mes équipes : automatique (indoor de décembre à février), modifiable ;
+   le choix manuel est oublié quand la période automatique change. */
+function favSurfAuto(){ var mo = new Date().getMonth() + 1; return (mo === 12 || mo <= 2) ? "in" : "out"; }
+function favSurfNow(){
+  var a = favSurfAuto();
+  try{ var o = JSON.parse(localStorage.getItem("hb-fav-surf") || "null"); if(o && o.auto === a && (o.v === "in" || o.v === "out")) return o.v; }catch(e){}
+  return a;
+}
+function setFavSurf(v){ try{ localStorage.setItem("hb-fav-surf", JSON.stringify({v:v, auto:favSurfAuto()})); }catch(e){} }
 /* ===================== Page club : stats de la saison (V2.16) ===================== */
 /* Choix de Piet (06/11) : période = saison ; filtre par âge (Tout, Seniors, U19, U16, U14, + U12 et moins si affichés)
    avec Garçons / Filles / Les deux ; stats : V/N/D et % de victoires, buts, tableau par équipe, records, évolution par semaine.
@@ -3446,7 +3468,7 @@ function clubSeasonResults(club, isMine, surf){
 }
 function renderClubSeason(club, isMine){
   var hasIn = srcMatches().some(function(m){ return m.date >= SEASON_FROM && hasScore(m) && surfOfPid(m.pool) === "in" && (isMine(m.teamA) || isMine(m.teamB)); });
-  var surf = state.clubSurf === "in" && hasIn ? "in" : "out";
+  var surf = (state.clubSurf || favSurfNow()) === "in" && hasIn ? "in" : "out";
   var all = clubSeasonResults(club, isMine, surf);
   var age = state.clubAge || "all", sex = state.clubSex || "all";
   var ages = [["all","Tout"],["sen","Seniors"],["19","U19"],["16","U16"],["14","U14"]];
@@ -4043,6 +4065,7 @@ var ACTIONS = {
   "club-fav": function(el){ toggleClubFav(el.getAttribute("data-club")); },
   "club-surf": function(el){ state.clubSurf = el.getAttribute("data-surf"); render(); },
   "club-small": function(){ state.clubSmall = !state.clubSmall; render(); },
+  "fav-surf": function(el){ setFavSurf(el.getAttribute("data-surf")); render(); },
   "club-mode": function(el){ state.clubMode = el.getAttribute("data-mode"); render(); },
   "club-age": function(el){ state.clubAge = el.getAttribute("data-age"); if(state.clubAge === "all") state.clubSex = "all"; render(); },
   "club-sex": function(el){ state.clubSex = el.getAttribute("data-sex"); render(); },
