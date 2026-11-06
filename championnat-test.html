@@ -1276,6 +1276,7 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 
 .fav-surf{margin:4px 0 8px;}
 .fav-surf ~ .fav-row .surf-tag, .fav-surf ~ * .fav-row .surf-tag{display:none;}
+.team-surf{margin:0 0 10px;}
 </style>
 </head>
 <body>
@@ -2400,7 +2401,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.11 test · 07/11/2026";
+var APP_VERSION = "3.13 test · 07/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3028,6 +3029,9 @@ function renderPoolPage(pid){
 function renderTeamPage(t){
   var all = srcMatches();
   var surfs = teamSurfaces(t, all);
+  /* indoor et outdoor = deux championnats separes : une seule saison a la fois (choix global, comme Mes equipes) */
+  var both = surfs.length > 1, pick = favSurfNow();
+  if(surfs.length) surfs = [surfs.indexOf(pick) !== -1 ? pick : surfs[0]];
   if(!surfs.length) return emptyBox(escapeHtml(t), SNAP.state === "loading" ? "Chargement des données hockey.be..." : "Aucun match trouvé pour cette équipe.");
   var fv = isFav(t), today = todayIso(), html = "";
   var bar = dateFilterBar();
@@ -3035,13 +3039,15 @@ function renderTeamPage(t){
     var mine = all.filter(function(m){ return (m.teamA === t || m.teamB === t) && surfOfPid(m.pool) === sf; });
     var s = null, sp = null;
     mine.forEach(function(m){ var st = standingOf(t, m.pool); if(st && (!s || st.j > s.j)){ s = st; sp = m.pool; } });
+    if(both) html += '<div class="seg team-surf">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){
+      return '<button class="seg-btn' + (sf === o[0] ? ' on' : '') + '" data-action="fav-surf" data-surf="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
     html += '<div class="admin-form team-card"><div class="fav-head"><div class="info-team-name" style="font-size:22px;">' + logoImg(t, "big") + escapeHtml(t) +
-      (surfs.length > 1 ? ' <span class="surf-tag surf-' + sf + '">' + SURF_LABEL[sf] + '</span>' : '') + '</div>' +
+      (!both ? ' <span class="surf-tag surf-' + sf + '">' + SURF_LABEL[sf] + '</span>' : '') + '</div>' +
       (idx === 0 && state.me ? '<button class="fav-star' + (fv ? ' on' : '') + '" data-action="toggle-fav" data-team="' + escapeHtml(t) + '">' + (fv ? '&#9733; Suivie' : '&#9734; Suivre') + '</button>' : '') + '</div>';
     if(s) html += '<div class="team-pos">' + escapeHtml(shortPoolName(sp)) + ' &middot; ' + s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts &middot; ' + s.g + 'V ' + s.n + 'N ' + s.p + 'D &middot; buts ' + s.bp + '-' + s.bc + '</div>';
     html += '<div class="form-row" style="margin-top:8px;">' + formChips(t, 8, sf) + '</div></div>';
     if(idx === 0) html += bar;
-    var tag = surfs.length > 1 ? ' &middot; ' + SURF_LABEL[sf] : '';
+    var tag = '';
     if(state.mWeek !== null){
       var wk = sortMatches(mine.filter(inMWeek));
       html += '<h2 class="h2">Matchs de la semaine' + tag + ' (' + wk.length + ')</h2>' + (wk.length ? '<div class="admin-form row-list">' + wk.map(function(m){ return matchRow(m, hasScore(m) ? t : null); }).join("") + '</div>' : '<p class="points-sub">Aucun match cette semaine-la.</p>');
@@ -3353,8 +3359,9 @@ function renderClubPage(club){
   var wr = weekRange(state.clubWeek || 0), teams = clubTeams(club);
   var isMine = function(t){ return teamParts(t).club === club; };
   var week = srcMatches().filter(function(m){ return m.date && m.date >= wr.start && m.date <= wr.end && (isMine(m.teamA) || isMine(m.teamB)); });
-  var hasOut = week.some(function(m){ return surfOfPid(m.pool) === "out"; }), hasIn = week.some(function(m){ return surfOfPid(m.pool) === "in"; });
-  var surf = state.clubSurf || (hasOut || !hasIn ? "out" : "in");
+  /* indoor et outdoor = deux championnats separes : on respecte toujours le choix, meme si la semaine est vide */
+  var cs = clubSurfs(isMine), hasOut = cs.out, hasIn = cs["in"];
+  var surf = clubSurfPick(cs);
   week = week.filter(function(m){ return surfOfPid(m.pool) === surf; });
   var items = week.map(function(m){
     var home = isMine(m.teamA), me = home ? m.teamA : m.teamB, opp = home ? m.teamB : m.teamA, tp = teamParts(me);
@@ -3372,7 +3379,7 @@ function renderClubPage(club){
     return '<button class="seg-btn' + ((state.clubMode || "week") === o[0] ? ' on' : '') + '" data-action="club-mode" data-mode="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
   if(state.clubMode === "season") return html + renderClubSeason(club, isMine) + '</div>';
   html += weekNav(state.clubWeek || 0, "clubweek");
-  if(hasOut && hasIn || hasIn) html += '<div class="seg">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){
+  if(hasOut && hasIn) html += '<div class="seg">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){
     return '<button class="seg-btn' + (surf === o[0] ? ' on' : '') + '" data-action="club-surf" data-surf="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
   var played = items.filter(function(i){ return i.played; });
   if(played.length){
@@ -3381,7 +3388,11 @@ function renderClubPage(club){
     html += '<div class="club-bilan"><div class="cb-V"><b>' + c.V + '</b><small>victoire' + (c.V > 1 ? 's' : '') + '</small></div><div class="cb-N"><b>' + c.N + '</b><small>nul' + (c.N > 1 ? 's' : '') + '</small></div><div class="cb-D"><b>' + c.D + '</b><small>défaite' + (c.D > 1 ? 's' : '') + '</small></div></div>';
   }
   if(SNAP.state === "loading" && !items.length) return html + '<p class="points-sub">Chargement des données hockey.be...</p></div>';
-  if(!items.length) html += '<p class="points-sub" style="margin:12px 0;">Aucun match ' + (surf === "in" ? "indoor" : "outdoor") + ' cette semaine' + (small.length && !state.clubSmall ? ' (hors U7 à U12)' : '') + '.</p>';
+  if(!items.length){
+    html += '<p class="points-sub" style="margin:12px 0;">Aucun match ' + (surf === "in" ? "indoor" : "outdoor") + ' cette semaine' + (small.length && !state.clubSmall ? ' (hors U7 à U12)' : '') + '.</p>';
+    var nx = clubNextDate(isMine, surf, wr);
+    if(nx) html += '<button class="btn btn-sm btn-ghost clear-btn" data-action="clubweek-go" data-w="' + nx.w + '">' + (nx.after ? 'Prochain' : 'Dernier') + ' match ' + (surf === "in" ? "indoor" : "outdoor") + ' : ' + escapeHtml(shortDay(nx.date)) + ' &#8250;</button>';
+  }
   var days = {}; items.forEach(function(i){ (days[i.m.date] = days[i.m.date] || []).push(i); });
   Object.keys(days).sort().forEach(function(d){
     var list = days[d].sort(function(a, b){ return a.kind - b.kind || a.num - b.num || (a.m.time || "").localeCompare(b.m.time || ""); });
@@ -3466,9 +3477,29 @@ function clubSeasonResults(club, isMine, surf){
   });
   return out.sort(function(a, b){ return a.m.date.localeCompare(b.m.date) || (a.m.time || "").localeCompare(b.m.time || ""); });
 }
+/* saisons (outdoor / indoor) ou le club a au moins un match programme cette saison */
+function clubSurfs(isMine){
+  var r = {out:false, "in":false};
+  srcMatches().forEach(function(m){ if(m.date && m.date >= SEASON_FROM && (isMine(m.teamA) || isMine(m.teamB))) r[surfOfPid(m.pool)] = true; });
+  return r;
+}
+function clubSurfPick(cs){
+  var s = favSurfNow();
+  if(!cs[s]) s = s === "in" ? "out" : "in";
+  return cs[s] ? s : favSurfNow();
+}
+/* prochain match du club pour cette saison (sinon le dernier), avec le decalage de semaine */
+function clubNextDate(isMine, surf, wr){
+  var ds = srcMatches().filter(function(m){ return m.date && m.date >= SEASON_FROM && surfOfPid(m.pool) === surf && (isMine(m.teamA) || isMine(m.teamB)); }).map(function(m){ return m.date; }).sort();
+  if(!ds.length) return null;
+  var after = ds.filter(function(d){ return d > wr.end; })[0], d = after || ds.filter(function(x){ return x < wr.start; }).pop();
+  if(!d) return null;
+  var w0 = new Date(weekRange(0).start + "T12:00:00"), dd = new Date(d + "T12:00:00");
+  return {date:d, after:!!after, w:Math.floor((dd - w0) / 864e5 / 7)};
+}
 function renderClubSeason(club, isMine){
-  var hasIn = srcMatches().some(function(m){ return m.date >= SEASON_FROM && hasScore(m) && surfOfPid(m.pool) === "in" && (isMine(m.teamA) || isMine(m.teamB)); });
-  var surf = (state.clubSurf || favSurfNow()) === "in" && hasIn ? "in" : "out";
+  var cs = clubSurfs(isMine), hasIn = cs["in"] && cs.out;
+  var surf = clubSurfPick(cs);
   var all = clubSeasonResults(club, isMine, surf);
   var age = state.clubAge || "all", sex = state.clubSex || "all";
   var ages = [["all","Tout"],["sen","Seniors"],["19","U19"],["16","U16"],["14","U14"]];
@@ -3487,6 +3518,7 @@ function renderClubSeason(club, isMine){
   html += '<div class="chips-scroll club-chips">' + [["all","Les deux"],["m", age === "sen" ? "Hommes" : "Garçons"],["f", age === "sen" ? "Dames" : "Filles"]].map(function(a){
     return '<button class="chip2' + (sex === a[0] ? ' on' : '') + '" data-action="club-sex" data-sex="' + a[0] + '">' + a[1] + '</button>'; }).join("") + '</div>';
   if(SNAP.state === "loading" && !all.length) return html + '<p class="points-sub">Chargement des données hockey.be...</p>';
+  if(!all.length) return html + '<p class="points-sub" style="margin:12px 0;">Aucun résultat ' + (surf === "in" ? "indoor" : "outdoor") + ' pour l\'instant cette saison.</p>';
   if(!list.length) return html + '<p class="points-sub" style="margin:12px 0;">Aucun résultat pour ce choix cette saison.</p>' + clubSmallBtn(all);
   var c = {V:0, N:0, D:0}, gf = 0, ga = 0;
   list.forEach(function(r){ c[r.res]++; gf += r.gf; ga += r.ga; });
@@ -4063,12 +4095,13 @@ var ACTIONS = {
   "goto-pool": function(el){ openPool(el.getAttribute("data-pool")); },
   "goto-club": function(el){ openClub(el.getAttribute("data-club")); },
   "club-fav": function(el){ toggleClubFav(el.getAttribute("data-club")); },
-  "club-surf": function(el){ state.clubSurf = el.getAttribute("data-surf"); render(); },
+  "club-surf": function(el){ setFavSurf(el.getAttribute("data-surf")); render(); },
   "club-small": function(){ state.clubSmall = !state.clubSmall; render(); },
   "fav-surf": function(el){ setFavSurf(el.getAttribute("data-surf")); render(); },
   "club-mode": function(el){ state.clubMode = el.getAttribute("data-mode"); render(); },
   "club-age": function(el){ state.clubAge = el.getAttribute("data-age"); if(state.clubAge === "all") state.clubSex = "all"; render(); },
   "club-sex": function(el){ state.clubSex = el.getAttribute("data-sex"); render(); },
+  "clubweek-go": function(el){ state.clubWeek = +el.getAttribute("data-w"); render(); },
   "clubweek": function(el){ var d = +el.getAttribute("data-d"); state.clubWeek = d === 0 ? 0 : (state.clubWeek || 0) + d; render(); },
   "mweek-mode": function(el){ state.mWeek = el.getAttribute("data-on") === "1" ? 0 : null; render(); },
   "ann-ok": function(){ if(state.announce) annMarkSeen(state.announce.id); render(); },
