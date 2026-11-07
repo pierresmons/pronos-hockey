@@ -1,9 +1,13 @@
 """
 Rappels de pronos (notifications push), lances par .github/workflows/notify.yml.
 
-Regle (choix de Piet, 30/10/2026) : la veille du premier match de la semaine (lundi-dimanche), vers 19h,
-une notification a chaque joueur a qui il manque encore des pronos pour les matchs ouverts de la semaine.
-Une seule fois par partie et par semaine (trace dans Firebase hbpushlog/<partie>/<lundi>).
+Regles (choix de Piet, 07/11/2026) :
+  1. veille de chaque jour de match (18h-23h, heure belge) : notification a chaque joueur a qui il manque un prono
+     pour les matchs de ce jour-la ; filet de securite le jour meme des 7h, au plus tard 2 h avant le premier match ;
+  2. mardi soir (18h-23h) : rappel pour les pronos manquants du week-end (samedi et dimanche) ; filet mercredi 7h-13h.
+Une seule fois par partie et par rappel (trace dans Firebase hbpushlog/<partie>/<cle>, cle = j-AAAA-MM-JJ ou we-<lundi>).
+GitHub lance les taches programmees avec 4 a 5 h de retard (constate en novembre 2026) : reveil toutes les heures,
+le premier passage qui tombe dans une bonne fenetre envoie.
 
 Donnees Firebase (lues avec FIREBASE_SECRET) :
   hbrooms/<partie>            : joueurs, matchs, pronos (comme l'app)
@@ -32,7 +36,10 @@ SNAPSHOT = os.environ.get("SNAPSHOT", "data/hockey-snapshot.json")
 APP_URL = "https://pierresmons.github.io/pronos-hockey/championnat.html"
 CLAIM_SUB = "https://pierresmons.github.io"  # contact du serveur pour Apple et Google (adresse du site)
 BXL = ZoneInfo("Europe/Brussels")
-HOURS = range(19, 23)  # fenetre d'envoi (heure belge) ; GitHub lance parfois avec retard
+EVENING = range(18, 23)  # veille du jour de match (et mardi pour le week-end) : 18h-22h59 (heure belge)
+MORNING_FROM = 7         # filet : le jour du match des 7h si rien n'est parti la veille...
+MORNING_GAP = dt.timedelta(hours=2)  # ... et au plus tard 2 h avant le premier match du jour
+WE_FALLBACK_UNTIL = 13   # filet du rappel week-end : mercredi de 7h a 12h59
 
 
 def fb(path, method="GET", value=None, query=""):
@@ -101,33 +108,84 @@ def has_pred(room, mid, p):
     return isinstance(x, dict) and x.get("a") is not None
 
 
-def plan(room, snap, now):
-    """-> (lundi, {joueur: nb de pronos manquants}, heure du 1er match) si demain est le 1er jour de match de la semaine, sinon None"""
-    today = now.date()
-    tomorrow = today + dt.timedelta(days=1)
-    monday = tomorrow - dt.timedelta(days=tomorrow.weekday())
-    sunday = monday + dt.timedelta(days=6)
-    week = [m for m in room_matches(room, snap) if m.get("date") and monday.isoformat() <= m["date"] <= sunday.isoformat()]
-    if not any(m["date"] == tomorrow.isoformat() for m in week):
+def week_bounds(day):
+    monday = day - dt.timedelta(days=day.weekday())
+    return monday, monday + dt.timedelta(days=6)
+
+
+def missing_count(room, ms, p):
+    return sum(1 for m in ms if not has_pred(room, m["id"], p))
+
+
+def day_plan(room, snap, now, day, same_day=False):
+    """Rappel pour les matchs du jour `day` -> (cle, {joueur: (manquants du jour, manquants semaine)}, 1er match) ou None"""
+    ms = room_matches(room, snap)
+    monday, sunday = week_bounds(day)
+    all_day = [m for m in ms if m.get("date") == day.isoformat()]
+    opn_day = [m for m in all_day if is_open(m, now)]
+    if not opn_day:
         return None
-    if any(m["date"] <= today.isoformat() for m in week):
-        return None  # la semaine a deja commence : rappel deja fait (ou trop tard)
-    opn = [m for m in week if is_open(m, now)]
-    if not opn:
-        return None
-    first = min((start_of(m) for m in opn if m["date"] == tomorrow.isoformat()), default=None)
+    if same_day:
+        starts = [s for s in (start_of(m) for m in all_day) if s]
+        if not starts or min(starts) - now < MORNING_GAP:
+            return None  # trop tard : le premier match du jour est dans moins de 2 h (ou deja commence)
+    opn_week = [m for m in ms if m.get("date") and monday.isoformat() <= m["date"] <= sunday.isoformat() and is_open(m, now)]
     missing = {}
     for p in room.get("players") or []:
-        n = sum(1 for m in opn if not has_pred(room, m["id"], p))
+        n = missing_count(room, opn_day, p)
+        if n:
+            missing[p] = (n, missing_count(room, opn_week, p))
+    first = min((s for s in (start_of(m) for m in opn_day) if s), default=None)
+    return "j-" + day.isoformat(), missing, first
+
+
+def weekend_plan(room, snap, now):
+    """Rappel du mardi pour les matchs du samedi et du dimanche de la semaine -> (cle, {joueur: manquants}, None) ou None"""
+    monday, sunday = week_bounds(now.date())
+    sat = (monday + dt.timedelta(days=5)).isoformat()
+    we = [m for m in room_matches(room, snap) if m.get("date") in (sat, sunday.isoformat()) and is_open(m, now)]
+    if not we:
+        return None
+    missing = {}
+    for p in room.get("players") or []:
+        n = missing_count(room, we, p)
         if n:
             missing[p] = n
-    return monday.isoformat(), missing, first
+    return "we-" + monday.isoformat(), missing, None
 
 
-def message(n, first):
-    h = f" à {first.strftime('%H:%M').replace(':', 'h')}" if first and first.strftime("%H:%M") != "00:00" else ""
+def plural(n):
+    return f"{n} prono{'s' if n > 1 else ''}"
+
+
+def message(kind, miss, first=None, same_day=False):
+    if kind == "we":
+        return {"title": "Pronos Hockey", "body": f"Il te manque {plural(miss)} pour le week-end. Pense à les remplir !"}
+    n, tot = miss
+    extra = f" ({tot} cette semaine)" if tot > n else ""
+    h = f" Premier match à {first.strftime('%H:%M').replace(':', 'h')} !" if first and first.strftime("%H:%M") != "00:00" else ""
     return {"title": "Pronos Hockey",
-            "body": f"Il te manque {n} prono{'s' if n > 1 else ''} cette semaine. Premier match demain{h} !"}
+            "body": f"Il te manque {plural(n)} pour {'aujourd' + chr(39) + 'hui' if same_day else 'demain'}{extra}.{h}"}
+
+
+def jobs_for(now):
+    """Rappels a tenter a cette heure : liste de (genre, jour vise, filet du matin)"""
+    h, wd, today = now.hour, now.weekday(), now.date()
+    jobs = []
+    if h in EVENING:
+        jobs.append(("day", today + dt.timedelta(days=1), False))
+        if wd == 1:
+            jobs.append(("we", None, False))
+    elif MORNING_FROM <= h < EVENING.start:
+        jobs.append(("day", today, True))
+        if wd == 2 and h < WE_FALLBACK_UNTIL:
+            jobs.append(("we", None, True))
+    return jobs
+
+
+def run_job(room, snap, now, job):
+    kind, day, same_day = job
+    return weekend_plan(room, snap, now) if kind == "we" else day_plan(room, snap, now, day, same_day)
 
 
 def send(sub, payload, key_file):
@@ -185,46 +243,43 @@ def main():
         print(f"Test : {n} appareil(s) trouve(s) pour ce joueur ; envoyes {stats['ok']}, expires {stats['gone']}, erreurs {stats['err']}")
         return
 
-    if mode == "rappel" and now.hour not in HOURS:
-        print(f"Pas l'heure ({now:%H:%M} a Bruxelles) : rien a faire")
-        return
+    if mode == "simulation":
+        # les 7 prochains soirs a 19h : ce qui serait envoye (rien n'est envoye)
+        moments = [dt.datetime.combine(now.date() + dt.timedelta(days=i), dt.time(19), tzinfo=BXL) for i in range(0, 8)]
+        moments = [t for t in moments if t > now]
+    else:
+        moments = [now]
+        if not jobs_for(now):
+            print(f"Pas l'heure ({now:%H:%M} a Bruxelles) : rien a faire")
+            return
     snap = load_snapshot()
     rooms = list((fb("hbrooms", query="shallow=true") or {}).keys())
-    print(f"{len(rooms)} partie(s), {sum(len(v or {}) for v in allsubs.values())} joueur(s) avec rappels")
+    print(f"Passage a {now:%a %H:%M} (heure belge), mode {mode} ; {len(rooms)} partie(s), "
+          f"{sum(len(v or {}) for v in allsubs.values())} joueur(s) avec rappels")
     for i, room_code in enumerate(rooms, 1):
         if not allsubs.get(room_code):
             continue
         room = fb(f"hbrooms/{room_code}") or {}
-        sim_now = now
-        if mode == "simulation":
-            # veille du prochain jour de match, 19h
-            days = sorted({m["date"] for m in room_matches(room, snap) if m.get("date") and m["date"] > now.date().isoformat()})
-            res = None
-            for d in days:
-                t = dt.datetime.fromisoformat(d).replace(hour=19, tzinfo=BXL) - dt.timedelta(days=1)
-                if t < now:
+        for t in moments:
+            for job in jobs_for(t):
+                res = run_job(room, snap, t, job)
+                label = ("week-end" if job[0] == "we" else f"matchs du {job[1]:%d/%m}") + (" (filet)" if job[2] else "")
+                if not res:
+                    if mode != "simulation":
+                        print(f"partie {i} : {label} : rien a rappeler")
                     continue
-                res = plan(room, snap, t)
-                if res:
-                    sim_now = t
-                    break
-        else:
-            res = plan(room, snap, now)
-        if not res:
-            print(f"partie {i} : pas de rappel aujourd'hui")
-            continue
-        monday, missing, first = res
-        if mode == "rappel" and fb(f"hbpushlog/{room_code}/{monday}"):
-            print(f"partie {i} : rappel deja envoye cette semaine")
-            continue
-        targets = [p for p in missing if ((allsubs.get(room_code) or {}).get(p))]
-        print(f"partie {i} : semaine du {monday}, {len(missing)} joueur(s) en retard dont {len(targets)} avec rappels"
-              + (f" (simulation : {sim_now:%d/%m %H:%M})" if mode == "simulation" else ""))
-        if mode == "simulation":
-            continue
-        for p in targets:
-            deliver(room_code, p, dict(message(missing[p], first), tag="rappel-" + monday))
-        fb(f"hbpushlog/{room_code}/{monday}", "PUT", {"at": now.isoformat(timespec="minutes"), "late": len(missing), "sent": len(targets)})
+                key, missing, first = res
+                if mode == "rappel" and fb(f"hbpushlog/{room_code}/{key}"):
+                    print(f"partie {i} : {label} : deja envoye")
+                    continue
+                targets = [p for p in missing if (allsubs.get(room_code) or {}).get(p)]
+                print(f"partie {i} : {label} : {len(missing)} joueur(s) en retard dont {len(targets)} avec rappels"
+                      + (f" (simulation {t:%a %d/%m %H:%M})" if mode == "simulation" else ""))
+                if mode == "simulation":
+                    continue
+                for p in targets:
+                    deliver(room_code, p, dict(message(job[0], missing[p], first, job[2]), tag="rappel-" + key))
+                fb(f"hbpushlog/{room_code}/{key}", "PUT", {"at": now.isoformat(timespec="minutes"), "late": len(missing), "sent": len(targets)})
     print(f"Envoyes {stats['ok']}, abonnements expires supprimes {stats['gone']}, erreurs {stats['err']}")
 
 
