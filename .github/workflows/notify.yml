@@ -1,9 +1,10 @@
 # Rappels de pronos (notifications push), seulement aux joueurs a qui il manque des pronos et qui ont active les rappels :
 #  - la veille de chaque jour de match (18h-23h, heure belge) pour les matchs de ce jour ;
 #    filet : le jour meme des 7h, au plus tard 2 h avant le premier match ;
-#  - le mardi soir pour les matchs du week-end ; filet : mercredi 7h-13h.
+#  - le mardi soir pour les matchs du week-end ; filet : mercredi 7h-13h ;
+#  - environ 1 h avant chaque match (entre 1h45 et 15 min avant) pour ce match.
 # Le script verifie lui-meme l'heure de Bruxelles (ete/hiver) et n'envoie chaque rappel qu'une fois par partie.
-# Reveil toutes les heures : GitHub lance les taches programmees avec 4 a 5 h de retard (constate en novembre 2026),
+# Reveil tous les quarts d'heure : GitHub lance les taches programmees avec 4 a 5 h de retard (constate en novembre 2026),
 # le premier passage qui tombe dans une bonne fenetre envoie, les autres ne font rien.
 #
 # Bouton "Run workflow" : mode "test" = notification d'essai tout de suite au joueur indique ;
@@ -12,7 +13,7 @@ name: Rappels pronos
 
 on:
   schedule:
-    - cron: "41 * * * *"
+    - cron: "11,26,41,56 * * * *"
   workflow_dispatch:
     inputs:
       mode:
