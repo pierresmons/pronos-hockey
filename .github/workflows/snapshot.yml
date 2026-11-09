@@ -10,7 +10,10 @@
 # Euro Hockey League, FIH Pro League et Hoofdklasse : les jours de match, le robot met aussi a jour celles-la seules
 # (quelques secondes) toutes les 30 minutes entre 9h et minuit.
 #
-# GitHub lance les taches programmees avec du retard (parfois plusieurs heures) ou en saute.
+# GitHub lance les taches programmees avec du retard (parfois plusieurs heures) ou en saute
+# (novembre 2026 : un passage toutes les 4 h environ). Depuis le 09/11, cron-job.org lance aussi le robot
+# toutes les 30 min (bouton "Run workflow" via l'API, avec auto = true) : il se comporte alors comme un reveil
+# programme (le controle decide), au lieu de forcer une mise a jour complete comme le bouton a la main.
 # Le robot se reveille donc toutes les heures et ne travaille que si un horaire
 # ci-dessus est passe depuis le dernier snapshot : un retard est rattrape au reveil suivant.
 # Changement d'heure ete/hiver gere tout seul (heure de Bruxelles).
@@ -20,7 +23,12 @@ on:
   schedule:
     - cron: "23 * * * *"                         # reveil toutes les 30 min (le controle decide)
     - cron: "53 * * * *"
-  workflow_dispatch: {}                          # bouton "Run workflow" pour lancer a la main
+  workflow_dispatch:                             # bouton "Run workflow" pour lancer a la main
+    inputs:
+      auto:
+        description: "Reveil automatique (cron-job.org) : laisser le controle decider. A la main : laisser decoche"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -39,6 +47,7 @@ jobs:
         id: gate
         env:
           EVENT: ${{ github.event_name }}
+          AUTO: ${{ github.event.inputs.auto }}
         run: |
           python3 - <<'PY'
           import os, json, datetime as dt
@@ -62,7 +71,8 @@ jobs:
               gen = dt.datetime.strptime(gen, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
           except Exception:
               gen = None
-          full = os.environ["EVENT"] != "schedule" or gen is None or gen < last_slot
+          auto = os.environ["EVENT"] == "schedule" or os.environ.get("AUTO") == "true"
+          full = not auto or gen is None or gen < last_slot
           # jour de match EHL : mise a jour rapide de l'EHL seule si la derniere a plus de 25 min
           ehl = False
           try:
