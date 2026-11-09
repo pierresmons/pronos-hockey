@@ -182,18 +182,19 @@ def note_had(old):
             HAD[pid].add("standing")
 
 
-def api(pid, endpoint):
+def api(pid, endpoint, variants=None):
     """hockey.be garde parfois une reponse VIDE en cache pour une requete precise :
     on essaie plusieurs variantes de dates avant d'accepter une liste vide."""
     today = dt.date.today().isoformat()
-    if endpoint == "program":
-        variants = [(shift(today, -1), SEASON_TO), (today, SEASON_TO), (SEASON_FROM, SEASON_TO), (shift(today, -2), shift(SEASON_TO, 1))]
-    else:
-        variants = [(SEASON_FROM, SEASON_TO), (shift(SEASON_FROM, 1), SEASON_TO), (shift(SEASON_FROM, -1), SEASON_TO), (shift(SEASON_FROM, 2), shift(SEASON_TO, 1))]
-    # hockey.be garde parfois une reponse vide en cache : on n'insiste (4 essais) que si cette poule
-    # avait des donnees pour cet endpoint au passage precedent ; sinon 2 essais suffisent
-    if (pid in HAD or pid in POOL_SEEN) and endpoint not in HAD.get(pid, ()):
-        variants = variants[:2]
+    if not variants:
+        if endpoint == "program":
+            variants = [(shift(today, -1), SEASON_TO), (today, SEASON_TO), (SEASON_FROM, SEASON_TO), (shift(today, -2), shift(SEASON_TO, 1))]
+        else:
+            variants = [(SEASON_FROM, SEASON_TO), (shift(SEASON_FROM, 1), SEASON_TO), (shift(SEASON_FROM, -1), SEASON_TO), (shift(SEASON_FROM, 2), shift(SEASON_TO, 1))]
+        # hockey.be garde parfois une reponse vide en cache : on n'insiste (4 essais) que si cette poule
+        # avait des donnees pour cet endpoint au passage precedent ; sinon 2 essais suffisent
+        if (pid in HAD or pid in POOL_SEEN) and endpoint not in HAD.get(pid, ()):
+            variants = variants[:2]
     ok = False
     for f, t in variants:
         q = urllib.parse.urlencode({"lang": "fr", "dump": "", "clubid": "", "facilityid": "", "poolid": pid, "from": f, "to": t, "endpoint": endpoint})
@@ -324,11 +325,56 @@ def too_late():
     return time.time() - START > DEADLINE_MIN * 60
 
 
+def fresh_variants():
+    """Variantes de dates qui changent tous les quarts d'heure : hockey.be n'a pas encore de copie en cache
+    pour ces demandes, il repond donc avec des donnees fraiches (07/11 : copie de 15h gardee jusqu'au soir)."""
+    k = int(time.time() // 900) % 60
+    return [(SEASON_FROM, shift(SEASON_TO, 3 + k)), (shift(SEASON_FROM, 1), shift(SEASON_TO, 70 + k))]
+
+
+def last_scored(results):
+    out = ""
+    for r in results:
+        if re.search(r"\d+\s*-\s*\d+", strip(r[5] if len(r) > 5 else "")):
+            out = max(out, iso(r[0]) or "")
+    return out
+
+
+def stale_results(program, results):
+    """Vrai si un match du programme est termine depuis plus de 1h30 mais plus recent que le dernier score recu."""
+    now = dt.datetime.now(BXL)
+    last = last_scored(results)
+    for r in program:
+        d = iso(strip(r[0]).split(" | ")[0])
+        t = (r[1] or "")[:5]
+        if not d or not re.match(r"\d\d:\d\d$", t) or d <= last:
+            continue
+        try:
+            start = dt.datetime.fromisoformat(f"{d}T{t}").replace(tzinfo=BXL)
+        except ValueError:
+            continue
+        if start + dt.timedelta(minutes=90) < now and (now - start).days < 3:
+            return True
+    return False
+
+
+FRESH = {"n": 0, "ok": 0}
+
+
 def fetch_pool(pid):
     if too_late():
         return pid, [], [], [], LATE
     try:
-        return pid, api(pid, "program"), api(pid, "results"), api(pid, "standing"), None
+        program, results, standing = api(pid, "program"), api(pid, "results"), api(pid, "standing")
+        if stale_results(program, results):
+            # copie trop ancienne chez hockey.be : on redemande sous une forme encore jamais demandee
+            FRESH["n"] += 1
+            fresh = api(pid, "results", fresh_variants())
+            if fresh and last_scored(fresh) > last_scored(results):
+                FRESH["ok"] += 1
+                results = fresh
+                standing = api(pid, "standing", fresh_variants()) or standing
+        return pid, program, results, standing, None
     except Exception as e:
         return pid, [], [], [], str(e)
 
@@ -596,6 +642,8 @@ def main():
     reuse = set(failed) | kept_ids
     if failed:
         print(f"{len(failed)} poule(s) en echec, reprise des anciennes donnees", file=sys.stderr)
+    if FRESH["n"]:
+        print(f"Resultats en retard chez hockey.be : {FRESH['n']} poule(s) redemandee(s), {FRESH['ok']} avec des scores plus recents", file=sys.stderr)
     print(f"Demandes a hockey.be : {REQ['n']}, essais rates puis refaits : {REQ['fail'] - REQ['lost']}, "
           f"abandonnees : {REQ['lost']}, duree {int(time.time() - START)} s", file=sys.stderr)
     for e in REQ["examples"]:
