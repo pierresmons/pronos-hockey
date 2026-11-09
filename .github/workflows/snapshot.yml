@@ -9,6 +9,8 @@
 # meme si la longue lecture de hockey.be echoue ou traine, les scores EHL sont en ligne.
 # Euro Hockey League, FIH Pro League et Hoofdklasse : les jours de match, le robot met aussi a jour celles-la seules
 # (quelques secondes) toutes les 30 minutes entre 9h et minuit.
+# Chasseur de scores (09/11/2026) : toutes les 30 minutes entre 11h et minuit, le robot relit seulement les poules
+# des parties et des equipes favorites ou un match est fini depuis plus de 1h30 sans score (quelques secondes).
 #
 # GitHub lance les taches programmees avec du retard (parfois plusieurs heures) ou en saute
 # (novembre 2026 : un passage toutes les 4 h environ). Depuis le 09/11, cron-job.org lance aussi le robot
@@ -95,15 +97,17 @@ jobs:
           except Exception:
               ehl = False
           run = full or ehl
+          scores = (not full) and 11 <= now.hour <= 23
           print(f"Maintenant {now:%a %d/%m %H:%M}, dernier horaire {last_slot:%a %d/%m %H:%M}, "
                 f"snapshot du {gen.astimezone(BXL):%a %d/%m %H:%M}" if gen else "pas de snapshot",
                 "-> mise a jour complete" if full else ("-> mise a jour EHL" if ehl else "-> deja a jour"))
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"run={'true' if run else 'false'}\n")
               f.write(f"mode={'full' if full else 'ehl'}\n")
+              f.write(f"scores={'true' if scores else 'false'}\n")
           PY
       - uses: actions/setup-python@v6
-        if: steps.gate.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true' || steps.gate.outputs.scores == 'true'
         with:
           python-version: "3.12"
       - name: EHL, Pro League et Hoofdklasse (rapide, toujours en premier)
@@ -122,6 +126,25 @@ jobs:
             echo "Rien de neuf pour l'EHL"
           else
             git commit -m "EHL + Pro League + Hoofdklasse $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git pull --rebase
+            git push
+          fi
+      - name: Chasseur de scores (poules des parties et des favoris)
+        if: steps.gate.outputs.scores == 'true'
+        continue-on-error: true
+        env:
+          FIREBASE_SECRET: ${{ secrets.FIREBASE_SECRET }}
+        run: python scripts/snapshot.py --scores
+      - name: Enregistrer les scores
+        if: steps.gate.outputs.scores == 'true'
+        run: |
+          git config user.name "robot-pronos-hockey"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/hockey-snapshot.json
+          if git diff --cached --quiet; then
+            echo "Aucun nouveau score"
+          else
+            git commit -m "Scores $(date -u +'%Y-%m-%d %H:%M') UTC"
             git pull --rebase
             git push
           fi
