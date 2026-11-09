@@ -561,9 +561,93 @@ def main_ehl_only():
           ehl_generated=None if ehl_ok else (old.get("ehlGenerated") or old.get("generated")))
 
 
+def main_scores():
+    """Chasseur de scores (09/11/2026, choix de Piet) : relit seulement les poules des parties et des equipes
+    favorites ou un match est fini depuis plus de 1h30 (et moins de 12 h) sans score. Quelques secondes.
+    Ne touche pas a "generated" : les lectures completes gardent leurs horaires."""
+    old = json.load(open(OUT, encoding="utf-8"))
+    prio = priority_pools(old)
+    now = dt.datetime.now(BXL)
+    pools, teams = old["pools"], old["teams"]
+    pending = {}
+    for m in old["matches"]:
+        pid = pools[m[0]][0]
+        if pid not in prio or not pid.isdigit() or m[5] is not None or not m[1] or not re.match(r"\d\d:\d\d$", m[2] or ""):
+            continue
+        try:
+            start = dt.datetime.fromisoformat(f"{m[1]}T{m[2]}").replace(tzinfo=BXL)
+        except ValueError:
+            continue
+        if dt.timedelta(minutes=90) < now - start < dt.timedelta(hours=12):
+            pending[pid] = pending.get(pid, 0) + 1
+    print(f"Chasseur de scores : {len(prio)} poule(s) de parties/favoris, {len(pending)} avec un match fini sans score", file=sys.stderr)
+    if not pending:
+        return
+    tidx = {t: i for i, t in enumerate(teams)}
+
+    def t_id(name):
+        if name not in tidx:
+            tidx[name] = len(teams)
+            teams.append(name)
+        return tidx[name]
+
+    def read(pid):
+        try:
+            res = api(pid, "results")
+            fresh = False
+            # copie trop ancienne chez hockey.be : on redemande toujours sous une forme jamais demandee
+            alt = api(pid, "results", fresh_variants())
+            if alt and last_scored(alt) >= last_scored(res or []):
+                res, fresh = alt, True
+            st = api(pid, "standing", fresh_variants()) if fresh else api(pid, "standing")
+            return pid, res or [], st or [], None
+        except Exception as e:
+            return pid, [], [], str(e)
+
+    rows = {}
+    for i, m in enumerate(old["matches"]):
+        rows[(pools[m[0]][0], teams[m[3]], teams[m[4]])] = i
+    pidx = {p[0]: i for i, p in enumerate(pools)}
+    got = 0
+    with ThreadPoolExecutor(min(WORKERS, 6)) as ex:
+        for pid, results, standing, err in ex.map(read, list(pending)):
+            if err:
+                print(f"  poule en echec : {err}", file=sys.stderr)
+                continue
+            for r in results:
+                a, b = team(r[3]), team(r[-1])
+                sc = strip(r[5] if len(r) > 5 else "")
+                mm = re.search(r"(\d+)\s*-\s*(\d+)", sc)
+                if not mm:
+                    continue
+                key = (pid, a, b)
+                status = re.sub(r"(\d+)\s*-\s*(\d+)", "", sc).strip() or None
+                if key in rows:
+                    m = old["matches"][rows[key]]
+                    if m[5] is None:
+                        got += 1
+                    m[1], m[2] = iso(r[0]) or m[1], (r[1] or "")[:5] or m[2]
+                    m[5], m[6], m[7] = int(mm.group(1)), int(mm.group(2)), status
+                else:
+                    old["matches"].append([pidx[pid], iso(r[0]), (r[1] or "")[:5], t_id(a), t_id(b), int(mm.group(1)), int(mm.group(2)), status, None])
+                    rows[key] = len(old["matches"]) - 1
+            if standing:
+                old["standings"][pid] = [[s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8]] for s in standing]
+    print(f"Chasseur de scores : {got} nouveau(x) score(s), demandes a hockey.be : {REQ['n']}", file=sys.stderr)
+    if not got:
+        return
+    old["teams"] = teams
+    old["matches"].sort(key=lambda m: (m[1] or "9999", m[2] or "", m[0]))
+    old["scoresGenerated"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(OUT, "w", encoding="utf-8") as f:
+        json.dump(old, f, ensure_ascii=False, separators=(",", ":"))
+
+
 def main():
     if "--ehl-only" in sys.argv:
         return main_ehl_only()
+    if "--scores" in sys.argv:
+        return main_scores()
     previous = None
     old = None
     if os.path.exists(OUT):
