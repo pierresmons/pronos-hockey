@@ -643,7 +643,71 @@ def main_scores():
         json.dump(old, f, ensure_ascii=False, separators=(",", ":"))
 
 
+def main_archive():
+    """Archive de la saison (10/11/2026, demande de Piet) : data/archives/saison-AAAA-AA.json garde tous les
+    matchs joues (score ou statut : forfait, remis...) et les classements de toutes les poules de la saison,
+    y compris EHL, Pro League et Hoofdklasse. Donnees publiques de hockey.be ; rien sur les joueurs de l'app.
+    Fusion avec l'archive precedente : un match deja archive n'est jamais perdu, meme si une poule disparait."""
+    snap = json.load(open(OUT, encoding="utf-8"))
+    y = int(SEASON_FROM[:4])
+    path = os.path.join(os.path.dirname(OUT) or ".", "archives", f"saison-{y}-{str(y + 1)[2:]}.json")
+    old = {}
+    if os.path.exists(path):
+        try:
+            old = json.load(open(path, encoding="utf-8"))
+        except Exception:
+            old = {}
+    pools = {p[0]: p[1] for p in (old.get("poules") or [])}
+    matches, standings = {}, dict(old.get("classements") or {})
+    ot, op = old.get("equipes") or [], [p[0] for p in (old.get("poules") or [])]
+    for m in old.get("matchs") or []:
+        pid, a, b = op[m[0]], ot[m[3]], ot[m[4]]
+        matches[(pid, a, b, m[1])] = [pid, m[1], m[2], a, b] + m[5:]
+    st, sp = snap["teams"], snap["pools"]
+    n_new = 0
+    for m in snap["matches"]:
+        if m[5] is None and (not m[7] or re.match(r"planifi", m[7], re.I)):
+            continue  # pas encore joue
+        if m[1] and m[1] < SEASON_FROM:
+            continue
+        pid = sp[m[0]][0]
+        pools[pid] = sp[m[0]][1]
+        key = (pid, st[m[3]], st[m[4]], m[1])
+        if key not in matches:
+            n_new += 1
+        matches[key] = [pid, m[1], m[2], st[m[3]], st[m[4]], m[5], m[6], m[7]]
+    for pid, rows in (snap.get("standings") or {}).items():
+        if rows:
+            standings[pid] = rows
+            if pid not in pools:
+                pools[pid] = next((p[1] for p in sp if p[0] == pid), pid)
+    pids = sorted(pools)
+    pidx = {p: i for i, p in enumerate(pids)}
+    teams = sorted({k[1] for k in matches} | {k[2] for k in matches})
+    tidx = {t: i for i, t in enumerate(teams)}
+    rows = sorted(([pidx[v[0]], v[1], v[2], tidx[v[3]], tidx[v[4]]] + v[5:] for v in matches.values()),
+                  key=lambda r: (r[1] or "", r[2] or "", r[0]))
+    out = {
+        "saison": f"{y}-{y + 1}",
+        "genere": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source": "hockey.be (Hockey Belgium), EHL, FIH Pro League, Hoofdklasse ; donnees publiques",
+        "format": "poules = [id, nom] ; matchs = [poule, date, heure, equipeA (domicile), equipeB, butsA, butsB, statut] ; "
+                  "classements = {id poule: [rang, equipe, J, G, P, N, BP, BC, Pts]}",
+        "poules": [[p, pools[p]] for p in pids],
+        "equipes": teams,
+        "matchs": rows,
+        "classements": {p: standings[p] for p in pids if p in standings},
+    }
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"Archive {out['saison']} : {len(rows)} matchs joues ({n_new} nouveaux), {len(pids)} poules, "
+          f"{len(out['classements'])} classements, {os.path.getsize(path) // 1024} Ko", file=sys.stderr)
+
+
 def main():
+    if "--archive" in sys.argv:
+        return main_archive()
     if "--ehl-only" in sys.argv:
         return main_ehl_only()
     if "--scores" in sys.argv:
