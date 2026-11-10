@@ -1386,6 +1386,9 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 
 .cr-table td.cr-on{font-weight:700;color:var(--ice);}
 .cr-table tr.cr-me td.cr-on{color:var(--gold);}
+
+.push-res{margin:4px 0 10px;}
+.push-res small{display:block;color:var(--ice-faint);font-size:11px;margin-left:24px;}
 </style>
 </head>
 <body>
@@ -1683,6 +1686,7 @@ function applyRoom(data){
   state.pushOn = data.pushOn || {};
   state.recapAuto = !!(data.settings && data.settings.recapAuto);
   state.favClubs = data.favClubs || {};
+  state.pushRes = data.pushRes || {};
 }
 async function saveCloud(){
   if(!state.room) return false;
@@ -2510,7 +2514,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.28 test · 10/11/2026";
+var APP_VERSION = "3.29 test · 10/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -4037,7 +4041,7 @@ async function refreshAll(){
 var PUSH_ON = true;
 var VAPID_PUBLIC = "BPWiK4iy-M73H9p1QkvMcig-yMD4cLj888IeL5H1tfRwDvTeAfUyHakBzifduyOMQG3JoT38AemgfIz3imHjVNY";
 var PUSH = {state:"?"};
-var PUSH_RULES = "Rappels seulement s'il te manque un prono : la veille de chaque jour de match (en soirée), le mardi soir pour le week-end, et environ 1 h avant le match.";
+var PUSH_RULES = "Rappels seulement s'il te manque un prono : la veille de chaque jour de match (en soirée), le mardi soir pour le week-end, et environ 1 h avant le match. Et le résultat de tes pronos dès que le score tombe.";
 function isStandalone(){ try{ return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches; }catch(e){ return false; } }
 function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
 function pushSupported(){ return PUSH_ON && !!navigator.serviceWorker && !!window.PushManager && !!window.Notification; }
@@ -4101,6 +4105,7 @@ async function pushDisable(){
 function renderPush(){
   var st = PUSH.state, h = '<div class="push-box">';
   if(st === "yes") h += '<p class="section-hint" style="margin:0 0 8px;"><span class="suivi-ok">Rappels activés</span> sur cet appareil pour ' + escapeHtml(state.me || "") + '. ' + PUSH_RULES + '</p>' +
+    '<label class="pool-opt push-res"><input type="checkbox" data-action="push-res"' + (((state.pushRes || {})[state.me]) === false ? '' : ' checked') + '> Notifications de résultats <small>(score et points gagnés après chaque match pronostiqué, entre 8h et 22h)</small></label>' +
     '<button class="btn btn-ghost btn-sm" data-action="push-off">Désactiver sur cet appareil</button>';
   else if(st === "no" || st === "?") h += '<p class="section-hint" style="margin:0 0 8px;">Reçois une notification seulement s\'il te manque des pronos. ' + PUSH_RULES + '</p>' +
     '<button class="btn btn-primary btn-sm" data-action="push-on">Activer les rappels</button>';
@@ -5114,6 +5119,13 @@ var CHANGES = {
   "sq-pool": function(el){ state.seasonPool = el.value; render(); }
 };
 var CHANGE_ACTIONS = {
+  "push-res": async function(el){   /* V2.36 : couper / remettre les notifications de resultats (par joueur) */
+    if(!state.me) return;
+    state.pushRes = state.pushRes || {};
+    if(el.checked) delete state.pushRes[state.me]; else state.pushRes[state.me] = false;
+    var ok = await fbSet("pushRes/" + state.me, el.checked ? null : false);
+    showToast(!ok ? "Enregistrement impossible (connexion ?)" : (el.checked ? "Notifications de résultats activées" : "Notifications de résultats coupées"));
+  },
   "recap-auto": async function(el){
     if(!isOwner()){ render(); return; }
     state.recapAuto = el.checked; render();
