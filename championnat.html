@@ -1306,6 +1306,8 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .club-filters{margin:6px 0 4px;}
 .cf-lab{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ice-faint);margin:8px 0 4px;}
 .club-filters .club-chips{margin:0;}
+
+.cf-lab span{text-transform:none;letter-spacing:0;}
 </style>
 </head>
 <body>
@@ -2430,7 +2432,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.26 · 10/11/2026";
+var APP_VERSION = "2.27 · 10/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3404,7 +3406,7 @@ function renderClubPage(club){
   var allCls = srcMatches().filter(function(m){ return m.date && m.date >= SEASON_FROM && surfOfPid(m.pool) === surf && (isMine(m.teamA) || isMine(m.teamB)); })
     .map(function(m){ var t = isMine(m.teamA) ? m.teamA : m.teamB; return clubItemClass(t, m.pool, club); });
   items = items.filter(function(i){ return clubPass(i.cl, i.me, f, false); });
-  var small = items.filter(function(i){ return i.cl.youth && i.cl.age < 14 && !isFav(i.me) && !(f.pub === "youth" && f.age === "small"); });
+  var small = items.filter(function(i){ return i.cl.youth && i.cl.age < 14 && !isFav(i.me) && !clubSmallChosen(f); });
   if(!state.clubSmall) items = items.filter(function(i){ return small.indexOf(i) === -1; });
   var followed = myClubs().indexOf(club) !== -1;
   var html = '<div class="club-page"><div class="club-head"><span class="club-crest">' + (logoImg(teams[0] || club) || '<b>' + escapeHtml(club.slice(0, 2).toUpperCase()) + '</b>') + '</span>' +
@@ -3549,7 +3551,8 @@ function clubItemClass(team, pid, club){
   if(o.youth && o.age === 99) o.age = k.age;
   return o;
 }
-function clubFilters(){ return {pub:state.clubPub || "all", sex:state.clubSex || "all", comp:state.clubComp || "all", age:state.clubAgeY || "all", lvl:state.clubLvl || "all"}; }
+function clubSmallChosen(f){ return f.pub === "youth" && f.age !== "all" && f.age.indexOf("small") !== -1; }
+function clubFilters(){ return {pub:state.clubPub || "all", sex:state.clubSex || "all", comp:state.clubComp || "all", age:(state.clubAgeY && state.clubAgeY.length) ? state.clubAgeY : "all", lvl:state.clubLvl || "all"}; }
 function clubAgeOk(age, want){
   if(want === "small") return age < 14;
   var a = +want; return age === a || (a === 14 && age === 15) || (a === 16 && age === 17) || (a === 19 && age === 18);
@@ -3560,9 +3563,10 @@ function clubPass(cl, team, f, noSmall){
   if(f.pub === "youth" && !cl.youth) return false;
   if(f.sex !== "all" && cl.sex !== f.sex) return false;
   if(f.pub === "adult" && f.comp !== "all" && cl.comp !== f.comp) return false;
-  if(f.pub === "youth" && f.age !== "all" && !clubAgeOk(cl.age, f.age)) return false;
+  /* V2.27 : plusieurs ages possibles (ex. U16 + U19) */
+  if(f.pub === "youth" && f.age !== "all" && !f.age.some(function(a){ return clubAgeOk(cl.age, a); })) return false;
   if(f.pub !== "adult" && f.lvl !== "all" && cl.lvl !== f.lvl) return false;
-  if(noSmall && cl.youth && cl.age < 14 && !(f.pub === "youth" && f.age === "small") && !state.clubSmall && !isFav(team)) return false;
+  if(noSmall && cl.youth && cl.age < 14 && !clubSmallChosen(f) && !state.clubSmall && !isFav(team)) return false;
   return true;
 }
 /* les puces, avec seulement les options presentes dans le club (cls = liste de classes) */
@@ -3584,7 +3588,7 @@ function clubFilterChips(cls){
   } else {
     if(f.pub === "youth"){
       var ag = [["all","Tous"]]; [["19","U19"],["16","U16"],["14","U14"],["small","U12 et -"]].forEach(function(a){ if(scope.some(function(c){ return clubAgeOk(c.age, a[0]); })) ag.push(a); });
-      h += row("Âge", ag.map(function(p){ return chip("club-agey", "age", p[0], p[1], f.age === p[0]); }));
+      h += row("Âge <span>(plusieurs choix possibles)</span>", ag.map(function(p){ return chip("club-agey", "age", p[0], p[1], p[0] === "all" ? f.age === "all" : (f.age !== "all" && f.age.indexOf(p[0]) !== -1)); }));
     }
     var lv = [["all","Tous"]]; if(scope.some(function(c){ return c.lvl === "nat"; })) lv.push(["nat","National"]); if(scope.some(function(c){ return c.lvl === "reg"; })) lv.push(["reg","Régional"]);
     h += row("Niveau", lv.map(function(p){ return chip("club-lvl", "lvl", p[0], p[1], f.lvl === p[0]); }));
@@ -4324,10 +4328,12 @@ var ACTIONS = {
   "club-small": function(){ state.clubSmall = !state.clubSmall; render(); },
   "fav-surf": function(el){ setFavSurf(el.getAttribute("data-surf")); render(); },
   "club-mode": function(el){ state.clubMode = el.getAttribute("data-mode"); render(); },
-  "club-pub": function(el){ state.clubPub = el.getAttribute("data-v"); state.clubComp = "all"; state.clubAgeY = "all"; state.clubLvl = "all"; render(); },
+  "club-pub": function(el){ state.clubPub = el.getAttribute("data-v"); state.clubComp = "all"; state.clubAgeY = []; state.clubLvl = "all"; render(); },
   "club-sex": function(el){ state.clubSex = el.getAttribute("data-v"); render(); },
   "club-comp": function(el){ state.clubComp = el.getAttribute("data-v"); render(); },
-  "club-agey": function(el){ state.clubAgeY = el.getAttribute("data-v"); render(); },
+  "club-agey": function(el){ var v = el.getAttribute("data-v"), l = (state.clubAgeY || []).slice(), i = l.indexOf(v);
+    if(v === "all") l = []; else if(i === -1) l.push(v); else l.splice(i, 1);
+    state.clubAgeY = l; render(); },
   "club-lvl": function(el){ state.clubLvl = el.getAttribute("data-v"); render(); },
   "clubweek-go": function(el){ state.clubWeek = +el.getAttribute("data-w"); render(); },
   "clubweek": function(el){ var d = +el.getAttribute("data-d"); state.clubWeek = d === 0 ? 0 : (state.clubWeek || 0) + d; render(); },
