@@ -1337,6 +1337,26 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .cr-click:active{opacity:.7;}
 .cr-row.cr-click{padding-right:28px;}
 .cr-row.cr-click::after{content:"\203A";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--ice-faint);font-size:18px;}
+
+/* V2.30 : avant-match */
+.pm{margin-top:10px;}
+.pm-head{display:grid;grid-template-columns:1fr 48px 1fr;align-items:center;text-align:center;gap:4px;margin:4px 0 6px;}
+.pm-head b{font-size:13px;display:block;}.pm-head small{display:block;font-size:11px;color:var(--ice-dim);}
+.pm-head > span{font-size:10px;color:var(--ice-faint);}
+.pm-row{display:grid;grid-template-columns:1fr 90px 1fr;align-items:center;text-align:center;font-size:13px;padding:6px 0;border-top:1px solid var(--line);}
+.pm-row > span{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ice-dim);}
+.pm-row .form-row{justify-content:center;display:inline-flex;margin:0;}
+.pm-best{color:var(--gold);font-weight:700;}
+.pm-h2h{font-size:12px;color:var(--ice-faint);text-align:center;padding:6px 0;border-top:1px solid var(--line);}
+.pm-title{font-weight:700;font-size:13px;margin-top:8px;}.pm-title small{font-weight:400;color:var(--ice-faint);font-size:11px;}
+.pm-lock{margin-top:6px;border:1px dashed var(--line);border-radius:10px;padding:9px;text-align:center;font-size:12px;color:var(--ice-dim);}
+.pm-prob{display:flex;height:24px;border-radius:7px;overflow:hidden;margin:6px 0 4px;font-size:12px;font-weight:700;color:#fff;}
+.pm-prob div{display:flex;align-items:center;justify-content:center;}
+.pm-leg{display:flex;justify-content:space-between;font-size:11px;color:var(--ice-dim);}
+.pm-sc{display:flex;gap:6px;margin-top:8px;}.pm-sc div{flex:1;background:var(--panel-2);border-radius:8px;padding:6px;text-align:center;font-size:11px;color:var(--ice-dim);}
+.pm-sc b{display:block;font-size:16px;color:var(--ice);}
+.pm-row .form-chip{width:18px;height:18px;min-width:18px;font-size:10px;line-height:18px;padding:0;margin:0 1px;border-radius:4px;}
+.pm-row .form-row{flex-wrap:nowrap;gap:0;}
 </style>
 </head>
 <body>
@@ -2461,7 +2481,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.29 · 10/11/2026";
+var APP_VERSION = "2.30 · 10/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -2628,7 +2648,7 @@ function rowDetail(m, pr, locked, done){
     }).join("") + '</div>' + (!locked ? '<p class="points-sub" style="margin:4px 0 0;">Les scores des autres s\'affichent au coup d\'envoi.</p>' : '');
   }
   if(locked) html += trendHtml(m);
-  if(!done) html += renderMatchInfo(m);
+  if(!done) html += renderPrematch(m, pr);
   return html + '</div>';
 }
 
@@ -4366,6 +4386,72 @@ staleBanner = function(){
     '<a class="btn btn-sm" href="' + ROBOT_URL + '" target="_blank" rel="noopener">Relancer le robot (GitHub)</a></div>';
 };
 
+/* ===================== Avant-match et score probable (V2.30) ===================== */
+/* Fiche d'avant-match dans le detail d'un match a pronostiquer : classement, forme, buts par match,
+   domicile / exterieur, confrontations ; score probable (modele de Poisson) visible apres son propre prono. */
+function poolPlayed(pool){
+  var seen = {}, out = [];
+  var add = function(m){ if(m.pool === pool && hasScore(m) && !seen[m.id]){ seen[m.id] = 1; out.push(m); } };
+  state.matches.forEach(add);
+  if(SNAP.state === "ok") mergedExt().matches.forEach(add);
+  return sortMatches(out);
+}
+function pmTeamStats(team, played){
+  var s = {j:0, gf:0, ga:0, home:{V:0, N:0, D:0}, away:{V:0, N:0, D:0}, form:[]};
+  played.forEach(function(m){
+    if(m.teamA !== team && m.teamB !== team) return;
+    var h = m.teamA === team, gf = h ? m.scoreA : m.scoreB, ga = h ? m.scoreB : m.scoreA, r = gf > ga ? "V" : (gf < ga ? "D" : "N");
+    s.j++; s.gf += gf; s.ga += ga; s[h ? "home" : "away"][r]++; s.form.push({r:r, m:m, gf:gf, ga:ga});
+  });
+  s.form = s.form.slice(-5).reverse();
+  return s;
+}
+function pmPoisson(m, played, A, B){
+  if(played.length < 10 || A.j < 3 || B.j < 3) return null;
+  var hg = 0, ag = 0; played.forEach(function(x){ hg += x.scoreA; ag += x.scoreB; });
+  hg /= played.length; ag /= played.length;
+  var avg = (hg + ag) / 2; if(!avg) return null;
+  var att = function(s){ return (s.gf / s.j) / avg; }, def = function(s){ return (s.ga / s.j) / avg; };
+  var lh = att(A) * def(B) * hg, la = att(B) * def(A) * ag;
+  var fact = [1]; for(var k = 1; k <= 15; k++) fact[k] = fact[k - 1] * k;
+  var pois = function(l, k){ return Math.exp(-l) * Math.pow(l, k) / fact[k]; };
+  var w = 0, d = 0, l = 0, sc = [];
+  for(var i = 0; i <= 15; i++) for(var j = 0; j <= 15; j++){ var p = pois(lh, i) * pois(la, j); if(i > j) w += p; else if(i === j) d += p; else l += p; sc.push([i, j, p]); }
+  sc.sort(function(a, b){ return b[2] - a[2]; });
+  return {w:w, d:d, l:l, top:sc.slice(0, 3), lh:lh, la:la};
+}
+function renderPrematch(m, pr){
+  var played = poolPlayed(m.pool), A = pmTeamStats(m.teamA, played), B = pmTeamStats(m.teamB, played);
+  var sa = standingOf(m.teamA, m.pool), sb = standingOf(m.teamB, m.pool), n = (srcStandings()[m.pool] || []).length;
+  var nf = function(x){ return x.toFixed(1).replace(".", ","); };
+  var pos = function(s){ return s ? s.rank + (s.rank === 1 ? "er" : "e") + ' &middot; ' + s.pts + ' pts' : '&ndash;'; };
+  var chips = function(s){ return s.form.length ? s.form.map(function(f){ return '<span class="form-chip form-' + f.r + '" title="' + escapeHtml(formatDate(f.m.date) + ' ' + f.gf + '-' + f.ga) + '">' + f.r + '</span>'; }).join("") : '<span class="points-sub">&ndash;</span>'; };
+  var rec = function(o){ return o.V + 'V ' + o.N + 'N ' + o.D + 'D'; };
+  var row = function(a, lab, b, best){ return '<div class="pm-row"><div' + (best === 1 ? ' class="pm-best"' : '') + '>' + a + '</div><span>' + lab + '</span><div' + (best === 2 ? ' class="pm-best"' : '') + '>' + b + '</div></div>'; };
+  var html = '<div class="pm"><div class="info-sub">Avant-match</div>';
+  html += '<div class="pm-head"><div><b>' + escapeHtml(m.teamA) + '</b><small>' + pos(sa) + '</small></div><span>' + (n ? 'sur ' + n : '') + '</span><div><b>' + escapeHtml(m.teamB) + '</b><small>' + pos(sb) + '</small></div></div>';
+  if(!A.j && !B.j) return html + '<p class="points-sub" style="margin:6px 0 0;">Pas encore de match joué dans cette poule.</p></div>';
+  html += row('<span class="form-row">' + chips(A) + '</span>', 'Forme', '<span class="form-row">' + chips(B) + '</span>');
+  var ga1 = A.j ? A.gf / A.j : 0, gb1 = B.j ? B.gf / B.j : 0, ga2 = A.j ? A.ga / A.j : 0, gb2 = B.j ? B.ga / B.j : 0;
+  html += row(A.j ? nf(ga1) : '&ndash;', 'Buts marqués / match', B.j ? nf(gb1) : '&ndash;', A.j && B.j ? (ga1 > gb1 ? 1 : (gb1 > ga1 ? 2 : 0)) : 0);
+  html += row(A.j ? nf(ga2) : '&ndash;', 'Encaissés / match', B.j ? nf(gb2) : '&ndash;', A.j && B.j ? (ga2 < gb2 ? 1 : (gb2 < ga2 ? 2 : 0)) : 0);
+  html += row(rec(A.home), 'À domicile / à l\'extérieur', rec(B.away));
+  var h2h = played.filter(function(x){ return (x.teamA === m.teamA && x.teamB === m.teamB) || (x.teamA === m.teamB && x.teamB === m.teamA); });
+  html += '<div class="pm-h2h">' + (h2h.length ? 'Confrontation' + (h2h.length > 1 ? 's' : '') + ' cette saison : ' + h2h.map(function(x){ return formatDate(x.date) + ' ' + escapeHtml(x.teamA) + ' ' + x.scoreA + '-' + x.scoreB + ' ' + escapeHtml(x.teamB); }).join(" &middot; ") : 'Pas encore de confrontation cette saison') + '</div>';
+  var P = pmPoisson(m, played, A, B), mine = pr && pr.a !== undefined;
+  html += '<div class="pm-title">Score probable <small>(modèle de Poisson)</small></div>';
+  if(!P) html += '<p class="points-sub" style="margin:4px 0 0;">Pas encore assez de matchs joués (3 par équipe minimum).</p>';
+  else if(!mine && !isLocked(m)) html += '<div class="pm-lock" id="pm-lock-' + m.id + '">&#128274; Mets ton prono pour voir le score probable.</div>';
+  else {
+    var pc = function(x){ return Math.round(100 * x); };
+    html += '<div class="pm-prob"><div class="cs-V" style="flex:' + pc(P.w) + '">' + (pc(P.w) >= 10 ? pc(P.w) + ' %' : '') + '</div><div class="cs-N" style="flex:' + pc(P.d) + '">' + (pc(P.d) >= 10 ? pc(P.d) + ' %' : '') + '</div><div class="cs-D" style="flex:' + pc(P.l) + '">' + (pc(P.l) >= 10 ? pc(P.l) + ' %' : '') + '</div></div>';
+    html += '<div class="pm-leg"><span>' + escapeHtml(teamParts(m.teamA).club || m.teamA) + ' ' + pc(P.w) + ' %</span><span>nul ' + pc(P.d) + ' %</span><span>' + escapeHtml(teamParts(m.teamB).club || m.teamB) + ' ' + pc(P.l) + ' %</span></div>';
+    html += '<div class="pm-sc">' + P.top.map(function(s){ return '<div><b>' + s[0] + '-' + s[1] + '</b>' + Math.round(100 * s[2]) + ' %</div>'; }).join("") + '</div>';
+    html += '<p class="points-sub" style="margin:6px 0 0;">Les 3 scores les plus probables, d\'après les buts marqués et encaissés de chaque équipe dans cette poule. Une aide, pas une certitude : avec peu de matchs, les chiffres bougent beaucoup.</p>';
+  }
+  return html + '</div>';
+}
+
 /* ===================== v2 : evenements (un seul ecouteur pour toute l'app) ===================== */
 function roomCodeFrom(id){ var i = document.getElementById(id); return i ? i.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, "") : ""; }
 function val(id){ var i = document.getElementById(id); return i ? i.value : ""; }
@@ -4542,6 +4628,7 @@ var ACTIONS = {
       var ok2 = document.getElementById("xp-ok-" + id);
       if(!saved){ showToast("Sauvegarde impossible (connexion ?)"); if(ok2) ok2.innerHTML = "!"; return; }
       if(ok2) ok2.innerHTML = "&#10003;";
+      if(document.getElementById("pm-lock-" + id)) render();   /* V2.30 : premier prono -> le score probable s'affiche */
       var sum = document.getElementById("wk-sum");
       if(sum){ var wr = weekRange(state.weekOffset); sum.innerHTML = weekSummary(state.matches.filter(function(x){ return x.date ? (x.date >= wr.start && x.date <= wr.end && (!state.cat || poolCat(x.pool) === state.cat)) : state.weekOffset === 0; })); }
       updateMissingBadge(); scheduleNotifs();
