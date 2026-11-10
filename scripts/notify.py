@@ -235,13 +235,13 @@ def results_plan(room, snap, now, done):
         if len(items) == 1:
             m, pr, pts, base = items[0]
             sc = f"{m.get('teamA')} {m['scoreA']}-{m['scoreB']} {m.get('teamB')}"
-            jk = " (joker)" if pr.get("j") else ""
+            jk = " avec joker" if pr.get("j") else ""
             if base == 3:
-                body = f"{sc} : score exact ! +{pts} pts{jk}"
+                body = f"{sc} : score exact{jk} ! +{pts} pts."
             elif base == 1:
-                body = f"{sc} : bon résultat, +{pts} pt{'s' if pts > 1 else ''}{jk} (ton prono {pr['a']}-{pr['b']})"
+                body = f"{sc} : bon résultat{jk}, +{pts} pt{'s' if pts > 1 else ''} (ton prono {pr['a']}-{pr['b']})."
             else:
-                body = f"{sc} : raté (ton prono {pr['a']}-{pr['b']})"
+                body = f"{sc} : raté (ton prono {pr['a']}-{pr['b']})."
             out[p] = {"title": "Pronos Hockey · résultat", "body": body + rk}
         else:
             tot = sum(x[2] for x in items)
@@ -306,6 +306,28 @@ def send(sub, payload, key_file):
         return "gone" if code in (404, 410) else f"erreur {code or ''}".strip()
 
 
+def club_logo(club):
+    """Adresse du logo hockey.be d'un club (d'apres le fichier du robot), ou None."""
+    try:
+        with open(SNAPSHOT, encoding="utf-8") as f:
+            code = (json.load(f).get("logos") or {}).get(club)
+    except (OSError, ValueError):
+        return None
+    return f"https://hockey.be/wp-content/uploads/logos/50x50/{code}.png" if code else None
+
+
+def test_payload():
+    """Notification d'essai ; depuis le 10/11 avec un logo de club (variable TEST_CLUB, Old Club par defaut)
+    pour voir si l'appareil affiche les logos dans les notifications."""
+    club = (os.environ.get("TEST_CLUB") or "Old Club").strip()
+    p = {"title": "Pronos Hockey", "body": f"Test : les rappels fonctionnent sur cet appareil. Logo {club} visible ?", "tag": "test"}
+    logo = club_logo(club)
+    if logo:
+        p["icon"] = logo
+        p["image"] = logo
+    return p
+
+
 def main():
     mode = (os.environ.get("MODE") or "rappel").strip().lower()
     pem = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
@@ -345,7 +367,7 @@ def main():
         for room_code, players in allsubs.items():
             if who in (players or {}):
                 n += len(players[who] or {})
-                deliver(room_code, who, {"title": "Pronos Hockey", "body": "Test : les rappels fonctionnent sur cet appareil.", "tag": "test"})
+                deliver(room_code, who, test_payload())
         print(f"Test : {n} appareil(s) trouve(s) pour ce joueur ; envoyes {stats['ok']}, expires {stats['gone']}, erreurs {stats['err']}")
         return
 
