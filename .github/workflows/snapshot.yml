@@ -9,6 +9,8 @@
 # meme si la longue lecture de hockey.be echoue ou traine, les scores EHL sont en ligne.
 # Euro Hockey League, FIH Pro League et Hoofdklasse : les jours de match, le robot met aussi a jour celles-la seules
 # (quelques secondes) toutes les 30 minutes entre 9h et minuit.
+# Archive de la saison (10/11/2026) : chaque lundi apres la lecture de 2h, data/archives/saison-AAAA-AA.json
+# garde tous les matchs joues et les classements de la saison (donnees publiques de hockey.be).
 # Chasseur de scores (09/11/2026) : toutes les 30 minutes entre 11h et minuit, le robot relit seulement les poules
 # des parties et des equipes favorites ou un match est fini depuis plus de 1h30 sans score (quelques secondes).
 #
@@ -98,6 +100,7 @@ jobs:
               ehl = False
           run = full or ehl
           scores = (not full) and 11 <= now.hour <= 23
+          archive = full and (now.weekday() == 0 or not os.path.exists("data/archives"))
           print(f"Maintenant {now:%a %d/%m %H:%M}, dernier horaire {last_slot:%a %d/%m %H:%M}, "
                 f"snapshot du {gen.astimezone(BXL):%a %d/%m %H:%M}" if gen else "pas de snapshot",
                 "-> mise a jour complete" if full else ("-> mise a jour EHL" if ehl else "-> deja a jour"))
@@ -105,6 +108,7 @@ jobs:
               f.write(f"run={'true' if run else 'false'}\n")
               f.write(f"mode={'full' if full else 'ehl'}\n")
               f.write(f"scores={'true' if scores else 'false'}\n")
+              f.write(f"archive={'true' if archive else 'false'}\n")
           PY
       - uses: actions/setup-python@v6
         if: steps.gate.outputs.run == 'true' || steps.gate.outputs.scores == 'true'
@@ -161,6 +165,19 @@ jobs:
             echo "Rien de neuf"
           else
             git commit -m "Snapshot hockey.be $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git pull --rebase
+            git push
+          fi
+      - name: Archiver la saison (le lundi)
+        if: steps.gate.outputs.archive == 'true'
+        continue-on-error: true
+        run: |
+          python scripts/snapshot.py --archive
+          git add data/archives
+          if git diff --cached --quiet; then
+            echo "Archive inchangee"
+          else
+            git commit -m "Archive saison $(date -u +'%Y-%m-%d')"
             git pull --rebase
             git push
           fi
