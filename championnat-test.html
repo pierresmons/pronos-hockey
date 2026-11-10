@@ -1309,6 +1309,29 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .club-filters .club-chips{margin:0;}
 
 .cf-lab span{text-transform:none;letter-spacing:0;}
+
+/* V2.28 : filtres repliables, cases et barres cliquables, liste des matchs */
+.club-filters{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:0 12px;margin:8px 0;}
+.club-filters summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:11px 0;}
+.club-filters summary::-webkit-details-marker{display:none;}
+.club-filters summary::after{content:"\25BE";margin-left:auto;color:var(--ice-faint);}
+.club-filters[open] summary::after{content:"\25B4";}
+.club-filters[open]{padding-bottom:10px;}
+.cf-title{font-weight:700;font-size:14px;}
+.cf-sum{font-size:13px;color:var(--ice-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cf-sum.on{color:var(--gold);font-weight:600;}
+.cf-hint{font-size:11px;color:var(--ice-faint);margin:6px 0 0;}
+.club-bilan > div,.club-kpis > div,.ev-col{cursor:pointer;}
+.club-bilan > div:active,.club-kpis > div:active{opacity:.7;}
+.ev-bar i{cursor:pointer;}
+.cd-sheet{max-height:80vh;display:flex;flex-direction:column;}
+.cd-list{overflow-y:auto;margin:6px -4px 0;padding:0 4px;}
+.cd-row{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:9px 2px;color:var(--ice);font:inherit;cursor:pointer;}
+.cd-row:first-child{border-top:0;}
+.cd-res{flex:0 0 22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;}
+.cd-res.res-V{background:#3f8f57;}.cd-res.res-N{background:#4d6178;}.cd-res.res-D{background:#b33d3f;}
+.cd-main{font-size:14px;line-height:1.35;}
+.cd-main small{display:block;font-size:11px;color:var(--ice-faint);margin-top:2px;}
 </style>
 </head>
 <body>
@@ -2433,7 +2456,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.20 test · 10/11/2026";
+var APP_VERSION = "3.21 test · 10/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -2472,7 +2495,7 @@ function render(){
   else if(state.settings) html = renderTop(true) + '<div class="content">' + renderSettings() + '</div>';
   else if(state.chatOpen && state.me) html = renderTop(true) + '<div class="content chat-content">' + renderChat() + '</div>';
   else html = renderTop(true) + staleLine() + renderTabs() + '<div class="content">' + renderContent() + '</div>';
-  app.innerHTML = html + renderPlayerSheet() + renderInviteSheet() + renderPinSheet() + renderAnnounce();
+  app.innerHTML = html + renderPlayerSheet() + renderInviteSheet() + renderPinSheet() + renderAnnounce() + renderClubDetail();
   document.querySelectorAll(".chips-scroll").forEach(function(row){
     var act = row.querySelector(".chip2.on");
     if(act && act.offsetLeft + act.offsetWidth > row.clientWidth) row.scrollLeft = act.offsetLeft - 12;
@@ -3594,7 +3617,15 @@ function clubFilterChips(cls){
     var lv = [["all","Tous"]]; if(scope.some(function(c){ return c.lvl === "nat"; })) lv.push(["nat","National"]); if(scope.some(function(c){ return c.lvl === "reg"; })) lv.push(["reg","Régional"]);
     h += row("Niveau", lv.map(function(p){ return chip("club-lvl", "lvl", p[0], p[1], f.lvl === p[0]); }));
   }
-  return '<div class="club-filters">' + h + '</div>';
+  /* V2.28 : filtres repliables ; le resume montre les choix actifs */
+  var sum = [], lab = {all:"Tout", adult:"Adultes", youth:"Jeunes"};
+  sum.push(lab[f.pub]);
+  if(f.sex !== "all") sum.push(f.sex === "m" ? (f.pub === "youth" ? "Garçons" : "Hommes") : (f.pub === "youth" ? "Filles" : "Dames"));
+  if(f.pub === "adult" && f.comp !== "all") sum.push(CLUB_COMP_LABEL[f.comp] || f.comp);
+  if(f.pub === "youth" && f.age !== "all") sum.push(f.age.map(function(a){ return a === "small" ? "U12 et -" : "U" + a; }).join(" + "));
+  if(f.pub !== "adult" && f.lvl !== "all") sum.push(f.lvl === "nat" ? "National" : "Régional");
+  var active = sum.length > 1 || f.pub !== "all";
+  return '<details class="club-filters" id="club-filters"' + (state.clubFiltOpen ? ' open' : '') + '><summary><span class="cf-title">Filtres</span><span class="cf-sum' + (active ? ' on' : '') + '">' + escapeHtml(sum.join(" · ")) + '</span></summary>' + h + '</details>';
 }
 function clubSurfs(isMine){
   var r = {out:false, "in":false};
@@ -3632,9 +3663,11 @@ function renderClubSeason(club, isMine){
   var c = {V:0, N:0, D:0}, gf = 0, ga = 0;
   list.forEach(function(r){ c[r.res]++; gf += r.gf; ga += r.ga; });
   var n = list.length, pct = Math.round(100 * c.V / n);
-  html += '<div class="club-bilan"><div class="cb-V"><b>' + c.V + '</b><small>victoire' + (c.V > 1 ? 's' : '') + '</small></div><div class="cb-N"><b>' + c.N + '</b><small>nul' + (c.N > 1 ? 's' : '') + '</small></div><div class="cb-D"><b>' + c.D + '</b><small>défaite' + (c.D > 1 ? 's' : '') + '</small></div></div>';
-  html += '<div class="club-kpis"><div><b>' + pct + ' %</b><small>de victoires</small></div><div><b>' + gf + '</b><small>marqués</small></div><div><b>' + ga + '</b><small>encaissés</small></div><div><b>' + (gf - ga > 0 ? '+' : '') + (gf - ga) + '</b><small>différence</small></div></div>';
+  CLUB_LIST = list;
+  html += '<div class="club-bilan"><div class="cb-V" data-action="club-detail" data-res="V"><b>' + c.V + '</b><small>victoire' + (c.V > 1 ? 's' : '') + '</small></div><div class="cb-N" data-action="club-detail" data-res="N"><b>' + c.N + '</b><small>nul' + (c.N > 1 ? 's' : '') + '</small></div><div class="cb-D" data-action="club-detail" data-res="D"><b>' + c.D + '</b><small>défaite' + (c.D > 1 ? 's' : '') + '</small></div></div>';
+  html += '<div class="club-kpis"><div data-action="club-detail" data-res="all"><b>' + pct + ' %</b><small>de victoires</small></div><div data-action="club-detail" data-res="all" data-sort="gf"><b>' + gf + '</b><small>marqués</small></div><div data-action="club-detail" data-res="all" data-sort="ga"><b>' + ga + '</b><small>encaissés</small></div><div data-action="club-detail" data-res="all" data-sort="diff"><b>' + (gf - ga > 0 ? '+' : '') + (gf - ga) + '</b><small>différence</small></div></div>';
   html += '<p class="points-sub" style="margin:6px 0 0;">' + n + ' résultat' + (n > 1 ? 's' : '') + ' d\'équipes depuis le début de la saison ' + (surf === "in" ? "indoor" : "outdoor") + '.</p>';
+  html += '<p class="cf-hint">Touche une case ou une barre pour voir les matchs.</p>';
   html += clubEvolution(list);
   html += clubRecords(list, club);
   html += clubSplits(list);
@@ -3648,6 +3681,30 @@ function renderClubSeason(club, isMine){
       return '<button class="ct-row" data-action="goto-team" data-team="' + escapeHtml(t.team) + '"><span class="ct-t">' + escapeHtml(t.code || t.team) + (isFav(t.team) ? ' &#9733;' : '') + '</span><span>' + t.j + '</span><span class="ct-v">' + t.V + '</span><span>' + t.N + '</span><span class="ct-d">' + t.D + '</span><span>' + t.gf + '-' + t.ga + '</span><span>' + (t.gf - t.ga > 0 ? '+' : '') + (t.gf - t.ga) + '</span></button>';
     }).join("") + '</div>';
   return html + clubSmallBtn(all);
+}
+/* V2.28 : liste des matchs derriere une case ou une barre */
+var CLUB_LIST = [];
+function renderClubDetail(){
+  var d = state.clubDetail;
+  if(!d || state.tab !== "matchs" || !state.mview || state.mview.type !== "club") return "";
+  var L = CLUB_LIST.filter(function(r){ return (d.res === "all" || r.res === d.res) && (!d.week || weekKey(r.m.date) === d.week); });
+  if(d.sort === "gf") L.sort(function(a, b){ return b.gf - a.gf; });
+  else if(d.sort === "ga") L.sort(function(a, b){ return b.ga - a.ga; });
+  else if(d.sort === "diff") L.sort(function(a, b){ return (b.gf - b.ga) - (a.gf - a.ga); });
+  else L = L.slice().reverse();
+  var resL = {V:"Victoires", N:"Nuls", D:"Défaites", all:"Tous les matchs"}[d.res], title = resL;
+  if(d.week){ var w = new Date(d.week + "T12:00:00"), e = new Date(w); e.setDate(e.getDate() + 6);
+    title += " · semaine du " + w.getDate() + "/" + (w.getMonth() + 1) + " au " + e.getDate() + "/" + (e.getMonth() + 1); }
+  if(d.sort) title += d.sort === "gf" ? " · tri par buts marqués" : (d.sort === "ga" ? " · tri par buts encaissés" : " · tri par écart");
+  var me = function(t){ return '<em class="cr-me">' + escapeHtml(t) + '</em>'; };
+  var rows = L.map(function(r){
+    var m = r.m, home = m.teamA === r.team, dl = new Date(m.date + "T12:00:00").toLocaleDateString("fr-FR", {weekday:"short", day:"numeric", month:"short"});
+    var line = home ? me(r.team) + ' <b>' + r.gf + '-' + r.ga + '</b> ' + escapeHtml(r.opp) : escapeHtml(r.opp) + ' <b>' + r.ga + '-' + r.gf + '</b> ' + me(r.team);
+    return '<button class="cd-row" data-action="club-detail-team" data-team="' + escapeHtml(r.team) + '"><span class="cd-res res-' + r.res + '">' + r.res + '</span><span class="cd-main">' + line +
+      '<small>' + escapeHtml(dl) + ' &middot; ' + escapeHtml(poolName(m.pool).split(" - ")[0]) + ' &middot; ' + escapeHtml(clubLevel(m.pool)) + '</small></span></button>';
+  }).join("");
+  return '<div class="sheet-backdrop" data-action="club-detail-close"></div><div class="sheet cd-sheet" role="dialog" aria-label="Matchs"><div class="sheet-grab"></div><button class="sheet-x" data-action="club-detail-close" aria-label="Fermer">&times;</button>' +
+    '<h2 class="sheet-title">' + escapeHtml(title) + '</h2><p class="pin-sub">' + L.length + ' match' + (L.length > 1 ? 's' : '') + '</p><div class="cd-list">' + (rows || '<p class="points-sub">Aucun match.</p>') + '</div></div>';
 }
 function clubSmallBtn(all){
   var f = clubFilters();
@@ -3729,8 +3786,8 @@ function clubEvolution(list){
   var cols = all.map(function(k){
     var w = wk[k] || {V:0, N:0, D:0, gf:0, ga:0}, t = w.V + w.N + w.D, df = w.gf - w.ga, day = new Date(k + "T12:00:00");
     var segs = [["V","cs-V"],["N","cs-N"],["D","cs-D"]].map(function(p){ var x = w[p[0]]; if(!x) return ""; var h = Math.round(H * x / max);
-      return '<i class="' + p[1] + '" style="height:' + h + 'px">' + (h >= 13 ? x : "") + '</i>'; }).join("");
-    return '<div class="ev-col" title="' + escapeHtml(k) + ' : ' + w.V + ' V, ' + w.N + ' N, ' + w.D + ' D, buts ' + w.gf + '-' + w.ga + '"><div class="ev-bar" style="height:' + (H + 16) + 'px"><b>' + (t || "–") + '</b>' + segs + '</div>' +
+      return '<i class="' + p[1] + '" style="height:' + h + 'px" data-action="club-detail" data-week="' + k + '" data-res="' + p[0] + '">' + (h >= 13 ? x : "") + '</i>'; }).join("");
+    return '<div class="ev-col"' + (t ? ' data-action="club-detail" data-week="' + k + '" data-res="all"' : '') + ' title="' + escapeHtml(k) + ' : ' + w.V + ' V, ' + w.N + ' N, ' + w.D + ' D, buts ' + w.gf + '-' + w.ga + '"><div class="ev-bar" style="height:' + (H + 16) + 'px"><b>' + (t || "–") + '</b>' + segs + '</div>' +
       '<div class="ev-df ' + (df > 0 ? 'up' : (df < 0 ? 'down' : '')) + '">' + (t ? (df > 0 ? '+' : '') + df : '') + '</div><div class="ev-dt">' + day.getDate() + '/' + (day.getMonth() + 1) + '</div></div>';
   }).join("");
   return '<div class="club-day">Évolution <span>par semaine</span></div><div class="club-card club-evo"><div class="ev-scroll"><div class="ev-row">' + cols + '</div></div>' +
@@ -4332,6 +4389,9 @@ var ACTIONS = {
   "club-pub": function(el){ state.clubPub = el.getAttribute("data-v"); state.clubComp = "all"; state.clubAgeY = []; state.clubLvl = "all"; render(); },
   "club-sex": function(el){ state.clubSex = el.getAttribute("data-v"); render(); },
   "club-comp": function(el){ state.clubComp = el.getAttribute("data-v"); render(); },
+  "club-detail": function(el){ state.clubDetail = {res:el.getAttribute("data-res") || "all", week:el.getAttribute("data-week") || null, sort:el.getAttribute("data-sort") || null}; render(); },
+  "club-detail-close": function(){ state.clubDetail = null; render(); },
+  "club-detail-team": function(el){ state.clubDetail = null; openTeam(el.getAttribute("data-team")); },
   "club-agey": function(el){ var v = el.getAttribute("data-v"), l = (state.clubAgeY || []).slice(), i = l.indexOf(v);
     if(v === "all") l = []; else if(i === -1) l.push(v); else l.splice(i, 1);
     state.clubAgeY = l; render(); },
@@ -4781,6 +4841,7 @@ function installEvents(){
       return;
     }
     if(d.classList && d.classList.contains("cat-lvl")){ state.catOpen[d.getAttribute("data-key")] = d.open; return; }
+    if(d.id === "club-filters"){ state.clubFiltOpen = d.open; return; }
     if(d.id === "season-box") state.seasonBoxOpen = d.open;
     else if(d.id === "season-res") state.seasonResOpen = d.open;
     else if(d.id === "fix-scores") state.fixOpen = d.open;
