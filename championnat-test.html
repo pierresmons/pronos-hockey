@@ -1279,6 +1279,34 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .fav-surf{margin:4px 0 8px;}
 .fav-surf ~ .fav-row .surf-tag, .fav-surf ~ * .fav-row .surf-tag{display:none;}
 .team-surf{margin:0 0 10px;}
+
+/* V2.25 : stats saison du club */
+.cr-me{font-style:normal;color:var(--gold);}
+.cs-V{background:#3f8f57;}.cs-N{background:#4d6178;}.cs-D{background:#b33d3f;}
+.cs-split{display:flex;gap:8px;}
+.cs-box{flex:1;text-align:center;padding:10px 6px;}
+.cs-box small{display:block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ice-dim);margin-bottom:4px;}
+.cs-box b{font-size:17px;}
+.cs-box span{display:block;font-size:11px;color:var(--ice-faint);margin-top:4px;}
+.cs-bar{display:flex;height:7px;border-radius:4px;overflow:hidden;margin-top:6px;}
+.cs-bar i{display:block;}
+.ev-scroll{overflow-x:auto;direction:rtl;-webkit-overflow-scrolling:touch;}
+.ev-row{display:flex;gap:5px;direction:ltr;min-width:100%;padding-top:4px;}
+.ev-col{flex:1 0 26px;display:flex;flex-direction:column;align-items:stretch;}
+.ev-bar{display:flex;flex-direction:column;justify-content:flex-end;}
+.ev-bar b{text-align:center;font-size:11px;margin-bottom:3px;}
+.ev-bar i{display:flex;align-items:center;justify-content:center;font-style:normal;font-size:10px;font-weight:700;color:rgba(255,255,255,.92);}
+.ev-bar i:nth-of-type(1){border-radius:4px 4px 0 0;}
+.ev-df{text-align:center;font-size:10px;font-weight:700;color:var(--ice-dim);margin-top:4px;min-height:13px;}
+.ev-df.up{color:#4fbf73;}.ev-df.down{color:#e05a5c;}
+.ev-dt{text-align:center;font-size:9px;color:var(--ice-faint);}
+.ev-note{font-size:11px;color:var(--ice-faint);margin:6px 0 0;}
+.ev-bar b{color:var(--ice);}
+
+/* V2.26 : filtres du club */
+.club-filters{margin:6px 0 4px;}
+.cf-lab{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ice-faint);margin:8px 0 4px;}
+.club-filters .club-chips{margin:0;}
 </style>
 </head>
 <body>
@@ -2403,7 +2431,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.16 test · 09/11/2026";
+var APP_VERSION = "3.19 test · 10/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3372,7 +3400,12 @@ function renderClubPage(club){
     if(it.played){ it.gf = home ? m.scoreA : m.scoreB; it.ga = home ? m.scoreB : m.scoreA; it.res = it.gf > it.ga ? "V" : (it.gf < it.ga ? "D" : "N"); if(it.derby && it.res !== "N") it.res = "VD"; }
     return it;
   });
-  var small = items.filter(function(i){ return clubAge(i.code) < 14 && !isFav(i.me); });
+  var f = clubFilters();
+  items.forEach(function(i){ i.cl = clubItemClass(i.me, i.m.pool, club); });
+  var allCls = srcMatches().filter(function(m){ return m.date && m.date >= SEASON_FROM && surfOfPid(m.pool) === surf && (isMine(m.teamA) || isMine(m.teamB)); })
+    .map(function(m){ var t = isMine(m.teamA) ? m.teamA : m.teamB; return clubItemClass(t, m.pool, club); });
+  items = items.filter(function(i){ return clubPass(i.cl, i.me, f, false); });
+  var small = items.filter(function(i){ return i.cl.youth && i.cl.age < 14 && !isFav(i.me) && !(f.pub === "youth" && f.age === "small"); });
   if(!state.clubSmall) items = items.filter(function(i){ return small.indexOf(i) === -1; });
   var followed = myClubs().indexOf(club) !== -1;
   var html = '<div class="club-page"><div class="club-head"><span class="club-crest">' + (logoImg(teams[0] || club) || '<b>' + escapeHtml(club.slice(0, 2).toUpperCase()) + '</b>') + '</span>' +
@@ -3384,6 +3417,7 @@ function renderClubPage(club){
   html += weekNav(state.clubWeek || 0, "clubweek");
   if(hasOut && hasIn) html += '<div class="seg">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){
     return '<button class="seg-btn' + (surf === o[0] ? ' on' : '') + '" data-action="club-surf" data-surf="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
+  html += clubFilterChips(allCls);
   var played = items.filter(function(i){ return i.played; });
   if(played.length){
     /* derby : les deux équipes du club comptent (une victoire et une défaite, ou deux nuls) */
@@ -3481,6 +3515,83 @@ function clubSeasonResults(club, isMine, surf){
   return out.sort(function(a, b){ return a.m.date.localeCompare(b.m.date) || (a.m.time || "").localeCompare(b.m.time || ""); });
 }
 /* saisons (outdoor / indoor) ou le club a au moins un match programme cette saison */
+
+/* ===================== Filtres du club (V2.26) ===================== */
+/* Public (adultes / jeunes), sexe, puis competition (adultes) ou age + niveau (jeunes), ou niveau (tout).
+   Classement deduit du nom des poules hockey.be (ex. « Belgian League Men Outdoor Week - Nat. 2 »). */
+var POOL_CLS = {};
+var CLUB_COMP_LABEL = {top:"Top League", bl:"Belgian League", natin:"Nationale", open:"Open", fun:"Fun", autres:"Ligues régionales", vet:"Vétérans", coupe:"Coupe", recre:"Récréatif", europe:"EHL"};
+function poolClass(pid){
+  if(POOL_CLS[pid]) return POOL_CLS[pid];
+  var name = poolName(pid) || "", parts = name.split(" - "), comp = parts[0].replace(/ (Outdoor|Indoor)( Week)?/gi, "").replace(/ Week$/i, "").trim(), lvl = (parts[1] || "").trim();
+  var c = {youth:false, age:99, sex:"x", comp:"autres", lvl:null};
+  var my = /^U(\d+) (Boys|Girls|Mixed)?/i.exec(comp);
+  if(/^(ehl|fihpl|nlhk)-/.test(pid)){ c.comp = "europe"; c.lvl = "nat"; }
+  else if(my){ c.youth = true; c.age = +my[1]; c.comp = null; c.sex = /Girls/i.test(comp) ? "f" : (/Boys/i.test(comp) ? "m" : "x");
+    c.lvl = /^Nat/i.test(lvl) ? "nat" : (/^Reg/i.test(lvl) ? "reg" : null); }
+  else if(/^R2C|Recreatie|Trimmers/i.test(comp)){ c.comp = "recre"; if(/10-14|U18/i.test(comp)){ c.youth = true; c.age = /U18/i.test(comp) ? 18 : 14; } }
+  else if(/^(Cup|Dr\. Oetker)/i.test(comp)){ c.comp = "coupe"; }
+  else if(/^\d\d\+/.test(comp)){ c.comp = "vet"; c.lvl = "reg"; }
+  else if(/^Top Hockey/i.test(comp)){ c.comp = "top"; c.lvl = "nat"; }
+  else if(/^Belgian League/i.test(comp)){ c.comp = "bl"; c.lvl = "nat"; }
+  else if(/^Open League/i.test(comp)){ c.comp = "open"; c.lvl = "reg"; }
+  else if(/^Fun League/i.test(comp)){ c.comp = "fun"; c.lvl = "reg"; }
+  else if(/^Nat/i.test(lvl)){ c.comp = "natin"; c.lvl = "nat"; }   /* indoor adultes : Men / Women / Heren / Dames - Nat. 1, 2... */
+  else { c.comp = "autres"; c.lvl = "reg"; }
+  if(c.sex === "x") c.sex = /(Women|Ladies|Dames|Girls)/i.test(comp) ? "f" : (/(Men|Gentlem|Gentleman|Heren|Boys)/i.test(comp) ? "m" : "x");
+  return (POOL_CLS[pid] = c);
+}
+/* team + pool -> classe complete (age et sexe pris aussi dans le code d'equipe si la poule ne les dit pas) */
+function clubItemClass(team, pid, club){
+  var c = poolClass(pid), code = (team || "").slice(club.length).trim(), k = clubCat(code), o = {};
+  for(var x in c) o[x] = c[x];
+  if(o.sex === "x") o.sex = k.sex;
+  if(!o.youth && k.age < 99 && o.comp !== "coupe"){ o.youth = true; o.age = k.age; }
+  if(o.youth && o.age === 99) o.age = k.age;
+  return o;
+}
+function clubFilters(){ return {pub:state.clubPub || "all", sex:state.clubSex || "all", comp:state.clubComp || "all", age:state.clubAgeY || "all", lvl:state.clubLvl || "all"}; }
+function clubAgeOk(age, want){
+  if(want === "small") return age < 14;
+  var a = +want; return age === a || (a === 14 && age === 15) || (a === 16 && age === 17) || (a === 19 && age === 18);
+}
+/* vrai si l'equipe passe les filtres ; les U12 et moins sont caches sauf choix « U12 et - », bouton « afficher » ou favorite */
+function clubPass(cl, team, f, noSmall){
+  if(f.pub === "adult" && cl.youth) return false;
+  if(f.pub === "youth" && !cl.youth) return false;
+  if(f.sex !== "all" && cl.sex !== f.sex) return false;
+  if(f.pub === "adult" && f.comp !== "all" && cl.comp !== f.comp) return false;
+  if(f.pub === "youth" && f.age !== "all" && !clubAgeOk(cl.age, f.age)) return false;
+  if(f.pub !== "adult" && f.lvl !== "all" && cl.lvl !== f.lvl) return false;
+  if(noSmall && cl.youth && cl.age < 14 && !(f.pub === "youth" && f.age === "small") && !state.clubSmall && !isFav(team)) return false;
+  return true;
+}
+/* les puces, avec seulement les options presentes dans le club (cls = liste de classes) */
+function clubFilterChips(cls){
+  var f = clubFilters(), chip = function(act, key, val, label, on){ return '<button class="chip2' + (on ? ' on' : '') + '" data-action="' + act + '" data-v="' + val + '">' + label + '</button>'; };
+  var has = function(fn){ return cls.some(fn); };
+  var row = function(lab, items){ return items.length > 2 ? '<div class="cf-lab">' + lab + '</div><div class="chips-scroll club-chips">' + items.join("") + '</div>' : ''; };
+  var h = "";
+  var pubs = [["all","Tout"]]; if(has(function(c){ return !c.youth; })) pubs.push(["adult","Adultes"]); if(has(function(c){ return c.youth; })) pubs.push(["youth","Jeunes"]);
+  h += row("Public", pubs.map(function(p){ return chip("club-pub", "pub", p[0], p[1], f.pub === p[0]); }));
+  var scope = cls.filter(function(c){ return f.pub === "all" || (f.pub === "youth") === c.youth; });
+  var yl = f.pub === "youth", sx = [["all","Les deux"]];
+  if(scope.some(function(c){ return c.sex === "m"; })) sx.push(["m", yl ? "Garçons" : "Hommes"]);
+  if(scope.some(function(c){ return c.sex === "f"; })) sx.push(["f", yl ? "Filles" : "Dames"]);
+  h += row("Sexe", sx.map(function(p){ return chip("club-sex", "sex", p[0], p[1], f.sex === p[0]); }));
+  if(f.pub === "adult"){
+    var cs = [["all","Toutes"]]; ["top","bl","natin","open","fun","autres","vet","europe","coupe","recre"].forEach(function(k){ if(scope.some(function(c){ return c.comp === k; })) cs.push([k, CLUB_COMP_LABEL[k]]); });
+    h += row("Compétition", cs.map(function(p){ return chip("club-comp", "comp", p[0], p[1], f.comp === p[0]); }));
+  } else {
+    if(f.pub === "youth"){
+      var ag = [["all","Tous"]]; [["19","U19"],["16","U16"],["14","U14"],["small","U12 et -"]].forEach(function(a){ if(scope.some(function(c){ return clubAgeOk(c.age, a[0]); })) ag.push(a); });
+      h += row("Âge", ag.map(function(p){ return chip("club-agey", "age", p[0], p[1], f.age === p[0]); }));
+    }
+    var lv = [["all","Tous"]]; if(scope.some(function(c){ return c.lvl === "nat"; })) lv.push(["nat","National"]); if(scope.some(function(c){ return c.lvl === "reg"; })) lv.push(["reg","Régional"]);
+    h += row("Niveau", lv.map(function(p){ return chip("club-lvl", "lvl", p[0], p[1], f.lvl === p[0]); }));
+  }
+  return '<div class="club-filters">' + h + '</div>';
+}
 function clubSurfs(isMine){
   var r = {out:false, "in":false};
   srcMatches().forEach(function(m){ if(m.date && m.date >= SEASON_FROM && (isMine(m.teamA) || isMine(m.teamB))) r[surfOfPid(m.pool)] = true; });
@@ -3504,22 +3615,13 @@ function renderClubSeason(club, isMine){
   var cs = clubSurfs(isMine), hasIn = cs["in"] && cs.out;
   var surf = clubSurfPick(cs);
   var all = clubSeasonResults(club, isMine, surf);
-  var age = state.clubAge || "all", sex = state.clubSex || "all";
-  var ages = [["all","Tout"],["sen","Seniors"],["19","U19"],["16","U16"],["14","U14"]];
-  if(state.clubSmall) ages.push(["small","U12 et -"]);
-  var okAge = function(r){
-    if(age === "all") return r.age >= 14 || state.clubSmall || isFav(r.team);
-    if(age === "sen") return r.age === 99;
-    if(age === "small") return r.age < 14;
-    var a = +age; return r.age === a || (a === 14 && r.age === 15) || (a === 16 && r.age === 17) || (a === 19 && r.age === 18);
-  };
-  var list = all.filter(function(r){ return okAge(r) && (sex === "all" || r.sex === sex); });
+  var f = clubFilters();
+  all.forEach(function(r){ r.cl = clubItemClass(r.team, r.m.pool, club); });
+  var list = all.filter(function(r){ return clubPass(r.cl, r.team, f, true); });
   var html = '';
   if(hasIn) html += '<div class="seg">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){
     return '<button class="seg-btn' + (surf === o[0] ? ' on' : '') + '" data-action="club-surf" data-surf="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
-  html += '<div class="chips-scroll club-chips">' + ages.map(function(a){ return '<button class="chip2' + (age === a[0] ? ' on' : '') + '" data-action="club-age" data-age="' + a[0] + '">' + a[1] + '</button>'; }).join("") + '</div>';
-  html += '<div class="chips-scroll club-chips">' + [["all","Les deux"],["m", age === "sen" ? "Hommes" : "Garçons"],["f", age === "sen" ? "Dames" : "Filles"]].map(function(a){
-    return '<button class="chip2' + (sex === a[0] ? ' on' : '') + '" data-action="club-sex" data-sex="' + a[0] + '">' + a[1] + '</button>'; }).join("") + '</div>';
+  html += clubFilterChips(all.map(function(r){ return r.cl; }));
   if(SNAP.state === "loading" && !all.length) return html + '<p class="points-sub">Chargement des données hockey.be...</p>';
   if(!all.length) return html + '<p class="points-sub" style="margin:12px 0;">Aucun résultat ' + (surf === "in" ? "indoor" : "outdoor") + ' pour l\'instant cette saison.</p>';
   if(!list.length) return html + '<p class="points-sub" style="margin:12px 0;">Aucun résultat pour ce choix cette saison.</p>' + clubSmallBtn(all);
@@ -3531,6 +3633,7 @@ function renderClubSeason(club, isMine){
   html += '<p class="points-sub" style="margin:6px 0 0;">' + n + ' résultat' + (n > 1 ? 's' : '') + ' d\'équipes depuis le début de la saison ' + (surf === "in" ? "indoor" : "outdoor") + '.</p>';
   html += clubEvolution(list);
   html += clubRecords(list, club);
+  html += clubSplits(list);
   /* tableau par équipe */
   var by = {};
   list.forEach(function(r){ var t = by[r.team] = by[r.team] || {team:r.team, code:r.code, j:0, V:0, N:0, D:0, gf:0, ga:0}; t.j++; t[r.res]++; t.gf += r.gf; t.ga += r.ga; });
@@ -3543,57 +3646,92 @@ function renderClubSeason(club, isMine){
   return html + clubSmallBtn(all);
 }
 function clubSmallBtn(all){
-  var n = all.filter(function(r){ return r.age < 14 && !isFav(r.team); }).length;
+  var f = clubFilters();
+  if(f.pub === "adult" || (f.pub === "youth" && f.age !== "all")) return "";
+  var n = all.filter(function(r){ return r.age < 14 && !isFav(r.team) && clubPass(r.cl || {youth:true, age:r.age, sex:r.sex, lvl:null}, r.team, f, false); }).length;
   return n ? '<button class="btn btn-sm btn-ghost clear-btn" data-action="club-small">' + (state.clubSmall ? 'Masquer U7 à U12' : 'Afficher aussi U7 à U12 (' + n + ' résultat' + (n > 1 ? 's' : '') + ')') + '</button>' : '';
 }
 function clubRecords(list, club){
-  var sc = function(r){ return (r.m.teamA === r.team ? r.code + ' ' + r.gf + '-' + r.ga + ' ' + r.opp : r.opp + ' ' + r.ga + '-' + r.gf + ' ' + r.code); };
+  /* V2.25 : le nom complet de l'équipe du club (en couleur) dans les records */
+  var me = function(r){ return '<em class="cr-me">' + escapeHtml(r.team) + '</em>'; };
+  var sc = function(r){ return r.m.teamA === r.team ? me(r) + ' ' + r.gf + '-' + r.ga + ' ' + escapeHtml(r.opp) : escapeHtml(r.opp) + ' ' + r.ga + '-' + r.gf + ' ' + me(r); };
   var dd = function(r){ return new Date(r.m.date + "T12:00:00").toLocaleDateString("fr-FR", {day:"numeric", month:"short"}); };
+  var nf = function(x){ return x.toFixed(1).replace(".", ","); };
+  var tm = function(t){ return '<em class="cr-me">' + escapeHtml(t) + '</em>'; };
   var win = null, loss = null;
   list.forEach(function(r){
     var d = r.gf - r.ga;
     if(d > 0 && (!win || d > win.gf - win.ga || (d === win.gf - win.ga && r.gf > win.gf))) win = r;
     if(d < 0 && (!loss || -d > loss.ga - loss.gf || (-d === loss.ga - loss.gf && r.ga > loss.ga))) loss = r;
   });
-  /* séries en cours par équipe */
   var by = {}; list.forEach(function(r){ (by[r.team] = by[r.team] || []).push(r); });
-  var bestW = null, bestU = null;
+  var bestW = null, bestU = null, att = null, def = null, unb = null, run = null, cs = 0, csT = null;
   Object.keys(by).forEach(function(t){
-    var rs = by[t], w = 0, u = 0, i;
+    var rs = by[t], w = 0, u = 0, i, j = rs.length, gf = 0, ga = 0, V = 0, N = 0, D = 0, c = 0, cur = 0, best = 0;
     for(i = rs.length - 1; i >= 0 && rs[i].res === "V"; i--) w++;
     for(i = rs.length - 1; i >= 0 && rs[i].res !== "D"; i--) u++;
-    if(w && (!bestW || w > bestW.n)) bestW = {t:t, n:w, code:rs[0].code};
-    if(u && (!bestU || u > bestU.n)) bestU = {t:t, n:u, code:rs[0].code};
+    rs.forEach(function(r){ gf += r.gf; ga += r.ga; if(r.res === "V"){ V++; cur++; if(cur > best) best = cur; } else { cur = 0; if(r.res === "N") N++; else D++; } if(r.ga === 0) c++; });
+    cs += c;
+    if(w && (!bestW || w > bestW.n)) bestW = {t:t, n:w};
+    if(u && (!bestU || u > bestU.n)) bestU = {t:t, n:u};
+    if(c && (!csT || c > csT.n)) csT = {t:t, n:c};
+    if(best > 1 && (!run || best > run.n)) run = {t:t, n:best};
+    if(j >= 3){
+      if(!att || gf / j > att.v) att = {t:t, v:gf / j};
+      if(!def || ga / j < def.v) def = {t:t, v:ga / j};
+      if(!D && (!unb || j > unb.j)) unb = {t:t, j:j, V:V, N:N};
+    }
   });
   var L = [];
   if(win) L.push(['Plus large victoire', sc(win), dd(win)]);
   if(loss) L.push(['Plus lourde défaite', sc(loss), dd(loss)]);
-  if(bestW && bestW.n > 1) L.push(['Série de victoires en cours', bestW.code + ' : ' + bestW.n + ' de suite', '']);
-  if(bestU && bestU.n > 1 && (!bestW || bestU.n > bestW.n)) L.push(['Invaincue depuis', bestU.code + ' : ' + bestU.n + ' matchs', '']);
+  if(att) L.push(['Meilleure attaque', tm(att.t), nf(att.v) + ' buts / match']);
+  if(def) L.push(['Meilleure défense', tm(def.t), nf(def.v) + ' encaissé' + (def.v >= 2 ? 's' : '') + ' / match']);
+  if(unb) L.push(['Invaincue', tm(unb.t), unb.j + ' matchs · ' + unb.V + 'V ' + unb.N + 'N']);
+  if(run) L.push(['Plus longue série de victoires', tm(run.t), run.n + ' de suite']);
+  if(bestW && bestW.n > 1) L.push(['Série de victoires en cours', tm(bestW.t), bestW.n + ' de suite']);
+  if(bestU && bestU.n > 1 && (!bestW || bestU.n > bestW.n) && (!unb || unb.t !== bestU.t)) L.push(['Invaincue depuis', tm(bestU.t), bestU.n + ' matchs']);
+  if(cs) L.push(['Matchs sans encaisser', '<b>' + cs + ' sur ' + list.length + '</b>', csT ? 'meilleur : ' + escapeHtml(csT.t.slice(club.length).trim() || csT.t) + ' (' + csT.n + ')' : '']);
   if(!L.length) return '';
   return '<div class="club-day">Records <span>saison</span></div><div class="club-card">' + L.map(function(x){
-    return '<div class="cr-row"><small>' + x[0] + '</small><b>' + escapeHtml(x[1]) + '</b>' + (x[2] ? '<span>' + x[2] + '</span>' : '') + '</div>'; }).join("") + '</div>';
+    return '<div class="cr-row"><small>' + x[0] + '</small><b>' + x[1] + '</b>' + (x[2] ? '<span>' + x[2] + '</span>' : '') + '</div>'; }).join("") + '</div>';
 }
+/* V2.25 : domicile / extérieur, matchs serrés, adversaires */
+function clubSplits(list){
+  var cnt = function(L){ var c = {V:0, N:0, D:0}; L.forEach(function(r){ c[r.res]++; }); return c; };
+  var home = cnt(list.filter(function(r){ return r.m.teamA === r.team; })), away = cnt(list.filter(function(r){ return r.m.teamA !== r.team; }));
+  var close = cnt(list.filter(function(r){ return Math.abs(r.gf - r.ga) === 1; }));
+  var wins = {}, losses = {};
+  list.forEach(function(r){ var c = teamParts(r.opp).club || r.opp; if(r.res === "V") wins[c] = (wins[c] || 0) + 1; else if(r.res === "D") losses[c] = (losses[c] || 0) + 1; });
+  var top = function(o){ var k = Object.keys(o).sort(function(a, b){ return o[b] - o[a] || a.localeCompare(b); })[0]; return k && o[k] > 1 ? [k, o[k]] : null; };
+  var tw = top(wins), tl = top(losses);
+  var box = function(t, c){ var n = c.V + c.N + c.D; if(!n) return '<div class="club-card cs-box"><small>' + t + '</small><b>-</b></div>';
+    return '<div class="club-card cs-box"><small>' + t + '</small><b>' + c.V + 'V ' + c.N + 'N ' + c.D + 'D</b><div class="cs-bar"><i class="cs-V" style="flex:' + c.V + '"></i><i class="cs-N" style="flex:' + c.N + '"></i><i class="cs-D" style="flex:' + c.D + '"></i></div><span>' + Math.round(100 * c.V / n) + ' % de victoires</span></div>'; };
+  var html = '<div class="club-day">Domicile <span>et extérieur</span></div><div class="cs-split">' + box("Domicile", home) + box("Extérieur", away) + '</div>';
+  var L = [];
+  if(close.V + close.D + close.N) L.push(['Matchs serrés (1 but d\'écart)', close.V + ' victoire' + (close.V > 1 ? 's' : '') + ' · ' + close.D + ' défaite' + (close.D > 1 ? 's' : ''), '']);
+  if(tw) L.push(['Club battu le plus souvent', escapeHtml(tw[0]), tw[1] + ' victoires']);
+  if(tl) L.push(['Bête noire', escapeHtml(tl[0]), tl[1] + ' défaites']);
+  if(L.length) html += '<div class="club-card" style="margin-top:8px;">' + L.map(function(x){ return '<div class="cr-row"><small>' + x[0] + '</small><b>' + x[1] + '</b>' + (x[2] ? '<span>' + x[2] + '</span>' : '') + '</div>'; }).join("") + '</div>';
+  return html;
+}
+/* V2.25 : barres lisibles (nombre de matchs, détail V/N/D, différence de buts, date) ; défile si la saison est longue */
 function clubEvolution(list){
-  var wk = {}; list.forEach(function(r){ var k = weekKey(r.m.date); var w = wk[k] = wk[k] || {V:0, N:0, D:0}; w[r.res]++; });
+  var wk = {}; list.forEach(function(r){ var k = weekKey(r.m.date); var w = wk[k] = wk[k] || {V:0, N:0, D:0, gf:0, ga:0}; w[r.res]++; w.gf += r.gf; w.ga += r.ga; });
   var keys = Object.keys(wk).sort(); if(keys.length < 2) return '';
-  /* toutes les semaines entre la première et la dernière (semaines sans match = vide) */
   var all = [], d = new Date(keys[0] + "T12:00:00"), end = keys[keys.length - 1];
   while(localIso(d) <= end){ all.push(localIso(d)); d.setDate(d.getDate() + 7); }
-  var max = Math.max.apply(null, keys.map(function(k){ var w = wk[k]; return w.V + w.N + w.D; }));
-  var W = 320, H = 90, bw = Math.max(4, Math.min(22, Math.floor((W - 10) / all.length) - 3)), step = (W - 10) / all.length;
-  var bars = all.map(function(k, i){
-    var w = wk[k] || {V:0, N:0, D:0}, x = 5 + i * step + (step - bw) / 2, y = H - 14, out = "";
-    [["D","#c4313a"],["N","#4b6378"],["V","#1f8f50"]].forEach(function(p){
-      var h = Math.round((H - 22) * w[p[0]] / max); if(!h) return; y -= h;
-      out += '<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + bw + '" height="' + h + '" rx="2" fill="' + p[1] + '"><title>' + k + ' : ' + w.V + ' V, ' + w.N + ' N, ' + w.D + ' D</title></rect>';
-    });
-    var day = new Date(k + "T12:00:00");
-    if(day.getDate() <= 7) out += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 2) + '" text-anchor="middle" font-size="9" fill="currentColor">' + day.toLocaleDateString("fr-FR", {month:"short"}).replace(".", "") + '</text>';
-    return out;
+  var max = Math.max.apply(null, keys.map(function(k){ var w = wk[k]; return w.V + w.N + w.D; })), H = 120;
+  var cols = all.map(function(k){
+    var w = wk[k] || {V:0, N:0, D:0, gf:0, ga:0}, t = w.V + w.N + w.D, df = w.gf - w.ga, day = new Date(k + "T12:00:00");
+    var segs = [["V","cs-V"],["N","cs-N"],["D","cs-D"]].map(function(p){ var x = w[p[0]]; if(!x) return ""; var h = Math.round(H * x / max);
+      return '<i class="' + p[1] + '" style="height:' + h + 'px">' + (h >= 13 ? x : "") + '</i>'; }).join("");
+    return '<div class="ev-col" title="' + escapeHtml(k) + ' : ' + w.V + ' V, ' + w.N + ' N, ' + w.D + ' D, buts ' + w.gf + '-' + w.ga + '"><div class="ev-bar" style="height:' + (H + 16) + 'px"><b>' + (t || "–") + '</b>' + segs + '</div>' +
+      '<div class="ev-df ' + (df > 0 ? 'up' : (df < 0 ? 'down' : '')) + '">' + (t ? (df > 0 ? '+' : '') + df : '') + '</div><div class="ev-dt">' + day.getDate() + '/' + (day.getMonth() + 1) + '</div></div>';
   }).join("");
-  return '<div class="club-day">Évolution <span>par semaine</span></div><div class="club-card club-evo"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Résultats par semaine">' + bars + '</svg>' +
-    '<div class="evo-leg"><i style="background:#1f8f50"></i>victoires <i style="background:#4b6378"></i>nuls <i style="background:#c4313a"></i>défaites</div></div>';
+  return '<div class="club-day">Évolution <span>par semaine</span></div><div class="club-card club-evo"><div class="ev-scroll"><div class="ev-row">' + cols + '</div></div>' +
+    '<div class="evo-leg"><i style="background:#3f8f57"></i>victoires <i style="background:#4d6178"></i>nuls <i style="background:#b33d3f"></i>défaites</div>' +
+    '<p class="ev-note">En haut : matchs joués dans la semaine. En dessous : différence de buts, puis le lundi de la semaine.</p></div>';
 }
 /* ===================== Noms d'équipes hockey.be (V2.11) ===================== */
 /* Depuis le 05/11/2026, hockey.be écrit « Wellington U19B-1 Outdoor » (avant : « ... Outdoor Semaine »).
@@ -3774,6 +3912,7 @@ async function refreshAll(){
 var PUSH_ON = true;
 var VAPID_PUBLIC = "BPWiK4iy-M73H9p1QkvMcig-yMD4cLj888IeL5H1tfRwDvTeAfUyHakBzifduyOMQG3JoT38AemgfIz3imHjVNY";
 var PUSH = {state:"?"};
+var PUSH_RULES = "Rappels seulement s'il te manque un prono : la veille de chaque jour de match (en soirée), le mardi soir pour le week-end, et environ 1 h avant le match.";
 function isStandalone(){ try{ return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches; }catch(e){ return false; } }
 function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
 function pushSupported(){ return PUSH_ON && !!navigator.serviceWorker && !!window.PushManager && !!window.Notification; }
@@ -3820,7 +3959,7 @@ async function pushEnable(){
     var sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64uBytes(VAPID_PUBLIC)});
     if(!(await pushSave(sub, true))){ showToast("Enregistrement impossible (connexion ?)"); return false; }
     PUSH.state = "yes";
-    try{ reg.showNotification("Rappels activés", {body:"Tu recevras un rappel la veille du premier match de la semaine s'il te manque des pronos.", tag:"push-ok"}); }catch(e){}
+    try{ reg.showNotification("Rappels activés", {body:"Tu recevras un rappel seulement s'il te manque des pronos : la veille au soir, le mardi pour le week-end et 1 h avant le match.", tag:"push-ok"}); }catch(e){}
     return true;
   }catch(e){ showToast("Activation impossible : " + (e && e.message ? e.message : "erreur")); return false; }
 }
@@ -3836,9 +3975,9 @@ async function pushDisable(){
 }
 function renderPush(){
   var st = PUSH.state, h = '<div class="push-box">';
-  if(st === "yes") h += '<p class="section-hint" style="margin:0 0 8px;"><span class="suivi-ok">Rappels activés</span> sur cet appareil pour ' + escapeHtml(state.me || "") + '. Un rappel arrive la veille du premier match de la semaine (vers 19h) s\'il te manque des pronos.</p>' +
+  if(st === "yes") h += '<p class="section-hint" style="margin:0 0 8px;"><span class="suivi-ok">Rappels activés</span> sur cet appareil pour ' + escapeHtml(state.me || "") + '. ' + PUSH_RULES + '</p>' +
     '<button class="btn btn-ghost btn-sm" data-action="push-off">Désactiver sur cet appareil</button>';
-  else if(st === "no" || st === "?") h += '<p class="section-hint" style="margin:0 0 8px;">Reçois une notification la veille du premier match de la semaine (vers 19h), seulement s\'il te manque des pronos.</p>' +
+  else if(st === "no" || st === "?") h += '<p class="section-hint" style="margin:0 0 8px;">Reçois une notification seulement s\'il te manque des pronos. ' + PUSH_RULES + '</p>' +
     '<button class="btn btn-primary btn-sm" data-action="push-on">Activer les rappels</button>';
   else if(st === "home") h += '<p class="section-hint" style="margin:0;">Pour recevoir les rappels sur iPhone, l\'app doit être sur l\'écran d\'accueil : dans Safari, bouton Partager puis « Sur l\'écran d\'accueil ». Ouvre ensuite l\'app depuis cette icône et reviens ici. (iPhone à jour : iOS 16.4 minimum.)</p>';
   else if(st === "denied") h += '<p class="section-hint" style="margin:0;">Les notifications sont bloquées pour l\'app. Sur iPhone : Réglages &gt; Notifications &gt; Pronos Hockey &gt; Autoriser les notifications, puis rouvre l\'app.</p>';
@@ -4186,8 +4325,11 @@ var ACTIONS = {
   "club-small": function(){ state.clubSmall = !state.clubSmall; render(); },
   "fav-surf": function(el){ setFavSurf(el.getAttribute("data-surf")); render(); },
   "club-mode": function(el){ state.clubMode = el.getAttribute("data-mode"); render(); },
-  "club-age": function(el){ state.clubAge = el.getAttribute("data-age"); if(state.clubAge === "all") state.clubSex = "all"; render(); },
-  "club-sex": function(el){ state.clubSex = el.getAttribute("data-sex"); render(); },
+  "club-pub": function(el){ state.clubPub = el.getAttribute("data-v"); state.clubComp = "all"; state.clubAgeY = "all"; state.clubLvl = "all"; render(); },
+  "club-sex": function(el){ state.clubSex = el.getAttribute("data-v"); render(); },
+  "club-comp": function(el){ state.clubComp = el.getAttribute("data-v"); render(); },
+  "club-agey": function(el){ state.clubAgeY = el.getAttribute("data-v"); render(); },
+  "club-lvl": function(el){ state.clubLvl = el.getAttribute("data-v"); render(); },
   "clubweek-go": function(el){ state.clubWeek = +el.getAttribute("data-w"); render(); },
   "clubweek": function(el){ var d = +el.getAttribute("data-d"); state.clubWeek = d === 0 ? 0 : (state.clubWeek || 0) + d; render(); },
   "mweek-mode": function(el){ state.mWeek = el.getAttribute("data-on") === "1" ? 0 : null; render(); },
