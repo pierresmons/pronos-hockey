@@ -1358,6 +1358,31 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .pm-sc b{display:block;font-size:16px;color:var(--ice);}
 .pm-row .form-chip{width:18px;height:18px;min-width:18px;font-size:10px;line-height:18px;padding:0;margin:0 1px;border-radius:4px;}
 .pm-row .form-row{flex-wrap:nowrap;gap:0;}
+
+/* V2.31 : stats clubs */
+.cr-open{display:block;width:100%;margin:8px 0;border:1px solid var(--gold);color:var(--gold);background:transparent;font-weight:700;}
+.cr-sort .seg-btn{font-size:12px;}
+.cr-table{padding:4px 8px;overflow-x:auto;}
+.cr-table table{width:100%;border-collapse:collapse;font-size:12px;}
+.cr-table th{font-size:10px;color:var(--ice-faint);font-weight:600;padding:6px 3px;text-align:center;}
+.cr-table td{padding:7px 3px;text-align:center;border-top:1px solid var(--line);}
+.cr-table .cr-c{text-align:left;}
+.cr-table tr[data-action]{cursor:pointer;}
+.cr-table tr.cr-me td{color:var(--gold);font-weight:700;}
+.cr-table tr.cr-sep td{border:0;padding:0;color:var(--ice-faint);}
+.club-cmp{margin-right:6px;}
+.cmp-pick{margin:6px 0 10px;}
+.chips-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.cmp-card{padding:10px 12px;}
+.cr-me-t{color:var(--gold);}
+.cmp-cat{display:grid;grid-template-columns:64px 1fr 1fr;align-items:center;font-size:12px;padding:6px 0;border-top:1px solid var(--line);text-align:center;}
+.cmp-cat > span{text-align:left;color:var(--ice-dim);}
+.cmp-cat small{display:block;font-size:10px;color:var(--ice-faint);font-weight:400;}
+.cmp-bar{display:block;height:5px;border-radius:3px;background:#3f8f57;margin:3px auto 0;}
+.evo-card{padding:10px 12px;color:var(--ice);}
+.evo-svg{width:100%;height:auto;display:block;margin-top:6px;}
+.evo-svg circle[data-action]{cursor:pointer;}
+.evo-sel{font-size:12px;margin-top:6px;padding:8px;border-radius:8px;background:var(--panel-2);}
 </style>
 </head>
 <body>
@@ -2482,7 +2507,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.23 test · 10/11/2026";
+var APP_VERSION = "3.24 test · 10/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -2826,6 +2851,8 @@ function renderMatchs(){
     if(v.type === "pool") return html + renderPoolPage(v.id);
     if(v.type === "team") return html + renderTeamPage(v.id);
     if(v.type === "club") return html + renderClubPage(v.id);
+    if(v.type === "clubrank") return html + renderClubRanking();
+    if(v.type === "clubcmp") return html + renderClubCompare(v.id);
     return html + renderMatchsHome();
   } finally { SRC = null; }
 }
@@ -2844,6 +2871,7 @@ function renderMatchsBody(){
   if(SNAP.state === "loading") html += '<p class="points-sub">Chargement de tout hockey.be...</p>';
   html += '<select class="date-select wide' + (state.exploreCat ? ' picked' : '') + '" id="explore-cat"><option value="">Ou choisis une catégorie (tout hockey.be)...</option>' +
     (function(){ var out = "", cur = -1; extCategories().forEach(function(c){ var g = catInfo(c).g; if(g !== cur){ if(cur !== -1) out += '</optgroup>'; out += '<optgroup label="' + CAT_GROUPS[g] + '">'; cur = g; } out += '<option value="' + escapeHtml(c) + '"' + (state.exploreCat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>'; }); return out + (cur !== -1 ? '</optgroup>' : ''); })() + '</select>';
+  if(!state.exploreCat) html += '<button class="btn cr-open" data-action="clubrank-open">Classement des clubs &#8250;</button>';
   if(state.exploreCat){
     html += renderCatWeek(state.exploreCat);
     html += '<h2 class="h2">Poules (' + extPoolsOf(state.exploreCat).length + ')</h2>';
@@ -3140,6 +3168,7 @@ function renderTeamPage(t){
     }
     if(sp) html += '<h2 class="h2">Classement</h2>' + standingsTable(sp, t).replace(/<h2 class="section-title"[^>]*>.*?<\/h2>/, "") +
       '<button class="btn btn-sm btn-ghost clear-btn" data-action="goto-pool" data-pool="' + escapeHtml(sp) + '">Voir la poule ' + escapeHtml(shortPoolName(sp)) + ' &#8250;</button>';
+    if(sp) html += teamEvolution(t, sp);
   });
   return html;
 }
@@ -3461,6 +3490,7 @@ function renderClubPage(club){
   var followed = myClubs().indexOf(club) !== -1;
   var html = '<div class="club-page"><div class="club-head"><span class="club-crest">' + (logoImg(teams[0] || club) || '<b>' + escapeHtml(club.slice(0, 2).toUpperCase()) + '</b>') + '</span>' +
     '<div class="club-title"><div class="club-name">' + escapeHtml(club) + '</div><div class="club-meta">' + teams.length + ' équipe' + (teams.length > 1 ? 's' : '') + '</div></div>' +
+    '<button class="club-follow club-cmp" data-action="club-cmp" data-club="' + escapeHtml(club) + '">&#8644; Comparer</button>' +
     (state.me ? '<button class="club-follow' + (followed ? ' on' : '') + '" data-action="club-fav" data-club="' + escapeHtml(club) + '">' + (followed ? '&#9733; Suivi' : '&#9734; Suivre') + '</button>' : '') + '</div>';
   html += '<div class="seg club-mode">' + [["week","Semaine"],["season","Saison"]].map(function(o){
     return '<button class="seg-btn' + ((state.clubMode || "week") === o[0] ? ' on' : '') + '" data-action="club-mode" data-mode="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
@@ -4453,6 +4483,147 @@ function renderPrematch(m, pr){
   return html + '</div>';
 }
 
+/* ===================== Stats clubs (V2.31) : classement des clubs, comparaison, evolution d'une equipe ===================== */
+/* resultats d'un club (ou de tous) pour la surface choisie, avec les filtres de la page club */
+function clubResultsAll(surf){
+  var f = clubFilters(), out = {};
+  srcMatches().forEach(function(m){
+    if(!m.date || m.date < SEASON_FROM || !hasScore(m) || surfOfPid(m.pool) !== surf) return;
+    [[m.teamA, m.scoreA, m.scoreB, m.teamB, true], [m.teamB, m.scoreB, m.scoreA, m.teamA, false]].forEach(function(x){
+      var club = teamParts(x[0]).club; if(!club) return;
+      var cl = clubItemClass(x[0], m.pool, club);
+      if(!clubPass(cl, x[0], f, true)) return;
+      (out[club] = out[club] || []).push({team:x[0], gf:x[1], ga:x[2], opp:x[3], home:x[4], m:m, cl:cl, res:x[1] > x[2] ? "V" : (x[1] < x[2] ? "D" : "N")});
+    });
+  });
+  return out;
+}
+function clubAgg(L){
+  var a = {j:0, V:0, N:0, D:0, gf:0, ga:0}; (L || []).forEach(function(r){ a.j++; a[r.res]++; a.gf += r.gf; a.ga += r.ga; });
+  a.ppm = a.j ? (3 * a.V + a.N) / a.j : 0; a.pct = a.j ? 100 * a.V / a.j : 0; a.diff = a.gf - a.ga; return a;
+}
+function clubRankList(surf, sort){
+  var by = clubResultsAll(surf), f = clubFilters(), def = f.pub === "all" && f.sex === "all" && f.lvl === "all";
+  var min = def ? 30 : 10, rows = [];
+  Object.keys(by).forEach(function(c){ var a = clubAgg(by[c]); if(a.j >= min){ a.club = c; rows.push(a); } });
+  var k = sort || "ppm";
+  rows.sort(function(x, y){ return (y[k] - x[k]) || (y.diff - x.diff) || (y.j - x.j); });
+  rows.forEach(function(r, i){ r.rank = i + 1; });
+  return {rows:rows, min:min, by:by};
+}
+function crSurf(){ return state.crSurf || favSurfNow(); }
+function renderClubRanking(){
+  var surf = crSurf(), sort = state.crSort || "ppm", R = clubRankList(surf, sort), mine = myClubs();
+  var all = []; Object.keys(R.by).forEach(function(c){ R.by[c].forEach(function(r){ all.push(r.cl); }); });
+  var html = '<h2 class="section-title" style="margin-top:4px;">Classement des clubs</h2>';
+  html += '<div class="seg">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){ return '<button class="seg-btn' + (surf === o[0] ? ' on' : '') + '" data-action="cr-surf" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
+  html += clubFilterChips(all);
+  html += '<div class="seg cr-sort">' + [["ppm","Points / match"],["pct","% victoires"],["diff","Différence"]].map(function(o){ return '<button class="seg-btn' + (sort === o[0] ? ' on' : '') + '" data-action="cr-sort" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
+  if(SNAP.state === "loading" && !R.rows.length) return html + '<p class="points-sub">Chargement des données hockey.be...</p>';
+  if(!R.rows.length) return html + '<p class="points-sub" style="margin:12px 0;">Pas assez de résultats pour ce choix (' + R.min + ' minimum par club).</p>';
+  var n = state.crAll ? R.rows.length : 5, shown = R.rows.slice(0, n);
+  var extra = R.rows.filter(function(r){ return r.rank > n && mine.indexOf(r.club) !== -1; });
+  var nf = function(x){ return x.toFixed(2).replace(".", ","); };
+  var line = function(r){ var me = mine.indexOf(r.club) !== -1;
+    return '<tr class="' + (me ? 'cr-me' : '') + '" data-action="goto-club" data-club="' + escapeHtml(r.club) + '"><td>' + r.rank + '</td><td class="cr-c">' + escapeHtml(r.club) + (me ? ' &#9733;' : '') + '</td><td>' + r.j + '</td><td>' + r.V + '-' + r.N + '-' + r.D + '</td><td>' + Math.round(r.pct) + '</td><td>' + (sort === "diff" ? (r.diff > 0 ? '+' : '') + r.diff : nf(r.ppm)) + '</td></tr>'; };
+  html += '<div class="club-card cr-table"><table><tr><th>#</th><th class="cr-c">Club</th><th>J</th><th>V-N-D</th><th>%V</th><th>' + (sort === "diff" ? '+/-' : 'Pts/m') + '</th></tr>' +
+    shown.map(line).join("") + (extra.length ? '<tr class="cr-sep"><td colspan="6">&hellip;</td></tr>' + extra.map(line).join("") : '') + '</table></div>';
+  if(!state.crAll && R.rows.length > n) html += '<button class="btn btn-sm btn-ghost clear-btn" data-action="cr-all">Voir les ' + R.rows.length + ' clubs</button>';
+  else if(state.crAll) html += '<button class="btn btn-sm btn-ghost clear-btn" data-action="cr-all">Réduire</button>';
+  html += '<p class="points-sub" style="margin:8px 0 0;">Clubs avec au moins ' + R.min + ' résultats dans ce choix (U12 et moins exclus sauf choix). &#9733; clubs suivis. Touche un club pour ouvrir sa page.</p>';
+  return html;
+}
+/* comparaison de deux clubs */
+function allClubs(){ var s = {}; srcMatches().forEach(function(m){ [m.teamA, m.teamB].forEach(function(t){ var c = teamParts(t).club; if(c) s[c] = 1; }); }); return Object.keys(s).sort(function(a, b){ return a.localeCompare(b); }); }
+function cmpListHtml(club){
+  var q = fold((state.cmpQ || "").trim()), mine = myClubs().filter(function(c){ return c !== club; });
+  var L = q.length >= 2 ? allClubs().filter(function(c){ return c !== club && fold(c).indexOf(q) !== -1; }).slice(0, 12) : mine;
+  if(!L.length) return '<p class="points-sub">' + (q.length >= 2 ? 'Aucun club trouvé.' : 'Tape le nom d\'un club.') + '</p>';
+  return L.map(function(c){ return '<button class="chip2" data-action="cmp-pick" data-club="' + escapeHtml(c) + '">' + escapeHtml(c) + (mine.indexOf(c) !== -1 ? ' &#9733;' : '') + '</button>'; }).join("");
+}
+function renderClubCompare(club){
+  var v = state.mview, other = v.other, surf = crSurf();
+  var html = '<h2 class="section-title" style="margin-top:4px;">Comparer ' + escapeHtml(club) + '</h2>';
+  html += '<div class="cmp-pick"><input type="search" class="inline-input search-input" id="cmp-q" placeholder="Avec quel club ?" value="' + escapeHtml(state.cmpQ || "") + '" autocomplete="off"><div id="cmp-list" class="chips-wrap">' + cmpListHtml(club) + '</div></div>';
+  if(!other) return html;
+  var R = clubRankList(surf, "ppm"), all = [];
+  Object.keys(R.by).forEach(function(c){ if(c === club || c === other) R.by[c].forEach(function(r){ all.push(r.cl); }); });
+  html += '<div class="seg">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){ return '<button class="seg-btn' + (surf === o[0] ? ' on' : '') + '" data-action="cr-surf" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
+  html += clubFilterChips(all);
+  var LA = R.by[club] || [], LB = R.by[other] || [], A = clubAgg(LA), B = clubAgg(LB);
+  var rk = function(c){ var r = R.rows.find(function(x){ return x.club === c; }); return r ? r.rank + 'e' : '&ndash;'; };
+  var nf = function(x, d){ return x.toFixed(d).replace(".", ","); };
+  var row = function(a, lab, b, better){ return '<div class="pm-row"><div' + (better === 1 ? ' class="pm-best"' : '') + '>' + a + '</div><span>' + lab + '</span><div' + (better === 2 ? ' class="pm-best"' : '') + '>' + b + '</div></div>'; };
+  var cmp = function(x, y, low){ if(!A.j || !B.j || x === y) return 0; return (low ? x < y : x > y) ? 1 : 2; };
+  html += '<div class="club-card cmp-card"><div class="pm-head"><div><b class="cr-me-t">' + escapeHtml(club) + '</b><small>' + A.j + ' résultats</small></div><span>vs</span><div><b>' + escapeHtml(other) + '</b><small>' + B.j + ' résultats</small></div></div>';
+  var ra = R.rows.find(function(x){ return x.club === club; }), rb = R.rows.find(function(x){ return x.club === other; });
+  html += row(rk(club), 'Classement clubs', rk(other), ra && rb ? (ra.rank < rb.rank ? 1 : 2) : 0);
+  html += row(A.j ? Math.round(A.pct) + ' %' : '&ndash;', 'Victoires', B.j ? Math.round(B.pct) + ' %' : '&ndash;', cmp(A.pct, B.pct));
+  html += row(A.j ? nf(A.ppm, 2) : '&ndash;', 'Points / match', B.j ? nf(B.ppm, 2) : '&ndash;', cmp(A.ppm, B.ppm));
+  html += row(A.j ? nf(A.gf / A.j, 1) : '&ndash;', 'Buts marqués / match', B.j ? nf(B.gf / B.j, 1) : '&ndash;', cmp(A.j ? A.gf / A.j : 0, B.j ? B.gf / B.j : 0));
+  html += row(A.j ? nf(A.ga / A.j, 1) : '&ndash;', 'Encaissés / match', B.j ? nf(B.ga / B.j, 1) : '&ndash;', cmp(A.j ? A.ga / A.j : 0, B.j ? B.ga / B.j : 0, true));
+  /* par categorie */
+  var cats = [["Seniors", function(c){ return !c.youth; }], ["U19", function(c){ return c.youth && clubAgeOk(c.age, "19"); }], ["U16", function(c){ return c.youth && clubAgeOk(c.age, "16"); }], ["U14", function(c){ return c.youth && clubAgeOk(c.age, "14"); }]];
+  var crow = "";
+  cats.forEach(function(k){
+    var a = clubAgg(LA.filter(function(r){ return k[1](r.cl); })), b = clubAgg(LB.filter(function(r){ return k[1](r.cl); }));
+    if(!a.j && !b.j) return;
+    var cell = function(x, best){ return '<div' + (best ? ' class="pm-best"' : '') + '>' + (x.j ? Math.round(x.pct) + ' %<i class="cmp-bar" style="width:' + Math.max(4, Math.round(x.pct)) + '%"></i><small>' + x.j + ' m.</small>' : '&ndash;') + '</div>'; };
+    crow += '<div class="cmp-cat"><span>' + k[0] + '</span>' + cell(a, a.j && b.j && a.pct > b.pct) + cell(b, a.j && b.j && b.pct > a.pct) + '</div>';
+  });
+  if(crow) html += '<div class="pm-title">Par catégorie <small>(% de victoires)</small></div>' + crow;
+  /* confrontations directes */
+  var h2h = LA.filter(function(r){ return teamParts(r.opp).club === other; }).sort(function(x, y){ return x.m.date.localeCompare(y.m.date); });
+  var h = clubAgg(h2h);
+  html += '<div class="pm-title">Confrontations directes <small>' + (h2h.length ? h.V + ' V · ' + h.N + ' N · ' + h.D + ' D pour ' + escapeHtml(club) : 'aucune cette saison') + '</small></div>';
+  html += h2h.map(function(r){ var m = r.m, me = '<em class="cr-me">' + escapeHtml(r.team) + '</em>';
+    var line = r.home ? me + ' ' + r.gf + '-' + r.ga + ' ' + escapeHtml(r.opp) : escapeHtml(r.opp) + ' ' + r.ga + '-' + r.gf + ' ' + me;
+    return '<button class="cd-row" data-action="goto-team" data-team="' + escapeHtml(r.team) + '"><span class="cd-res res-' + r.res + '">' + r.res + '</span><span class="cd-main">' + line + '<small>' + escapeHtml(formatDate(m.date)) + ' &middot; ' + escapeHtml(poolName(m.pool).split(" - ")[0]) + '</small></span></button>'; }).join("");
+  return html + '</div>';
+}
+/* evolution du classement d'une equipe dans sa poule (recalcule semaine par semaine, 3 / 1 / 0 points) */
+function teamEvolution(team, pool){
+  var played = sortMatches(srcMatches().filter(function(m){ return m.pool === pool && hasScore(m) && m.date; }));
+  if(!played.length || !played.some(function(m){ return m.teamA === team || m.teamB === team; })) return '';
+  var weeks = []; played.forEach(function(m){ var k = weekKey(m.date); if(weeks.indexOf(k) === -1) weeks.push(k); });
+  weeks.sort(); if(weeks.length < 2) return '';
+  var teams = {}; played.forEach(function(m){ teams[m.teamA] = 1; teams[m.teamB] = 1; }); var nT = Object.keys(teams).length;
+  var pts = {}, diff = {}, gf = {}, pts2 = [];
+  var i = 0, serie = [];
+  weeks.forEach(function(w){
+    while(i < played.length && weekKey(played[i].date) <= w){
+      var m = played[i++];
+      [[m.teamA, m.scoreA, m.scoreB], [m.teamB, m.scoreB, m.scoreA]].forEach(function(x){ pts[x[0]] = (pts[x[0]] || 0) + (x[1] > x[2] ? 3 : (x[1] === x[2] ? 1 : 0)); diff[x[0]] = (diff[x[0]] || 0) + x[1] - x[2]; gf[x[0]] = (gf[x[0]] || 0) + x[1]; });
+    }
+    var order = Object.keys(pts).sort(function(a, b){ return (pts[b] - pts[a]) || (diff[b] - diff[a]) || (gf[b] - gf[a]); });
+    serie.push({w:w, rank:order.indexOf(team) + 1 || null, pts:pts[team] || 0, lead:pts[order[0]] || 0});
+  });
+  var mode = state.evoMode || "place", W = 320, H = 130, x0 = 30, y0 = 14, y1 = H - 18;
+  var X = function(k){ return x0 + (W - x0 - 10) * (serie.length === 1 ? 0 : k / (serie.length - 1)); };
+  var maxP = Math.max.apply(null, serie.map(function(s){ return s.lead; })) || 1;
+  var Y = mode === "place" ? function(s){ return y0 + (y1 - y0) * ((s.rank || nT) - 1) / Math.max(1, nT - 1); } : function(s){ return y1 - (y1 - y0) * s.pts / maxP; };
+  var YL = function(s){ return y1 - (y1 - y0) * s.lead / maxP; };
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="evo-svg">';
+  svg += '<g stroke="currentColor" stroke-opacity=".15"><line x1="' + x0 + '" y1="' + y0 + '" x2="' + (W - 6) + '" y2="' + y0 + '"/><line x1="' + x0 + '" y1="' + y1 + '" x2="' + (W - 6) + '" y2="' + y1 + '"/></g>';
+  svg += '<g font-size="9" fill="currentColor" fill-opacity=".6" text-anchor="end">' + (mode === "place" ? '<text x="' + (x0 - 5) + '" y="' + (y0 + 3) + '">1er</text><text x="' + (x0 - 5) + '" y="' + (y1 + 3) + '">' + nT + 'e</text>' : '<text x="' + (x0 - 5) + '" y="' + (y0 + 3) + '">' + maxP + '</text><text x="' + (x0 - 5) + '" y="' + (y1 + 3) + '">0</text>') + '</g>';
+  if(mode === "pts") svg += '<polyline fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5" stroke-dasharray="4 3" points="' + serie.map(function(s, k){ return X(k).toFixed(1) + ',' + YL(s).toFixed(1); }).join(" ") + '"/>';
+  svg += '<polyline fill="none" stroke="#f0a93b" stroke-width="2.5" points="' + serie.map(function(s, k){ return X(k).toFixed(1) + ',' + Y(s).toFixed(1); }).join(" ") + '"/>';
+  svg += serie.map(function(s, k){ var on = state.evoWeek === s.w;
+    return '<circle cx="' + X(k).toFixed(1) + '" cy="' + Y(s).toFixed(1) + '" r="' + (on ? 6 : 4) + '" fill="#f0a93b" stroke="' + (on ? '#fff' : 'none') + '" stroke-width="2" data-action="evo-week" data-v="' + s.w + '"/>' +
+      '<circle cx="' + X(k).toFixed(1) + '" cy="' + Y(s).toFixed(1) + '" r="14" fill="transparent" data-action="evo-week" data-v="' + s.w + '"/>'; }).join("");
+  var labs = serie.map(function(s, k){ if(k % Math.ceil(serie.length / 5) && k !== serie.length - 1) return ""; var d = new Date(s.w + "T12:00:00"); return '<text x="' + X(k).toFixed(1) + '" y="' + (H - 3) + '" text-anchor="middle" font-size="9" fill="currentColor" fill-opacity=".6">' + d.getDate() + '/' + (d.getMonth() + 1) + '</text>'; }).join("");
+  svg += labs + '</svg>';
+  var html = '<h2 class="h2">Évolution du classement</h2><div class="club-card evo-card"><div class="seg">' + [["place","Place"],["pts","Points"]].map(function(o){ return '<button class="seg-btn' + (mode === o[0] ? ' on' : '') + '" data-action="evo-mode" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>' + svg;
+  var sel = serie.filter(function(s){ return s.w === state.evoWeek; })[0];
+  if(sel){
+    var wm = played.filter(function(m){ return weekKey(m.date) === sel.w && (m.teamA === team || m.teamB === team); });
+    html += '<div class="evo-sel"><b>Semaine du ' + escapeHtml(formatDate(sel.w)) + '</b> : ' + (sel.rank ? sel.rank + (sel.rank === 1 ? 'er' : 'e') : '') + ' &middot; ' + sel.pts + ' pts' + (mode === "pts" ? ' (leader ' + sel.lead + ')' : '') +
+      (wm.length ? wm.map(function(m){ return '<br>' + escapeHtml(m.teamA) + ' ' + m.scoreA + '-' + m.scoreB + ' ' + escapeHtml(m.teamB); }).join("") : '<br>Pas de match cette semaine.') + '</div>';
+  }
+  html += '<p class="points-sub" style="margin:6px 0 0;">' + (mode === "place" ? 'Place dans la poule à la fin de chaque semaine.' : 'Points cumulés ; en pointillés, le leader de la poule.') + ' Touche un point pour voir le match.</p></div>';
+  return html;
+}
+
 /* ===================== v2 : evenements (un seul ecouteur pour toute l'app) ===================== */
 function roomCodeFrom(id){ var i = document.getElementById(id); return i ? i.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, "") : ""; }
 function val(id){ var i = document.getElementById(id); return i ? i.value : ""; }
@@ -4490,6 +4661,14 @@ var ACTIONS = {
     state.clubDetail = {res:g("res") || "all", week:g("week"), sort:g("sort"), team:g("team"), side:g("side"), close:g("close"), cs:g("cs"), opp:g("opp"), title:g("title")}; render(); },
   "club-detail-close": function(){ state.clubDetail = null; render(); },
   "club-detail-team": function(el){ state.clubDetail = null; openTeam(el.getAttribute("data-team")); },
+  "clubrank-open": function(){ pushNav(); state.tab = "matchs"; state.mview = {type:"clubrank"}; state.crAll = false; loadSnapshot(false); render(); window.scrollTo(0, 0); },
+  "cr-surf": function(el){ state.crSurf = el.getAttribute("data-v"); render(); },
+  "cr-sort": function(el){ state.crSort = el.getAttribute("data-v"); render(); },
+  "cr-all": function(){ state.crAll = !state.crAll; render(); },
+  "club-cmp": function(el){ pushNav(); state.mview = {type:"clubcmp", id:el.getAttribute("data-club"), other:null}; state.cmpQ = ""; state.crSurf = null; loadSnapshot(false); render(); window.scrollTo(0, 0); },
+  "cmp-pick": function(el){ state.mview.other = el.getAttribute("data-club"); state.cmpQ = ""; render(); },
+  "evo-mode": function(el){ state.evoMode = el.getAttribute("data-v"); render(); },
+  "evo-week": function(el){ var v = el.getAttribute("data-v"); state.evoWeek = state.evoWeek === v ? null : v; render(); },
   "club-agey": function(el){ var v = el.getAttribute("data-v"), l = (state.clubAgeY || []).slice(), i = l.indexOf(v);
     if(v === "all") l = []; else if(i === -1) l.push(v); else l.splice(i, 1);
     state.clubAgeY = l; render(); },
@@ -4928,6 +5107,9 @@ function installEvents(){
     else if(e.target.id === "match-search"){ e.preventDefault(); e.target.blur(); }
   });
   /* les <details> se souviennent s'ils sont ouverts quand l'ecran est redessine */
+  document.addEventListener("input", function(ev){
+    if(ev.target && ev.target.id === "cmp-q"){ state.cmpQ = ev.target.value; var bx = document.getElementById("cmp-list"); if(bx && state.mview && state.mview.type === "clubcmp"){ SRC = SNAP.state === "ok" ? mergedExt() : null; try{ bx.innerHTML = cmpListHtml(state.mview.id); } finally { SRC = null; } } }
+  }, true);
   document.addEventListener("input", function(ev){ if(ev.target && ev.target.id === "ann-text") state.annDraft = ev.target.value; if(ev.target && ev.target.id === "chat-input") state.chatDraft = ev.target.value; }, true);
   document.addEventListener("toggle", function(e){
     var d = e.target;
