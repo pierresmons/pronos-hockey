@@ -1332,6 +1332,12 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .cd-res.res-V{background:#3f8f57;}.cd-res.res-N{background:#4d6178;}.cd-res.res-D{background:#b33d3f;}
 .cd-main{font-size:14px;line-height:1.35;}
 .cd-main small{display:block;font-size:11px;color:var(--ice-faint);margin-top:2px;}
+
+/* V2.29 : records et domicile/exterieur cliquables */
+.cr-click{cursor:pointer;position:relative;}
+.cr-click:active{opacity:.7;}
+.cr-row.cr-click{padding-right:28px;}
+.cr-row.cr-click::after{content:"\203A";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--ice-faint);font-size:18px;}
 </style>
 </head>
 <body>
@@ -2456,7 +2462,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.21 test · 10/11/2026";
+var APP_VERSION = "3.22 test · 10/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3682,20 +3688,25 @@ function renderClubSeason(club, isMine){
     }).join("") + '</div>';
   return html + clubSmallBtn(all);
 }
+/* V2.29 : attributs d'une ligne cliquable (records, domicile/exterieur...) -> feuille des matchs */
+function cdAttr(o){ var h = ' data-action="club-detail"'; for(var k in o) if(o[k] != null) h += ' data-' + k + '="' + escapeHtml(String(o[k])) + '"'; return h; }
 /* V2.28 : liste des matchs derriere une case ou une barre */
 var CLUB_LIST = [];
 function renderClubDetail(){
   var d = state.clubDetail;
   if(!d || state.tab !== "matchs" || !state.mview || state.mview.type !== "club") return "";
-  var L = CLUB_LIST.filter(function(r){ return (d.res === "all" || r.res === d.res) && (!d.week || weekKey(r.m.date) === d.week); });
+  var L = CLUB_LIST.filter(function(r){ return (d.res === "all" || r.res === d.res) && (!d.week || weekKey(r.m.date) === d.week) &&
+    (!d.team || r.team === d.team) && (!d.side || (d.side === "home") === (r.m.teamA === r.team)) && (!d.close || Math.abs(r.gf - r.ga) === 1) &&
+    (!d.cs || r.ga === 0) && (!d.opp || (teamParts(r.opp).club || r.opp) === d.opp); });
   if(d.sort === "gf") L.sort(function(a, b){ return b.gf - a.gf; });
   else if(d.sort === "ga") L.sort(function(a, b){ return b.ga - a.ga; });
   else if(d.sort === "diff") L.sort(function(a, b){ return (b.gf - b.ga) - (a.gf - a.ga); });
+  else if(d.sort === "diffasc") L.sort(function(a, b){ return (a.gf - a.ga) - (b.gf - b.ga); });
   else L = L.slice().reverse();
-  var resL = {V:"Victoires", N:"Nuls", D:"Défaites", all:"Tous les matchs"}[d.res], title = resL;
+  var resL = {V:"Victoires", N:"Nuls", D:"Défaites", all:"Tous les matchs"}[d.res], title = d.title || (d.team ? d.team : resL);
   if(d.week){ var w = new Date(d.week + "T12:00:00"), e = new Date(w); e.setDate(e.getDate() + 6);
     title += " · semaine du " + w.getDate() + "/" + (w.getMonth() + 1) + " au " + e.getDate() + "/" + (e.getMonth() + 1); }
-  if(d.sort) title += d.sort === "gf" ? " · tri par buts marqués" : (d.sort === "ga" ? " · tri par buts encaissés" : " · tri par écart");
+  if(d.sort && !d.title) title += d.sort === "gf" ? " · tri par buts marqués" : (d.sort === "ga" ? " · tri par buts encaissés" : " · tri par écart");
   var me = function(t){ return '<em class="cr-me">' + escapeHtml(t) + '</em>'; };
   var rows = L.map(function(r){
     var m = r.m, home = m.teamA === r.team, dl = new Date(m.date + "T12:00:00").toLocaleDateString("fr-FR", {weekday:"short", day:"numeric", month:"short"});
@@ -3744,18 +3755,18 @@ function clubRecords(list, club){
     }
   });
   var L = [];
-  if(win) L.push(['Plus large victoire', sc(win), dd(win)]);
-  if(loss) L.push(['Plus lourde défaite', sc(loss), dd(loss)]);
-  if(att) L.push(['Meilleure attaque', tm(att.t), nf(att.v) + ' buts / match']);
-  if(def) L.push(['Meilleure défense', tm(def.t), nf(def.v) + ' encaissé' + (def.v >= 2 ? 's' : '') + ' / match']);
-  if(unb) L.push(['Invaincue', tm(unb.t), unb.j + ' matchs · ' + unb.V + 'V ' + unb.N + 'N']);
-  if(run) L.push(['Plus longue série de victoires', tm(run.t), run.n + ' de suite']);
-  if(bestW && bestW.n > 1) L.push(['Série de victoires en cours', tm(bestW.t), bestW.n + ' de suite']);
-  if(bestU && bestU.n > 1 && (!bestW || bestU.n > bestW.n) && (!unb || unb.t !== bestU.t)) L.push(['Invaincue depuis', tm(bestU.t), bestU.n + ' matchs']);
-  if(cs) L.push(['Matchs sans encaisser', '<b>' + cs + ' sur ' + list.length + '</b>', csT ? 'meilleur : ' + escapeHtml(csT.t.slice(club.length).trim() || csT.t) + ' (' + csT.n + ')' : '']);
+  if(win) L.push(['Plus large victoire', sc(win), dd(win), {res:'V', sort:'diff', title:'Plus larges victoires'}]);
+  if(loss) L.push(['Plus lourde défaite', sc(loss), dd(loss), {res:'D', sort:'diffasc', title:'Plus lourdes défaites'}]);
+  if(att) L.push(['Meilleure attaque', tm(att.t), nf(att.v) + ' buts / match', {res:'all', team:att.t, sort:'gf'}]);
+  if(def) L.push(['Meilleure défense', tm(def.t), nf(def.v) + ' encaissé' + (def.v >= 2 ? 's' : '') + ' / match', {res:'all', team:def.t}]);
+  if(unb) L.push(['Invaincue', tm(unb.t), unb.j + ' matchs · ' + unb.V + 'V ' + unb.N + 'N', {res:'all', team:unb.t}]);
+  if(run) L.push(['Plus longue série de victoires', tm(run.t), run.n + ' de suite', {res:'all', team:run.t}]);
+  if(bestW && bestW.n > 1) L.push(['Série de victoires en cours', tm(bestW.t), bestW.n + ' de suite', {res:'all', team:bestW.t}]);
+  if(bestU && bestU.n > 1 && (!bestW || bestU.n > bestW.n) && (!unb || unb.t !== bestU.t)) L.push(['Invaincue depuis', tm(bestU.t), bestU.n + ' matchs', {res:'all', team:bestU.t}]);
+  if(cs) L.push(['Matchs sans encaisser', '<b>' + cs + ' sur ' + list.length + '</b>', csT ? 'meilleur : ' + escapeHtml(csT.t.slice(club.length).trim() || csT.t) + ' (' + csT.n + ')' : '', {res:'all', cs:1, title:'Matchs sans encaisser'}]);
   if(!L.length) return '';
   return '<div class="club-day">Records <span>saison</span></div><div class="club-card">' + L.map(function(x){
-    return '<div class="cr-row"><small>' + x[0] + '</small><b>' + x[1] + '</b>' + (x[2] ? '<span>' + x[2] + '</span>' : '') + '</div>'; }).join("") + '</div>';
+    return '<div class="cr-row cr-click"' + (x[3] ? cdAttr(x[3]) : '') + '><small>' + x[0] + '</small><b>' + x[1] + '</b>' + (x[2] ? '<span>' + x[2] + '</span>' : '') + '</div>'; }).join("") + '</div>';
 }
 /* V2.25 : domicile / extérieur, matchs serrés, adversaires */
 function clubSplits(list){
@@ -3766,14 +3777,14 @@ function clubSplits(list){
   list.forEach(function(r){ var c = teamParts(r.opp).club || r.opp; if(r.res === "V") wins[c] = (wins[c] || 0) + 1; else if(r.res === "D") losses[c] = (losses[c] || 0) + 1; });
   var top = function(o){ var k = Object.keys(o).sort(function(a, b){ return o[b] - o[a] || a.localeCompare(b); })[0]; return k && o[k] > 1 ? [k, o[k]] : null; };
   var tw = top(wins), tl = top(losses);
-  var box = function(t, c){ var n = c.V + c.N + c.D; if(!n) return '<div class="club-card cs-box"><small>' + t + '</small><b>-</b></div>';
-    return '<div class="club-card cs-box"><small>' + t + '</small><b>' + c.V + 'V ' + c.N + 'N ' + c.D + 'D</b><div class="cs-bar"><i class="cs-V" style="flex:' + c.V + '"></i><i class="cs-N" style="flex:' + c.N + '"></i><i class="cs-D" style="flex:' + c.D + '"></i></div><span>' + Math.round(100 * c.V / n) + ' % de victoires</span></div>'; };
-  var html = '<div class="club-day">Domicile <span>et extérieur</span></div><div class="cs-split">' + box("Domicile", home) + box("Extérieur", away) + '</div>';
+  var box = function(t, c, side){ var n = c.V + c.N + c.D; if(!n) return '<div class="club-card cs-box"><small>' + t + '</small><b>-</b></div>';
+    return '<div class="club-card cs-box cr-click"' + cdAttr({res:'all', side:side, title:'Matchs à ' + (side === 'home' ? 'domicile' : "l'extérieur")}) + '><small>' + t + '</small><b>' + c.V + 'V ' + c.N + 'N ' + c.D + 'D</b><div class="cs-bar"><i class="cs-V" style="flex:' + c.V + '"></i><i class="cs-N" style="flex:' + c.N + '"></i><i class="cs-D" style="flex:' + c.D + '"></i></div><span>' + Math.round(100 * c.V / n) + ' % de victoires</span></div>'; };
+  var html = '<div class="club-day">Domicile <span>et extérieur</span></div><div class="cs-split">' + box("Domicile", home, "home") + box("Extérieur", away, "away") + '</div>';
   var L = [];
-  if(close.V + close.D + close.N) L.push(['Matchs serrés (1 but d\'écart)', close.V + ' victoire' + (close.V > 1 ? 's' : '') + ' · ' + close.D + ' défaite' + (close.D > 1 ? 's' : ''), '']);
-  if(tw) L.push(['Club battu le plus souvent', escapeHtml(tw[0]), tw[1] + ' victoires']);
-  if(tl) L.push(['Bête noire', escapeHtml(tl[0]), tl[1] + ' défaites']);
-  if(L.length) html += '<div class="club-card" style="margin-top:8px;">' + L.map(function(x){ return '<div class="cr-row"><small>' + x[0] + '</small><b>' + x[1] + '</b>' + (x[2] ? '<span>' + x[2] + '</span>' : '') + '</div>'; }).join("") + '</div>';
+  if(close.V + close.D + close.N) L.push(['Matchs serrés (1 but d\'écart)', close.V + ' victoire' + (close.V > 1 ? 's' : '') + ' · ' + close.D + ' défaite' + (close.D > 1 ? 's' : ''), '', {res:'all', close:1, title:'Matchs serrés (1 but d\'écart)'}]);
+  if(tw) L.push(['Club battu le plus souvent', escapeHtml(tw[0]), tw[1] + ' victoires', {res:'V', opp:tw[0], title:'Victoires contre ' + tw[0]}]);
+  if(tl) L.push(['Bête noire', escapeHtml(tl[0]), tl[1] + ' défaites', {res:'D', opp:tl[0], title:'Défaites contre ' + tl[0]}]);
+  if(L.length) html += '<div class="club-card" style="margin-top:8px;">' + L.map(function(x){ return '<div class="cr-row cr-click"' + cdAttr(x[3]) + '><small>' + x[0] + '</small><b>' + x[1] + '</b>' + (x[2] ? '<span>' + x[2] + '</span>' : '') + '</div>'; }).join("") + '</div>';
   return html;
 }
 /* V2.25 : barres lisibles (nombre de matchs, détail V/N/D, différence de buts, date) ; défile si la saison est longue */
@@ -4389,7 +4400,8 @@ var ACTIONS = {
   "club-pub": function(el){ state.clubPub = el.getAttribute("data-v"); state.clubComp = "all"; state.clubAgeY = []; state.clubLvl = "all"; render(); },
   "club-sex": function(el){ state.clubSex = el.getAttribute("data-v"); render(); },
   "club-comp": function(el){ state.clubComp = el.getAttribute("data-v"); render(); },
-  "club-detail": function(el){ state.clubDetail = {res:el.getAttribute("data-res") || "all", week:el.getAttribute("data-week") || null, sort:el.getAttribute("data-sort") || null}; render(); },
+  "club-detail": function(el){ var g = function(k){ return el.getAttribute("data-" + k) || null; };
+    state.clubDetail = {res:g("res") || "all", week:g("week"), sort:g("sort"), team:g("team"), side:g("side"), close:g("close"), cs:g("cs"), opp:g("opp"), title:g("title")}; render(); },
   "club-detail-close": function(){ state.clubDetail = null; render(); },
   "club-detail-team": function(el){ state.clubDetail = null; openTeam(el.getAttribute("data-team")); },
   "club-agey": function(el){ var v = el.getAttribute("data-v"), l = (state.clubAgeY || []).slice(), i = l.indexOf(v);
