@@ -5,7 +5,10 @@ Regles (choix de Piet, 07/11/2026) :
   1. veille de chaque jour de match (18h-23h, heure belge) : notification a chaque joueur a qui il manque un prono
      pour les matchs de ce jour-la ; filet de securite le jour meme des 7h, au plus tard 2 h avant le premier match ;
   2. mardi soir (18h-23h) : rappel pour les pronos manquants du week-end (samedi et dimanche) ; filet mercredi 7h-13h ;
-  3. environ 1 h avant chaque match (entre 1h45 et 15 min avant) : rappel au joueur dont le prono manque pour ce match.
+  3. environ 1 h avant chaque match (entre 1h45 et 15 min avant) : rappel au joueur dont le prono manque pour ce match ;
+  4. resultats (10/11/2026) : des qu'un match de la partie recoit un score, notification aux joueurs qui avaient un prono
+     (points gagnes, regroupes s'il y en a plusieurs, changement de place au classement) ; entre 8h et 22h seulement,
+     les scores trouves la nuit partent le matin ; desactivable par joueur dans l'app (hbrooms/<partie>/pushRes/<joueur> = false).
 Une seule fois par partie et par rappel (trace dans Firebase hbpushlog/<partie>/<cle>,
 cle = j-AAAA-MM-JJ, we-<lundi> ou h-AAAA-MM-JJ-HHMM pour l'heure de debut des matchs).
 GitHub lance les taches programmees avec 4 a 5 h de retard (constate en novembre 2026) : reveil toutes les heures,
@@ -71,7 +74,7 @@ def load_snapshot():
         pid = d["pools"][m[0]][0]
         a, b = d["teams"][m[3]], d["teams"][m[4]]
         leg = m[9] if len(m) > 9 and m[9] else 1
-        out[match_key(pid, a, b, leg)] = {"date": m[1], "time": m[2], "sa": m[5] if len(m) > 5 else None}
+        out[match_key(pid, a, b, leg)] = {"date": m[1], "time": m[2], "sa": m[5] if len(m) > 5 else None, "sb": m[6] if len(m) > 6 else None}
     return out
 
 
@@ -89,6 +92,7 @@ def room_matches(room, snap):
                 x["time"] = s["time"]
             if s.get("sa") is not None and x.get("scoreA") is None:
                 x["scoreA"] = s["sa"]
+                x["scoreB"] = s.get("sb")
         ms.append(x)
     return ms
 
@@ -175,6 +179,77 @@ def soon_plans(room, snap, now):
                 missing[p] = lst
         out.append((f"h-{s:%Y-%m-%d-%H%M}", missing, s))
     return out
+
+
+RES_HOURS = range(8, 22)  # notifications de resultats : 8h-21h59 (heure belge)
+
+
+def points(pred, m):
+    """Regles de l'app : 3 pts score exact, 1 pt bon vainqueur ou nul, joker x2."""
+    if not isinstance(pred, dict) or pred.get("a") is None or m.get("scoreA") is None or m.get("scoreB") is None:
+        return None
+    a, b, sa, sb = pred["a"], pred["b"], m["scoreA"], m["scoreB"]
+    base = 3 if (a == sa and b == sb) else (1 if (a > b) - (a < b) == (sa > sb) - (sa < sb) else 0)
+    return base * (2 if pred.get("j") else 1), base
+
+
+def totals(room, ms, skip=()):
+    t = {p: 0 for p in room.get("players") or []}
+    preds = room.get("predictions") or {}
+    for m in ms:
+        if m["id"] in skip:
+            continue
+        for p, pr in (preds.get(m["id"]) or {}).items():
+            r = points(pr, m)
+            if r and p in t:
+                t[p] += r[0]
+    return t
+
+
+def rank_of(t, p):
+    return 1 + sum(1 for q, v in t.items() if q != p and v > t.get(p, 0))
+
+
+def results_plan(room, snap, now, done):
+    """-> (ids des nouveaux resultats, {joueur: message}) pour les matchs d'hier et d'aujourd'hui pas encore notifies"""
+    ms = [m for m in room_matches(room, snap) if m.get("scoreA") is not None and m.get("scoreB") is not None and m.get("date")]
+    since = (now.date() - dt.timedelta(days=1)).isoformat()
+    new = [m for m in ms if m["date"] >= since and m["id"] not in done]
+    if not new:
+        return [], {}
+    ids = {m["id"] for m in new}
+    before, after = totals(room, ms, ids), totals(room, ms)
+    preds = room.get("predictions") or {}
+    out = {}
+    for p in room.get("players") or []:
+        items = []
+        for m in sorted(new, key=lambda x: (x["date"], x.get("time") or "")):
+            pr = (preds.get(m["id"]) or {}).get(p)
+            r = points(pr, m)
+            if r:
+                items.append((m, pr, r[0], r[1]))
+        if not items:
+            continue
+        rb, ra = rank_of(before, p), rank_of(after, p)
+        rk = "" if rb == ra else (f" Tu passes {ra}{'er' if ra == 1 else 'e'} !" if ra < rb else f" Tu descends {ra}e.")
+        if len(items) == 1:
+            m, pr, pts, base = items[0]
+            sc = f"{m.get('teamA')} {m['scoreA']}-{m['scoreB']} {m.get('teamB')}"
+            jk = " (joker)" if pr.get("j") else ""
+            if base == 3:
+                body = f"{sc} : score exact ! +{pts} pts{jk}"
+            elif base == 1:
+                body = f"{sc} : bon résultat, +{pts} pt{'s' if pts > 1 else ''}{jk} (ton prono {pr['a']}-{pr['b']})"
+            else:
+                body = f"{sc} : raté (ton prono {pr['a']}-{pr['b']})"
+            out[p] = {"title": "Pronos Hockey · résultat", "body": body + rk}
+        else:
+            tot = sum(x[2] for x in items)
+            ex, ok, ko = (sum(1 for x in items if x[3] == k) for k in (3, 1, 0))
+            parts = [f"{ex} exact{'s' if ex > 1 else ''}" if ex else "", f"{ok} bon{'s' if ok > 1 else ''}" if ok else "", f"{ko} raté{'s' if ko > 1 else ''}" if ko else ""]
+            out[p] = {"title": f"Pronos Hockey · {len(items)} résultats",
+                      "body": f"+{tot} pt{'s' if tot > 1 else ''} : " + ", ".join(x for x in parts if x) + "." + rk}
+    return sorted(ids), out
 
 
 def plural(n):
@@ -312,6 +387,17 @@ def main():
                     for p in targets:
                         deliver(room_code, p, dict(message(job[0], missing[p], first, job[2]), tag="rappel-" + key))
                     fb(f"hbpushlog/{room_code}/{key}", "PUT", {"at": now.isoformat(timespec="minutes"), "late": len(missing), "sent": len(targets)})
+        # 4. resultats (pas en simulation ; la nuit, ils attendent le matin)
+        if mode == "rappel" and now.hour in RES_HOURS:
+            done = fb(f"hbpushlog/{room_code}/res") or {}
+            ids, msgs = results_plan(room, snap, now, done)
+            if ids:
+                off = room.get("pushRes") or {}
+                targets = [p for p in msgs if (allsubs.get(room_code) or {}).get(p) and off.get(p) is not False]
+                print(f"partie {i} : resultats : {len(ids)} nouveau(x) score(s), {len(msgs)} joueur(s) concerne(s) dont {len(targets)} avec notifications")
+                for p in targets:
+                    deliver(room_code, p, dict(msgs[p], tag="res-" + now.strftime("%Y%m%d%H%M")))
+                fb(f"hbpushlog/{room_code}/res", "PATCH", {k: now.isoformat(timespec="minutes") for k in ids})
     print(f"Envoyes {stats['ok']}, abonnements expires supprimes {stats['gone']}, erreurs {stats['err']}")
 
 
