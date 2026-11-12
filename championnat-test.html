@@ -1389,6 +1389,12 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 
 .push-res{margin:4px 0 10px;}
 .push-res small{display:block;color:var(--ice-faint);font-size:11px;margin-left:24px;}
+
+/* V2.37 : ecran sans connexion */
+.offline{padding:110px 24px 40px;text-align:center}
+.offline-t{font-family:var(--display,inherit);font-size:24px;font-weight:800;margin-bottom:12px}
+.offline p{color:var(--muted,#93aec2);font-size:15px;line-height:1.45;margin:0 0 12px}
+.offline .offline-s{font-size:13px;margin-bottom:22px}
 </style>
 </head>
 <body>
@@ -2514,7 +2520,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.29 test · 10/11/2026";
+var APP_VERSION = "3.30 test · 12/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -4715,6 +4721,41 @@ function teamEvolution(team, pool){
   return html;
 }
 
+
+/* ===================== V2.37 : panne de reseau ===================== */
+/* Lecture de la partie avec une limite de 15 s ; l'erreur dit la vraie cause :
+   room-not-found (la partie n'existe pas), network (pas de reseau ou delai depasse), http-NNN (la base refuse). */
+fetchRoom = async function(code){
+  var timer, res;
+  var limit = new Promise(function(_, reject){ timer = setTimeout(function(){ reject(new Error("network")); }, 15000); });
+  try{
+    res = await Promise.race([fetch(roomUrl(code)), limit]);
+    if(!res.ok) throw new Error("http-" + res.status);
+    var data = await Promise.race([res.json(), limit]);
+    if(data == null) throw new Error("room-not-found");
+    return data;
+  }catch(e){
+    if(e && /^(room-not-found|http-\d+|network)$/.test(e.message)) throw e;
+    throw new Error("network");
+  }finally{ clearTimeout(timer); }
+};
+function roomErrorText(e){
+  var m = e && e.message || "";
+  if(m === "room-not-found") return "Partie introuvable. Vérifie le nom.";
+  if(m === "network") return "Pas de connexion à la base. Vérifie ton réseau (Wi-Fi ou 4G/5G) et réessaie.";
+  if(m === "http-401" || m === "http-403") return "La base a refusé l'accès. Réessaie dans un instant.";
+  if(/^http-/.test(m)) return "La base ne répond pas (" + m.replace("http-", "erreur ") + "). Réessaie plus tard.";
+  return "Erreur inattendue (" + m + "). Réessaie.";
+}
+function renderOffline(err){
+  var app = document.getElementById("app");
+  app.innerHTML = '<div class="offline"><div class="offline-t">Pas de connexion</div>' +
+    '<p>' + escapeHtml(roomErrorText(err)) + '</p>' +
+    '<p class="offline-s">Ta partie <b>' + escapeHtml(state.room || "") + '</b> et tes pronos sont en sécurité. L\'app réessaie toute seule dès que le réseau revient.</p>' +
+    '<button class="btn btn-primary" id="offline-retry">Réessayer</button></div>';
+  document.getElementById("offline-retry").onclick = function(){ location.reload(); };
+}
+
 /* ===================== v2 : evenements (un seul ecouteur pour toute l'app) ===================== */
 function roomCodeFrom(id){ var i = document.getElementById(id); return i ? i.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, "") : ""; }
 function val(id){ var i = document.getElementById(id); return i ? i.value : ""; }
@@ -5102,7 +5143,7 @@ var ACTIONS = {
       state.room = code; setLocal(LOCAL_ROOM_KEY, code);
       state.joinBusy = false; state.playerSheet = true; render(); showToast("Partie rejointe !");
       syncFromHockeyBe().then(render);
-    }catch(e){ state.joinBusy = false; state.joinError = "Partie introuvable. Vérifie le nom."; render(); }
+    }catch(e){ state.joinBusy = false; state.joinError = roomErrorText(e); render(); }
   }
 };
 async function setSeasonAnswer(qid, team){
@@ -5239,7 +5280,21 @@ async function init(){
   document.getElementById("app").innerHTML = '<div class="empty" style="padding-top:120px;"><div class="big">Chargement...</div></div>';
   state.room = getLocal(LOCAL_ROOM_KEY);
   state.me = getLocal(LOCAL_ME_KEY);
-  if(state.room && !(await refreshCloud())){ state.room = null; setLocal(LOCAL_ROOM_KEY, null); }
+  if(state.room){
+    try{ applyRoom(await fetchRoom(state.room)); }
+    catch(err){
+      /* la partie n'est oubliee que si elle n'existe vraiment plus */
+      if(err.message === "room-not-found"){ state.room = null; setLocal(LOCAL_ROOM_KEY, null); }
+      else{
+        renderOffline(err);
+        window.addEventListener("online", function(){ location.reload(); });
+        var retry = setInterval(async function(){
+          try{ await fetchRoom(state.room); clearInterval(retry); location.reload(); }catch(x){}
+        }, 30000);
+        return;
+      }
+    }
+  }
   var joined = await joinFromLink();
   if(state.me && state.players.indexOf(state.me) === -1) state.me = null;
   if(state.pools.some(function(p){ return /^(ehl|fihpl|nlhk)-/.test(p); }) || (state.me && myFavs().length)) loadSnapshot(false);
