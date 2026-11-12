@@ -8,7 +8,10 @@ Regles (choix de Piet, 07/11/2026) :
   3. environ 1 h avant chaque match (entre 1h45 et 15 min avant) : rappel au joueur dont le prono manque pour ce match ;
   4. resultats (10/11/2026) : des qu'un match de la partie recoit un score, notification aux joueurs qui avaient un prono
      (points gagnes, regroupes s'il y en a plusieurs, changement de place au classement) ; entre 8h et 22h seulement,
-     les scores trouves la nuit partent le matin ; desactivable par joueur dans l'app (hbrooms/<partie>/pushRes/<joueur> = false).
+     les scores trouves la nuit partent le matin ; desactivable par joueur dans l'app (hbrooms/<partie>/pushRes/<joueur> = false) ;
+  5. chat (12/11/2026) : nouveaux messages des autres joueurs (auteur + debut du texte, regroupes s'il y en a plusieurs),
+     entre 8h et 22h (ceux de la nuit partent le matin) ; desactivable par joueur (hbrooms/<partie>/pushChat/<joueur> = false).
+     Dernier message traite : hbpushlog/<partie>/chat = date du message (au premier passage : rien n'est envoye).
 Une seule fois par partie et par rappel (trace dans Firebase hbpushlog/<partie>/<cle>,
 cle = j-AAAA-MM-JJ, we-<lundi> ou h-AAAA-MM-JJ-HHMM pour l'heure de debut des matchs).
 GitHub lance les taches programmees avec 4 a 5 h de retard (constate en novembre 2026) : reveil toutes les heures,
@@ -252,6 +255,37 @@ def results_plan(room, snap, now, done):
     return sorted(ids), out
 
 
+def chat_plan(room, last):
+    """-> (date du dernier message, {joueur: message}) pour les messages du chat posterieurs a `last`"""
+    msgs = [m for m in (room.get("chat") or {}).values() if isinstance(m, dict) and m.get("text") and m.get("at")]
+    if not msgs:
+        return last, {}
+    newest = max(m["at"] for m in msgs)
+    if not last:  # premier passage : on part d'ici, sans envoyer l'historique
+        return newest, {}
+    new = sorted((m for m in msgs if m["at"] > last), key=lambda m: m["at"])
+    if not new:
+        return last, {}
+    def short(m):
+        t = " ".join(str(m["text"]).split("\n")[0].split())
+        return f"{m.get('by') or '?'} : " + (t if len(t) <= 110 else t[:107].rstrip() + "...")
+    out = {}
+    for p in room.get("players") or []:
+        mine = [m for m in new if m.get("by") != p]
+        if not mine:
+            continue
+        if len(mine) == 1:
+            out[p] = {"title": "Pronos Hockey · chat", "body": short(mine[0])}
+        else:
+            who = []
+            for m in mine:
+                if (m.get("by") or "?") not in who:
+                    who.append(m.get("by") or "?")
+            out[p] = {"title": f"Pronos Hockey · {len(mine)} messages",
+                      "body": f"De {', '.join(who)}. Dernier, {short(mine[-1])}"}
+    return newest, out
+
+
 def plural(n):
     return f"{n} prono{'s' if n > 1 else ''}"
 
@@ -420,6 +454,18 @@ def main():
                 for p in targets:
                     deliver(room_code, p, dict(msgs[p], tag="res-" + now.strftime("%Y%m%d%H%M")))
                 fb(f"hbpushlog/{room_code}/res", "PATCH", {k: now.isoformat(timespec="minutes") for k in ids})
+        # 5. chat (pas en simulation ; la nuit, les messages attendent le matin)
+        if mode == "rappel" and now.hour in RES_HOURS:
+            last = fb(f"hbpushlog/{room_code}/chat")
+            newest, msgs = chat_plan(room, last if isinstance(last, str) else None)
+            if msgs:
+                off = room.get("pushChat") or {}
+                targets = [p for p in msgs if (allsubs.get(room_code) or {}).get(p) and off.get(p) is not False]
+                print(f"partie {i} : chat : {len(msgs)} joueur(s) concerne(s) dont {len(targets)} avec notifications")
+                for p in targets:
+                    deliver(room_code, p, dict(msgs[p], tag="chat-" + now.strftime("%Y%m%d%H%M")))
+            if newest and newest != last:
+                fb(f"hbpushlog/{room_code}/chat", "PUT", newest)
     print(f"Envoyes {stats['ok']}, abonnements expires supprimes {stats['gone']}, erreurs {stats['err']}")
 
 
