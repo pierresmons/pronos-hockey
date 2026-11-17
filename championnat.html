@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Pronos Hockey">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a1420">
 <title>Pronos Hockey — Championnat belge</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1693,6 +1694,7 @@ function applyRoom(data){
   state.favClubs = data.favClubs || {};
   state.pushRes = data.pushRes || {};
   state.pushChat = data.pushChat || {};
+  state.recapDone = data.recapDone || {};
 }
 async function saveCloud(){
   if(!state.room) return false;
@@ -2520,7 +2522,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "2.38 · 12/11/2026";
+var APP_VERSION = "3.0";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -3961,17 +3963,22 @@ async function recapPublish(rc, auto){
   var msg = {by:"Récap", text:recapText(rc).slice(0, 2000), at:new Date().toISOString(), auto:!!auto};
   if(!(await fbSet("chat/recap-" + rc.wk, msg))) return false;
   state.chat = state.chat || {}; state.chat["recap-" + rc.wk] = msg;
+  recapMarkDone(rc.wk);
   return true;
 }
 /* mode automatique : à partir du lundi 8h ; si des scores manquent encore, on attend jusqu'au lundi 14h */
+/* V2.39 : semaine deja publiee (hbrooms/<partie>/recapDone/<lundi>) ; reste vrai meme si le message est supprime du chat,
+   sinon le mode automatique le republiait a chaque ouverture */
+function recapMarkDone(wk){ state.recapDone = state.recapDone || {}; state.recapDone[wk] = true; return fbSet("recapDone/" + wk, true); }
+function recapIsDone(wk){ return !!((state.recapDone || {})[wk] || (state.chat && state.chat["recap-" + wk])); }
 async function recapAuto(){
   if(!state.recapAuto || !state.room) return;
-  var rc = recapData(); if(!rc || (state.chat && state.chat["recap-" + rc.wk])) return;
+  var rc = recapData(); if(!rc || recapIsDone(rc.wk)) return;
   var mon = weekRange(0).startD, now = new Date(), h = now.getHours(), isMon = localIso(now) === localIso(mon);
   if(isMon && h < 8) return;
   if(isMon && h < 14 && rc.missing) return;
   await refreshCloud();
-  if(state.chat && state.chat["recap-" + rc.wk]) return;
+  if(recapIsDone(rc.wk)) return;
   await recapPublish(recapData() || rc, true);
 }
 function renderRecapAdmin(rc){
@@ -4044,7 +4051,7 @@ async function refreshAll(){
 /* Notifications envoyees par le robot GitHub (notify.py) la veille du premier match de la semaine,
    seulement aux joueurs a qui il manque des pronos. Abonnements dans Firebase hbpush/<partie>/<joueur>/<id>
    (ecriture seule, illisible depuis l'app) ; hbrooms/<partie>/pushOn/<joueur> = date, pour le suivi de l'organisateur. */
-var PUSH_ON = false;
+var PUSH_ON = true;
 var VAPID_PUBLIC = "BPWiK4iy-M73H9p1QkvMcig-yMD4cLj888IeL5H1tfRwDvTeAfUyHakBzifduyOMQG3JoT38AemgfIz3imHjVNY";
 var PUSH = {state:"?"};
 var PUSH_RULES = "Rappels seulement s'il te manque un prono : la veille de chaque jour de match (en soirée), le mardi soir pour le week-end, et environ 1 h avant le match. Et le résultat de tes pronos dès que le score tombe, et les nouveaux messages du chat.";
@@ -4845,6 +4852,7 @@ var ACTIONS = {
     if(!window.confirm("Supprimer ce message ?")) return;
     if(!(await fbSet("chat/" + id, null))){ showToast("Suppression impossible (connexion ?)"); return; }
     delete state.chat[id]; refreshChatList();
+    if(/^recap-/.test(id)) recapMarkDone(id.slice(6));   /* un recap supprime ne revient pas tout seul */
   },
   "refresh-all": function(){ refreshAll(); },
   "recap-publish": async function(){
