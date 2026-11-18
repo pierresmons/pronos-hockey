@@ -1698,6 +1698,7 @@ function applyRoom(data){
   state.pushRes = data.pushRes || {};
   state.pushChat = data.pushChat || {};
   state.recapDone = data.recapDone || {};
+  state.inPools = data.inPools || {};
 }
 async function saveCloud(){
   if(!state.room) return false;
@@ -1734,6 +1735,8 @@ function computePoints(pred, match){
 function basePoints(pred, match){
   if(!pred || pred.a === undefined || !hasScore(match)) return null;
   if(pred.a === match.scoreA && pred.b === match.scoreB) return 3;
+  /* V3.2 : en indoor, 2 pts pour le bon ecart (ex. 7-4 pour 6-3) */
+  if(isIndoorMatch(match) && pred.a - pred.b === match.scoreA - match.scoreB) return 2;
   var pw = pred.a > pred.b ? "A" : (pred.a < pred.b ? "B" : "T");
   var aw = match.scoreA > match.scoreB ? "A" : (match.scoreA < match.scoreB ? "B" : "T");
   return pw === aw ? 1 : 0;
@@ -1750,7 +1753,7 @@ function playerTotals(filterFn){
       var base = basePoints(preds[p], m);
       if(base === null) return;
       totals[p].played++; totals[p].points += computePoints(preds[p], m);
-      if(base === 3) totals[p].exact++; else if(base === 1) totals[p].correct++;
+      if(base === 3) totals[p].exact++; else if(base > 0) totals[p].correct++;
     });
   });
   return totals;
@@ -2435,7 +2438,7 @@ function playerStats(p){
     var pr = myPred(m, p), base = basePoints(pr, m);
     if(base === null) return;
     s.played++; s.points += computePoints(pr, m);
-    if(base === 3) s.exact++; else if(base === 1) s.correct++;
+    if(base === 3) s.exact++; else if(base > 0) s.correct++;
     if(pr.j){ s.jokers++; s.jokerGain += base; }
     var c = poolCat(m.pool); s.cats[c] = s.cats[c] || {n:0, pts:0}; s.cats[c].n++; s.cats[c].pts += base;
     if(base > 0){ s.streak++; if(s.streak > s.best) s.best = s.streak; } else s.streak = 0;
@@ -2525,7 +2528,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.1 · 17/11/2026";
+var APP_VERSION = "3.2 · 18/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -2631,7 +2634,7 @@ function renderPronos(){
     } else html += '<h3 class="day">' + dayTitle(d) + '</h3>';
     if(!folded) ms.forEach(function(m){ html += rowHtml(m); });
   });
-  html += '<p class="legend2"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>Joker</b> x2 sur un match par semaine. Touche un match pour la forme, le joker et les pronos des autres.</p>';
+  html += '<p class="legend2"><b>3 pts</b> score exact &middot; <b>1 pt</b> bon vainqueur ou nul &middot; <b>Indoor : 2 pts</b> bon écart (7-4 pour 6-3) &middot; <b>Joker</b> x2 sur un match par semaine. Touche un match pour la forme, le joker et les pronos des autres.</p>';
   return html;
 }
 function weekSummary(list){
@@ -2684,7 +2687,7 @@ function rowDetail(m, pr, locked, done){
       if(!x || x.a === undefined) return '<span class="pred-tag">' + escapeHtml(p) + ' <b>&mdash;</b></span>';
       if(done){
         var pts = computePoints(x, m), base = basePoints(x, m);
-        return '<span class="pred-tag ' + (base === 3 ? "exact" : (base === 1 ? "correct" : "wrong")) + '">' + escapeHtml(p) + ' <b>' + x.a + '-' + x.b + '</b> ' + pts + ' pt' + (pts > 1 ? "s" : "") + (x.j ? ' (joker)' : '') + '</span>';
+        return '<span class="pred-tag ' + (base === 3 ? "exact" : (base > 0 ? "correct" : "wrong")) + '">' + escapeHtml(p) + ' <b>' + x.a + '-' + x.b + '</b> ' + pts + ' pt' + (pts > 1 ? "s" : "") + (x.j ? ' (joker)' : '') + '</span>';
       }
       /* avant le coup d'envoi : on montre qui a joue, pas son score (pas de copie possible) */
       if(!locked) return '<span class="pred-tag">' + escapeHtml(p) + ' <b class="ok-mark">&#10003;</b></span>';
@@ -5296,6 +5299,18 @@ function installEvents(){
   }, true);
 }
 
+/* ===================== V3.2 : matchs indoor (bareme « bon ecart ») ===================== */
+/* Le nom des poules indoor vient du fichier du robot ; pour que tous les appareils comptent pareil avant de l'avoir lu,
+   les poules indoor de la partie sont notees dans hbrooms/<partie>/inPools/<poule> = true (le robot de notifications les lit aussi). */
+function isIndoorMatch(m){ return !!(m && m.pool && ((state.inPools || {})[m.pool] || isIndoorPid(m.pool))); }
+function syncInPools(){
+  if(!state.room) return;
+  (state.pools || []).forEach(function(pid){
+    if(isIndoorPid(pid) && !(state.inPools || {})[pid]){ state.inPools = state.inPools || {}; state.inPools[pid] = true; fbSet("inPools/" + pid, true); }
+  });
+}
+loadSnapshotNow = (function(orig){ return async function(){ var r = await orig.apply(this, arguments); try{ syncInPools(); }catch(e){} return r; }; })(loadSnapshotNow);
+
 /* ===================== v2 : demarrage ===================== */
 async function init(){
   installEvents();
@@ -5318,6 +5333,7 @@ async function init(){
     }
   }
   var joined = await joinFromLink();
+  if(state.room && (state.pools || []).some(function(pid){ return !/^(ehl|fihpl|nlhk)-/.test(pid) && !ALL_POOLS.some(function(x){ return x[0] === pid; }); })) loadSnapshot(false);
   if(state.me && state.players.indexOf(state.me) === -1) state.me = null;
   if(state.pools.some(function(p){ return /^(ehl|fihpl|nlhk)-/.test(p); }) || (state.me && myFavs().length)) loadSnapshot(false);
   if(!state.me && !joined && state.players.length === 1 && !hasPin(state.players[0])) state.me = state.players[0];
