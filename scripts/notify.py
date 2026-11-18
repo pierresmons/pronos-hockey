@@ -77,7 +77,8 @@ def load_snapshot():
         pid = d["pools"][m[0]][0]
         a, b = d["teams"][m[3]], d["teams"][m[4]]
         leg = m[9] if len(m) > 9 and m[9] else 1
-        out[match_key(pid, a, b, leg)] = {"date": m[1], "time": m[2], "sa": m[5] if len(m) > 5 else None, "sb": m[6] if len(m) > 6 else None}
+        out[match_key(pid, a, b, leg)] = {"date": m[1], "time": m[2], "sa": m[5] if len(m) > 5 else None, "sb": m[6] if len(m) > 6 else None,
+                                          "in": bool(re.search(r" Indoor( |$)", d["pools"][m[0]][1] or ""))}
     return out
 
 
@@ -96,6 +97,7 @@ def room_matches(room, snap):
             if s.get("sa") is not None and x.get("scoreA") is None:
                 x["scoreA"] = s["sa"]
                 x["scoreB"] = s.get("sb")
+        x["in"] = bool((s or {}).get("in") or (room.get("inPools") or {}).get(x.get("pool")))
         ms.append(x)
     return ms
 
@@ -188,11 +190,16 @@ RES_HOURS = range(8, 22)  # notifications de resultats : 8h-21h59 (heure belge)
 
 
 def points(pred, m):
-    """Regles de l'app : 3 pts score exact, 1 pt bon vainqueur ou nul, joker x2."""
+    """Regles de l'app : 3 pts score exact, (indoor) 2 pts bon ecart, 1 pt bon vainqueur ou nul, joker x2."""
     if not isinstance(pred, dict) or pred.get("a") is None or m.get("scoreA") is None or m.get("scoreB") is None:
         return None
     a, b, sa, sb = pred["a"], pred["b"], m["scoreA"], m["scoreB"]
-    base = 3 if (a == sa and b == sb) else (1 if (a > b) - (a < b) == (sa > sb) - (sa < sb) else 0)
+    if a == sa and b == sb:
+        base = 3
+    elif m.get("in") and a - b == sa - sb:
+        base = 2
+    else:
+        base = 1 if (a > b) - (a < b) == (sa > sb) - (sa < sb) else 0
     return base * (2 if pred.get("j") else 1), base
 
 
@@ -241,6 +248,8 @@ def results_plan(room, snap, now, done):
             jk = " avec joker" if pr.get("j") else ""
             if base == 3:
                 body = f"{sc} : score exact{jk} ! +{pts} pts."
+            elif base == 2:
+                body = f"{sc} : bon écart{jk}, +{pts} pts (ton prono {pr['a']}-{pr['b']})."
             elif base == 1:
                 body = f"{sc} : bon résultat{jk}, +{pts} pt{'s' if pts > 1 else ''} (ton prono {pr['a']}-{pr['b']})."
             else:
@@ -248,8 +257,9 @@ def results_plan(room, snap, now, done):
             out[p] = {"title": "Pronos Hockey · résultat", "body": body + rk}
         else:
             tot = sum(x[2] for x in items)
-            ex, ok, ko = (sum(1 for x in items if x[3] == k) for k in (3, 1, 0))
-            parts = [f"{ex} exact{'s' if ex > 1 else ''}" if ex else "", f"{ok} bon{'s' if ok > 1 else ''}" if ok else "", f"{ko} raté{'s' if ko > 1 else ''}" if ko else ""]
+            ex, ec, ok, ko = (sum(1 for x in items if x[3] == k) for k in (3, 2, 1, 0))
+            parts = [f"{ex} exact{'s' if ex > 1 else ''}" if ex else "", f"{ec} bon{'s' if ec > 1 else ''} écart{'s' if ec > 1 else ''}" if ec else "",
+                     f"{ok} bon{'s' if ok > 1 else ''}" if ok else "", f"{ko} raté{'s' if ko > 1 else ''}" if ko else ""]
             out[p] = {"title": f"Pronos Hockey · {len(items)} résultats",
                       "body": f"+{tot} pt{'s' if tot > 1 else ''} : " + ", ".join(x for x in parts if x) + "." + rk}
     return sorted(ids), out
