@@ -819,6 +819,31 @@ def main():
             if pid in old.get("standings", {}):
                 standings[pid] = old["standings"][pid]
 
+    # 22/11/2026 : hockey.be a renvoye pour la poule de coupe 12841 une copie qui ne contenait plus 3 des 4 matchs
+    # (dont 2 avec score) : une lecture ne doit jamais faire disparaitre un match deja connu ni effacer un score.
+    if old:
+        oteams = old.get("teams", [])
+        opools = [p[0] for p in old.get("pools", [])]
+        read_ok = set(to_read) - set(failed)
+        n_back = n_sc = 0
+        for om in old.get("matches", []):
+            opid = opools[om[0]] if om[0] < len(opools) else None
+            if opid not in read_ok or (om[1] and om[1] < SEASON_FROM):
+                continue
+            a, b = oteams[om[3]], oteams[om[4]]
+            key = (opid, a, b)
+            cur = matches.get(key)
+            if cur is None:
+                pi = next((i for i, p in enumerate(pools) if p[0] == opid), None)
+                if pi is not None:
+                    matches[key] = [pi, om[1], om[2], t_id(a), t_id(b)] + om[5:]
+                    n_back += 1
+            elif om[5] is not None and cur[5] is None and (cur[1] or "") == (om[1] or ""):
+                cur[5], cur[6], cur[7] = om[5], om[6], om[7] if len(om) > 7 else cur[7]
+                n_sc += 1
+        if n_back or n_sc:
+            print(f"Copie incomplete chez hockey.be : {n_back} match(s) repris et {n_sc} score(s) gardes du snapshot precedent", file=sys.stderr)
+
     add_ehl(pools, matches, standings, t_id, old)
     add_fihpl(pools, matches, standings, t_id, old)
     add_nlhk(pools, matches, standings, t_id, old)
