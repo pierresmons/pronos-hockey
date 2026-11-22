@@ -249,9 +249,10 @@ WATCH_POOLS = set()  # poules d'un match suivi (cloche, 21/11/2026) : chassees d
 
 
 def priority_pools(old):
-    """Poules des parties (Firebase hbrooms/<partie>/pools) + poules des equipes favorites + poules des matchs suivis.
-    On ne lit que des numeros de poules et des noms d'equipes ; rien n'est recopie dans le snapshot."""
-    pools, fav_teams = set(), set()
+    """Poules des parties (Firebase hbrooms/<partie>/pools) + poules des equipes favorites + poules des matchs suivis
+    + poules de toutes les equipes des clubs suivis (22/11/2026, choix de Piet).
+    On ne lit que des numeros de poules et des noms d'equipes ou de clubs ; rien n'est recopie dans le snapshot."""
+    pools, fav_teams, fav_clubs = set(), set(), set()
     try:
         rooms = list((fb_get("hbrooms", "shallow=true") or {}).keys())
         for room in rooms:
@@ -260,6 +261,8 @@ def priority_pools(old):
                 pools.add(str(p))
             for teams in (fb_get(f"hbrooms/{q}/favs") or {}).values():
                 fav_teams.update(teams or [])
+            for clubs in (fb_get(f"hbrooms/{q}/favClubs") or {}).values():
+                fav_clubs.update(c for c in (clubs or []) if isinstance(c, str) and c)
             for marks in (fb_get(f"hbrooms/{q}/watch") or {}).values():
                 for w in (marks or {}).values():
                     if isinstance(w, dict) and w.get("p"):
@@ -267,10 +270,12 @@ def priority_pools(old):
                         WATCH_POOLS.add(str(w["p"]))
     except Exception as e:  # noqa
         print("Parties Firebase illisibles (pas grave, toutes les poules actives sont lues) :", e, file=sys.stderr)
-    if fav_teams and old:
+    if (fav_teams or fav_clubs) and old:
         opools, oteams = [p[0] for p in old.get("pools", [])], old.get("teams", [])
+        club_of = lambda t: t.rsplit(" ", 1)[0] if " " in t else t  # "Old Club U19B-1" -> "Old Club"
         for m in old.get("matches", []):
-            if oteams[m[3]] in fav_teams or oteams[m[4]] in fav_teams:
+            a, b = oteams[m[3]], oteams[m[4]]
+            if a in fav_teams or b in fav_teams or club_of(a) in fav_clubs or club_of(b) in fav_clubs:
                 pools.add(opools[m[0]])
     return pools
 
