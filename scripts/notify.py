@@ -12,6 +12,10 @@ Regles (choix de Piet, 07/11/2026) :
   5. chat (12/11/2026) : nouveaux messages des autres joueurs (auteur + debut du texte, regroupes s'il y en a plusieurs),
      entre 8h et 22h (ceux de la nuit partent le matin) ; desactivable par joueur (hbrooms/<partie>/pushChat/<joueur> = false).
      Dernier message traite : hbpushlog/<partie>/chat = date du message (au premier passage : rien n'est envoye).
+  6. matchs suivis (21/11/2026) : cloche dans l'app (hbrooms/<partie>/watch/<joueur>/<poule_A_B> = {p, a, b, d, t}) ;
+     des que le score est connu (Firebase ou fichier du robot), notification « Score : A 4-1 B », entre 8h et 22h,
+     puis la cloche est retiree. Pas de doublon avec la notification de resultat (match de la partie avec un prono).
+     Cloche sans score 3 jours apres la date : retiree sans notification (match remis ou annule).
 Une seule fois par partie et par rappel (trace dans Firebase hbpushlog/<partie>/<cle>,
 cle = j-AAAA-MM-JJ, we-<lundi> ou h-AAAA-MM-JJ-HHMM pour l'heure de debut des matchs).
 GitHub lance les taches programmees avec 4 a 5 h de retard (constate en novembre 2026) : reveil toutes les heures,
@@ -296,6 +300,35 @@ def chat_plan(room, last):
     return newest, out
 
 
+def watch_plan(room, snap, now):
+    """-> liste de (joueur, cle, message ou None) : None = cloche a retirer sans notification"""
+    out = []
+    by_id = {m["id"]: m for m in room_matches(room, snap)}
+    preds = room.get("predictions") or {}
+    off = room.get("pushRes") or {}
+    old = (now.date() - dt.timedelta(days=3)).isoformat()
+    for p, marks in (room.get("watch") or {}).items():
+        for k, w in (marks or {}).items():
+            if not isinstance(w, dict):
+                out.append((p, k, None))
+                continue
+            # meme affiche jouee deux fois (phase 2) : on prend la rencontre a la date de la cloche
+            m = next((x for x in (by_id.get(k), by_id.get(k + "_2")) if x and x.get("date") == w.get("d")), None)
+            s = next((x for x in (snap.get(k), snap.get(k + "_2")) if x and x.get("date") == w.get("d")), None) or {}
+            sa, sb = (m.get("scoreA"), m.get("scoreB")) if m and m.get("scoreA") is not None else (s.get("sa"), s.get("sb"))
+            if sa is None or sb is None:
+                if (w.get("d") or "9999") < old:
+                    out.append((p, k, None))
+                continue
+            # match de la partie avec un prono : la notification de resultat s'en charge deja
+            pr = (preds.get(k) or {}).get(p)
+            if m and isinstance(pr, dict) and pr.get("a") is not None and off.get(p) is not False:
+                out.append((p, k, None))
+                continue
+            out.append((p, k, {"title": "Pronos Hockey · score", "body": f"{w.get('a', '?')} {sa}-{sb} {w.get('b', '?')}"}))
+    return out
+
+
 def plural(n):
     return f"{n} prono{'s' if n > 1 else ''}"
 
@@ -464,6 +497,17 @@ def main():
                 for p in targets:
                     deliver(room_code, p, dict(msgs[p], tag="res-" + now.strftime("%Y%m%d%H%M")))
                 fb(f"hbpushlog/{room_code}/res", "PATCH", {k: now.isoformat(timespec="minutes") for k in ids})
+        # 6. matchs suivis (pas en simulation ; la nuit, les scores attendent le matin)
+        if mode == "rappel" and now.hour in RES_HOURS and room.get("watch"):
+            plan = watch_plan(room, snap, now)
+            sent = 0
+            for p, k, msg in plan:
+                if msg and (allsubs.get(room_code) or {}).get(p):
+                    deliver(room_code, p, dict(msg, tag="score-" + k[:40]))
+                    sent += 1
+                fb(f"hbrooms/{room_code}/watch/{p}/{k}", "DELETE")
+            if plan:
+                print(f"partie {i} : matchs suivis : {len(plan)} cloche(s) traitee(s), {sent} notification(s)")
         # 5. chat (pas en simulation ; la nuit, les messages attendent le matin)
         if mode == "rappel" and now.hour in RES_HOURS:
             last = fb(f"hbpushlog/{room_code}/chat")

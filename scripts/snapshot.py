@@ -245,8 +245,11 @@ def fb_get(path, query=""):
         return json.loads(r.read().decode("utf-8"))
 
 
+WATCH_POOLS = set()  # poules d'un match suivi (cloche, 21/11/2026) : chassees des 1h15 apres le debut
+
+
 def priority_pools(old):
-    """Poules des parties (Firebase hbrooms/<partie>/pools) + poules des equipes favorites.
+    """Poules des parties (Firebase hbrooms/<partie>/pools) + poules des equipes favorites + poules des matchs suivis.
     On ne lit que des numeros de poules et des noms d'equipes ; rien n'est recopie dans le snapshot."""
     pools, fav_teams = set(), set()
     try:
@@ -257,6 +260,11 @@ def priority_pools(old):
                 pools.add(str(p))
             for teams in (fb_get(f"hbrooms/{q}/favs") or {}).values():
                 fav_teams.update(teams or [])
+            for marks in (fb_get(f"hbrooms/{q}/watch") or {}).values():
+                for w in (marks or {}).values():
+                    if isinstance(w, dict) and w.get("p"):
+                        pools.add(str(w["p"]))
+                        WATCH_POOLS.add(str(w["p"]))
     except Exception as e:  # noqa
         print("Parties Firebase illisibles (pas grave, toutes les poules actives sont lues) :", e, file=sys.stderr)
     if fav_teams and old:
@@ -578,9 +586,9 @@ def main_scores():
             start = dt.datetime.fromisoformat(f"{m[1]}T{m[2]}").replace(tzinfo=BXL)
         except ValueError:
             continue
-        if dt.timedelta(minutes=90) < now - start < dt.timedelta(hours=12):
+        if dt.timedelta(minutes=75 if pid in WATCH_POOLS else 90) < now - start < dt.timedelta(hours=12):
             pending[pid] = pending.get(pid, 0) + 1
-    print(f"Chasseur de scores : {len(prio)} poule(s) de parties/favoris, {len(pending)} avec un match fini sans score", file=sys.stderr)
+    print(f"Chasseur de scores : {len(prio)} poule(s) de parties/favoris/matchs suivis, {len(pending)} avec un match fini sans score", file=sys.stderr)
     if not pending:
         return
     tidx = {t: i for i, t in enumerate(teams)}
