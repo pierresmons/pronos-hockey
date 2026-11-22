@@ -2569,7 +2569,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.6 · 21/11/2026";
+var APP_VERSION = "3.8 · 22/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -4070,6 +4070,30 @@ function saveLive(){
   ks.slice(25).forEach(function(k){ delete LIVE[k]; });
   try{ setLocal(LIVE_KEY, JSON.stringify(LIVE)); }catch(e){}
 }
+/* V3.7 : une lecture en direct de hockey.be peut revenir d'une copie trop ancienne (sans le score) ;
+   elle ne doit jamais effacer un score que le fichier du robot a deja (22/11 : Embourg - Leopold sur l'ecran de la Tesla). */
+var ROBOT_SC = {}, ROBOT_ST = {}, ROBOT_M = {};
+function rkey(m){ return m.pool + "|" + m.teamA + "|" + m.teamB + "|" + (m.date || ""); }
+function noteRobot(){
+  ROBOT_SC = {}; ROBOT_ST = {}; ROBOT_M = {};
+  EXT.matches.forEach(function(m){ if(hasScore(m)) ROBOT_SC[rkey(m)] = {a:m.scoreA, b:m.scoreB, s:m.status || null};
+    (ROBOT_M[m.pool] = ROBOT_M[m.pool] || []).push(Object.assign({}, m)); });
+  Object.keys(EXT.standings || {}).forEach(function(p){ ROBOT_ST[p] = EXT.standings[p]; });
+}
+function playedSum(st){ var n = 0; (st || []).forEach(function(r){ n += +(r.j || r[2] || 0) || 0; }); return n; }
+function keepRobotScores(pid){
+  var fixed = 0;
+  /* un match connu du robot mais absent de la lecture en direct (copie incomplete) est repris */
+  var have = {}; EXT.matches.forEach(function(m){ if(m.pool === pid) have[m.teamA + "|" + m.teamB] = 1; });
+  (ROBOT_M[pid] || []).forEach(function(m){ if(!have[m.teamA + "|" + m.teamB]){ EXT.matches.push(Object.assign({}, m)); fixed++; } });
+  EXT.matches.forEach(function(m){
+    if(m.pool !== pid || hasScore(m)) return;
+    var r = ROBOT_SC[rkey(m)]; if(!r) return;
+    m.scoreA = r.a; m.scoreB = r.b; if(r.s) m.status = r.s; fixed++;
+  });
+  if(ROBOT_ST[pid] && playedSum(ROBOT_ST[pid]) > playedSum(EXT.standings[pid])) EXT.standings[pid] = ROBOT_ST[pid];
+  return fixed;
+}
 function applyLive(){
   var gen = SNAP.generated ? new Date(SNAP.generated).getTime() : 0;
   Object.keys(LIVE).forEach(function(pid){
@@ -4077,11 +4101,13 @@ function applyLive(){
     EXT.matches = EXT.matches.filter(function(m){ return m.pool !== pid; }).concat(L.m.map(function(m){ return Object.assign({}, m); }));
     if(L.st && L.st.length) EXT.standings[pid] = L.st;
     EXT.loaded[pid] = true; EXT.live = EXT.live || {}; EXT.live[pid] = new Date(L.at);
+    keepRobotScores(pid);
   });
 }
-loadSnapshotNow = (function(orig){ return async function(){ await orig(); applyLive(); render(); }; })(loadSnapshotNow);
+loadSnapshotNow = (function(orig){ return async function(){ await orig(); noteRobot(); applyLive(); render(); }; })(loadSnapshotNow);
 loadExtPools = (function(orig){ return async function(pids, force){
   var t0 = Date.now(); await orig(pids, force); var ch = false;
+  pids.forEach(function(pid){ keepRobotScores(pid); });
   pids.forEach(function(pid){ var lv = EXT.live && EXT.live[pid];
     if(lv && lv.getTime() >= t0){ LIVE[pid] = {at:lv.getTime(), m:EXT.matches.filter(function(m){ return m.pool === pid; }), st:EXT.standings[pid] || []}; ch = true; } });
   if(ch) saveLive();
