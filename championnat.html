@@ -1431,6 +1431,13 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 
 /* V3.5 */
 .pm-src{font-size:11px;color:var(--gold,#f0a93b);margin:4px 0 2px;}
+
+/* V3.6 : cloche des matchs suivis */
+.bell{display:inline-flex;align-items:center;gap:3px;margin-left:8px;color:var(--ice-faint,#5f7c92);cursor:pointer;vertical-align:middle;padding:2px;border-radius:6px;}
+.bell.on{color:var(--gold,#f0a93b);}
+.club-time .bell{margin:0 0 0 4px;}
+.bell-l{font-size:12px;border:1px solid var(--line);padding:2px 8px;margin-left:10px;}
+.bell-l.on{border-color:var(--gold,#f0a93b);}
 </style>
 </head>
 <body>
@@ -1732,6 +1739,7 @@ function applyRoom(data){
   state.pushChat = data.pushChat || {};
   state.recapDone = data.recapDone || {};
   state.inPools = data.inPools || {};
+  state.watch = data.watch || {};
 }
 async function saveCloud(){
   if(!state.room) return false;
@@ -2415,7 +2423,7 @@ function matchRow(m, focusTeam){
   var sc = hasScore(m) ? '<b class="row-score">' + m.scoreA + ' - ' + m.scoreB + '</b>' : '<span class="row-time">' + escapeHtml(m.status || m.time || "") + '</span>';
   var badge = "";
   if(focusTeam && hasScore(m)){ var r = resultFor(focusTeam, m); badge = '<span class="form-chip form-' + r + '">' + r + '</span>'; }
-  return '<div class="match-row"><div class="row-meta">' + formatDate(m.date) + ' &middot; ' + escapeHtml(poolName(m.pool)) + '</div>' +
+  return '<div class="match-row"><div class="row-meta">' + formatDate(m.date) + ' &middot; ' + escapeHtml(poolName(m.pool)) + bellHtml(m) + '</div>' +
     '<div class="row-main">' + badge + '<span class="row-team row-a"><span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamA) + '">' + escapeHtml(m.teamA) + '</span>' + logoImg(m.teamA) + '</span>' + sc + '<span class="row-team row-b">' + logoImg(m.teamB) + '<span class="team-link" data-action="goto-team" data-team="' + escapeHtml(m.teamB) + '">' + escapeHtml(m.teamB) + '</span></span></div></div>';
 }
 function renderMatchInfo(m){
@@ -2561,7 +2569,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.5 · 20/11/2026";
+var APP_VERSION = "3.6 · 21/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -2704,7 +2712,7 @@ function rowHtml(m){
 }
 function rowDetail(m, pr, locked, done){
   var html = '<div class="pr-detail">';
-  html += '<div class="pr-where">' + escapeHtml(poolName(m.pool)) + (m.venue ? ' &middot; ' + escapeHtml(m.venue) : '') + '</div>';
+  html += '<div class="pr-where">' + escapeHtml(poolName(m.pool)) + (m.venue ? ' &middot; ' + escapeHtml(m.venue) : '') + bellHtml(m, true) + '</div>';
   if(!locked && m.date){
     var jm = jokerMatchOf(state.me, weekKey(m.date));
     if(pr.j) html += '<button class="btn btn-sm joker-btn on" data-action="toggle-joker" data-match="' + m.id + '">Joker x2 &#10003; (retirer)</button>';
@@ -3601,7 +3609,7 @@ function renderClubPage(club, back){
         return '<span class="club-tm' + (right ? ' b' : '') + (mine ? ' me' : '') + '">' + (right ? nm + crest : crest + nm) + '</span>';
       };
       var mid = i.played ? '<span class="club-sc">' + (sa > sb ? '<b>' + sa + '</b>' : sa) + '-' + (sb > sa ? '<b>' + sb + '</b>' : sb) + '</span>'
-        : '<span class="club-time">' + escapeHtml(m.status || m.time || "") + '</span>';
+        : '<span class="club-time">' + escapeHtml(m.status || m.time || "") + bellHtml(m) + '</span>';
       var pill = !i.played ? '<span class="club-res rT"></span>'
         : (i.res === "VD" ? (m.scoreA > m.scoreB ? '<span class="club-res rVD" title="derby"><i>V</i><i>D</i></span>' : '<span class="club-res rDV" title="derby"><i>D</i><i>V</i></span>') : '<span class="club-res r' + i.res + '">' + i.res + '</span>');
       var cat = poolName(m.pool).split(" - ")[0];
@@ -4868,6 +4876,16 @@ var ACTIONS = {
   "cr-all": function(){ state.crAll = !state.crAll; render(); },
   "club-cmp": function(el){ pushNav(); state.mview = {type:"clubcmp", id:el.getAttribute("data-club"), other:null}; state.cmpQ = ""; state.crSurf = null; loadSnapshot(false); render(); window.scrollTo(0, 0); },
   "cmp-pick": function(el){ state.mview.other = el.getAttribute("data-club"); state.cmpQ = ""; render(); },
+  "watch": async function(el){
+    if(!state.me || !state.room) return;
+    var m = {pool:el.getAttribute("data-pool"), teamA:el.getAttribute("data-a"), teamB:el.getAttribute("data-b"), date:el.getAttribute("data-d"), time:el.getAttribute("data-t")};
+    var k = watchKey(m), mine = (state.watch = state.watch || {})[state.me] = state.watch[state.me] || {}, on = !mine[k];
+    if(on) mine[k] = {p:m.pool, a:m.teamA, b:m.teamB, d:m.date, t:m.time}; else delete mine[k];
+    render();
+    var ok = await fbSet("watch/" + state.me + "/" + k, on ? mine[k] : null);
+    if(!ok){ if(on) delete mine[k]; else mine[k] = {p:m.pool, a:m.teamA, b:m.teamB, d:m.date, t:m.time}; render(); showToast("Impossible (connexion ?)"); return; }
+    showToast(on ? (PUSH.state === "yes" ? "Tu recevras le score de ce match dès qu'il est connu" : "Match suivi. Active les rappels dans Réglages pour recevoir le score") : "Match plus suivi");
+  },
   "team-cmp": function(el){ pushNav(); state.mview = {type:"teamcmp", id:el.getAttribute("data-team"), other:null}; state.tcmpQ = ""; loadSnapshot(false); render(); window.scrollTo(0, 0); },
   "tcmp-pick": function(el){ state.mview.other = el.getAttribute("data-team"); state.tcmpQ = ""; render(); window.scrollTo(0, 0); },
   "tcmp-change": function(){ state.mview.other = null; render(); },
@@ -5500,6 +5518,18 @@ function pmBlend(m, played, A, B){
   var R = data ? pmPoissonL(mix(prior.lh, data.lh), mix(prior.la, data.la)) : pmPoissonL(prior.lh, prior.la);
   R.src = data ? "mix" : "prior"; R.pw = w; R.ia = prior.ia; R.ib = prior.ib;
   return R;
+}
+
+/* ===================== V3.6 : matchs suivis (cloche) : notification du score des qu'il est connu ===================== */
+/* hbrooms/<partie>/watch/<joueur>/<cle> = {p:poule, a, b, d:date, t:heure} ; cle = poule_A_B (comme le robot).
+   Le robot relit ces poules en priorite (toutes les 15 min, des 1h15 apres le debut) ; notify.py envoie le score puis retire la cloche. */
+var BELL_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5-6.7V3.5a2 2 0 0 0-4 0v.8A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>';
+function watchKey(m){ return String(m.pool + "_" + m.teamA + "_" + m.teamB).replace(/[.#$\[\]\/]/g, "-"); }
+function isWatched(m){ return !!(((state.watch || {})[state.me] || {})[watchKey(m)]); }
+function bellHtml(m, label){
+  if(!state.me || !state.room || !m || !m.pool || !m.date || hasScore(m) || !/^\d{1,2}:\d{2}/.test(m.time || "") || m.date < todayIso()) return "";
+  var on = isWatched(m);
+  return '<span class="bell' + (on ? ' on' : '') + (label ? ' bell-l' : '') + '" role="button" tabindex="0" data-action="watch" data-pool="' + escapeHtml(m.pool) + '" data-a="' + escapeHtml(m.teamA) + '" data-b="' + escapeHtml(m.teamB) + '" data-d="' + escapeHtml(m.date) + '" data-t="' + escapeHtml(m.time || "") + '" title="' + (on ? 'Suivi : tu recevras le score (toucher pour arrêter)' : 'Être averti du score') + '">' + BELL_SVG + (label ? (on ? ' Score suivi' : ' Être averti du score') : '') + '</span>';
 }
 
 /* ===================== v2 : demarrage ===================== */
