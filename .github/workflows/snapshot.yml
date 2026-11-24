@@ -46,7 +46,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50                           # le robot s'arrete seul apres 40 min de lecture (DEADLINE_MIN)
     steps:
+      # 24/11/2026 : partir de la DERNIERE version de main, pas de celle du moment ou le passage a ete demande.
+      # Un passage demande pendant une lecture complete (10 a 20 min) repartait d'un fichier perime et son
+      # enregistrement echouait en conflit (echecs du 22/11 20h15 et du 24/11 2h30, heure belge).
       - uses: actions/checkout@v5
+        with:
+          ref: main
       - name: Verifier si une mise a jour est due
         id: gate
         env:
