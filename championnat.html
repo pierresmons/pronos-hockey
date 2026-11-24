@@ -1448,6 +1448,13 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 :root{--stk:env(safe-area-inset-top,0px);}
 @media (min-width:601px){ :root{--stk:var(--tabs-h,52px);} }
 .mbar,.set-head{top:var(--stk);}
+
+/* V3.14 : barres fixes sur tous les ecrans */
+.mbar-home .search{flex:1;margin:0;}
+.mbar-home .date-select{flex:1;margin:0;min-width:0;}
+.mbar-plain .wk{margin:0;}
+.mbar-plain .chips{margin:0;}
+.mbar-plain .seg{margin:0;}
 </style>
 </head>
 <body>
@@ -2579,7 +2586,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.13 · 24/11/2026";
+var APP_VERSION = "3.14 · 24/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
@@ -2661,11 +2668,12 @@ function renderPronos(){
   week.forEach(function(m){ var c = poolCat(m.pool); if(cats.indexOf(c) === -1) cats.push(c); });
   sortCats(cats);
   var cat = cats.indexOf(state.cat) !== -1 ? state.cat : "";
-  html += weekNav(state.weekOffset, "week");
+  html += '<div class="mbar mbar-plain">' + weekNav(state.weekOffset, "week");   /* V3.14 : semaine et categories collees en haut */
   if(cats.length > 1){
     html += '<div class="chips chips-scroll"><button class="chip2' + (!cat ? ' on' : '') + '" data-action="cat" data-cat="">Tout</button>' +
       cats.map(function(c){ return '<button class="chip2' + (cat === c ? ' on' : '') + '" data-action="cat" data-cat="' + escapeHtml(c) + '">' + escapeHtml(c) + '</button>'; }).join("") + '</div>';
   }
+  html += '</div>';
   var list = sortMatches(week.filter(function(m){ return !cat || poolCat(m.pool) === cat; }));
   if(!list.length){
     return html + emptyBox("Pas de match", state.weekOffset >= 0 ? "Rien de prévu cette semaine-la. Passe à la suivante avec &#8250;." : "Aucun match cette semaine-la.");
@@ -2763,8 +2771,8 @@ function renderClassement(){
     var tops = lw.filter(function(r){ return r.points === lw[0].points && r.exact === lw[0].exact; });
     html += '<div class="potw"><span class="potw-k">Joueur de la semaine passée</span><span class="potw-n">&#9733; ' + tops.map(function(r){ return escapeHtml(r.name); }).join(" &amp; ") + '</span><span class="potw-p">' + lw[0].points + ' pts</span></div>';
   }
-  html += '<div class="seg">' + [["all","Général"],["w0","Cette semaine"],["w-1","Semaine passée"]].map(function(v){
-    return '<button class="seg-btn' + (view === v[0] ? " on" : "") + '" data-action="lb-view" data-view="' + v[0] + '">' + v[1] + '</button>'; }).join("") + '</div>';
+  html += '<div class="mbar mbar-plain"><div class="seg">' + [["all","Général"],["w0","Cette semaine"],["w-1","Semaine passée"]].map(function(v){
+    return '<button class="seg-btn' + (view === v[0] ? " on" : "") + '" data-action="lb-view" data-view="' + v[0] + '">' + v[1] + '</button>'; }).join("") + '</div></div>';
   if(!rows.length) return html + emptyBox("Personne pour l'instant", "Ajoute des joueurs avec le bouton en haut à droite.");
   html += '<div class="lb">';
   rows.forEach(function(r, i){
@@ -2923,11 +2931,11 @@ function renderMatchs(){
     /* V3.12 : sur les autres ecrans (poule, classement des clubs, comparaisons), le Retour reste aussi colle en haut */
     if(html && v.type !== "team" && v.type !== "club"){
       var sticky = '<div class="mbar mbar-back"><div class="mbar-r">' + html + '</div></div>';
-      if(v.type === "pool") return sticky + renderPoolPage(v.id);
-      if(v.type === "clubrank") return sticky + renderClubRanking();
+      if(v.type === "pool") return mbar(html, "", modeSeg(state.mWeek !== null, "mweek-mode", ['data-on="1"', 'data-on="0"']), state.mWeek !== null ? weekMini(state.mWeek, "mweek") : "") + renderPoolPage(v.id);
+      if(v.type === "clubrank") return clubRankBar(html) + renderClubRanking();
       if(v.type === "clubcmp") return sticky + renderClubCompare(v.id);
       if(v.type === "teamcmp") return sticky + renderTeamCompare(v.id);
-      return sticky + renderMatchsHome();
+      return renderMatchsHome(html);
     }
     if(v.type === "pool") return html + renderPoolPage(v.id);
     if(v.type === "team") return renderTeamPage(v.id, html);
@@ -2938,9 +2946,16 @@ function renderMatchs(){
     return html + renderMatchsHome();
   } finally { SRC = null; }
 }
-function renderMatchsHome(){
+function catSelectHtml(){
+  return '<select class="date-select wide' + (state.exploreCat ? ' picked' : '') + '" id="explore-cat"><option value="">Ou choisis une catégorie (tout hockey.be)...</option>' +
+    (function(){ var out = "", cur = -1; extCategories().forEach(function(c){ var g = catInfo(c).g; if(g !== cur){ if(cur !== -1) out += '</optgroup>'; out += '<optgroup label="' + CAT_GROUPS[g] + '">'; cur = g; } out += '<option value="' + escapeHtml(c) + '"' + (state.exploreCat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>'; }); return out + (cur !== -1 ? '</optgroup>' : ''); })() + '</select>';
+}
+function renderMatchsHome(back){
+  /* V3.14 : recherche, categorie et semaine restent collees en haut */
   var html = '<div class="search"><span class="clr-wrap"><input type="search" class="inline-input search-input" id="match-search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="Équipe, club, catégorie, poule ou date (8/11)" value="' + escapeHtml(state.q) + '">' +
     '<button type="button" class="clr-x" data-action="clear-q" aria-label="Effacer"' + (state.q || state.exploreCat ? '' : ' hidden') + '>&times;</button></span></div>';
+  html = '<div class="mbar mbar-home"><div class="mbar-r">' + (back || '') + html + '</div><div class="mbar-r">' + catSelectHtml() + '</div>' +
+    (state.exploreCat ? '<div class="mbar-r"><span class="mbar-l">Semaine</span>' + weekMini(state.catWeek, "cweek") + '</div>' : '') + '</div>';
   return html + '<div id="msub">' + renderMatchsBody() + '</div>';
 }
 /* tout ce qui est sous la barre de recherche : redessine seul pendant la frappe,
@@ -2951,10 +2966,6 @@ function renderMatchsBody(){
   if(q.length >= 2) return html + renderSearchResults(q);
   /* explorer */
   if(SNAP.state === "loading") html += '<p class="points-sub">Chargement de tout hockey.be...</p>';
-  var catSel = '<select class="date-select wide' + (state.exploreCat ? ' picked' : '') + '" id="explore-cat"><option value="">Ou choisis une catégorie (tout hockey.be)...</option>' +
-    (function(){ var out = "", cur = -1; extCategories().forEach(function(c){ var g = catInfo(c).g; if(g !== cur){ if(cur !== -1) out += '</optgroup>'; out += '<optgroup label="' + CAT_GROUPS[g] + '">'; cur = g; } out += '<option value="' + escapeHtml(c) + '"' + (state.exploreCat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>'; }); return out + (cur !== -1 ? '</optgroup>' : ''); })() + '</select>';
-  if(state.exploreCat) html += '<div class="mbar mbar-cat"><div class="mbar-r">' + catSel + '</div><div class="mbar-r"><span class="mbar-l">Semaine</span>' + weekMini(state.catWeek, "cweek") + '</div></div>';
-  else html += catSel;
   if(!state.exploreCat) html += '<button class="btn cr-open" data-action="clubrank-open">Classement des clubs &#8250;</button>';
   if(state.exploreCat){
     html += renderCatWeek(state.exploreCat);
@@ -3180,7 +3191,7 @@ function renderPoolPage(pid){
   else if(live) html += '<p class="live-line"><span class="live-dot"></span>En direct de hockey.be &middot; ' + live.toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}) + '</p>';
   var ms = srcMatches().filter(function(m){ return m.pool === pid; }), today = todayIso();
   var played = sortMatches(ms.filter(hasScore)).reverse(), next = sortMatches(ms.filter(function(m){ return !hasScore(m) && (!m.date || m.date >= today); }));
-  html += dateFilterBar();
+  if(!state.nav.length) html += dateFilterBar();   /* V3.14 : sinon dans la barre fixe */
   if(state.mWeek !== null){
     var wk = sortMatches(ms.filter(inMWeek));
     html += '<h2 class="h2">Matchs de la semaine (' + wk.length + ')</h2>' + (wk.length ? '<div class="admin-form row-list">' + wk.map(function(m){ return matchRow(m); }).join("") + '</div>' : '<p class="points-sub">Aucun match cette semaine-la.</p>');
@@ -4732,9 +4743,9 @@ function renderClubRanking(){
     rows.sort(function(a, b){ return b[sort] - a[sort] || b.force - a.force; }); rows.forEach(function(r, i){ r.rank = i + 1; }); return {rows:rows, min:I.minT, idx:true}; })();
   var all = clubClassesAll(surf);
   var html = '<h2 class="section-title" style="margin-top:4px;">Classement des clubs</h2>';
-  html += '<div class="seg">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){ return '<button class="seg-btn' + (surf === o[0] ? ' on' : '') + '" data-action="cr-surf" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
+  if(!state.nav.length) html += crSurfSeg(surf);
   html += clubFilterChips(all);
-  html += '<div class="seg cr-sort">' + [["poids","Poids"],["force","Force"],["pct","% victoires"]].map(function(o){ return '<button class="seg-btn' + (sort === o[0] ? ' on' : '') + '" data-action="cr-sort" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
+  if(!state.nav.length) html += '<div class="seg cr-sort">' + [["poids","Poids"],["force","Force"],["pct","% victoires"]].map(function(o){ return '<button class="seg-btn' + (sort === o[0] ? ' on' : '') + '" data-action="cr-sort" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>';
   if(SNAP.state === "loading" && !R.rows.length) return html + '<p class="points-sub">Chargement des données hockey.be...</p>';
   if(!R.rows.length) return html + '<p class="points-sub" style="margin:12px 0;">Pas assez de résultats pour ce choix. Change les filtres ci-dessus.</p>';
   var n = state.crAll ? R.rows.length : 5, shown = R.rows.slice(0, n);
@@ -5583,6 +5594,14 @@ function bellHtml(m, label){
 function setTabsH(){ try{ var t = document.querySelector("nav.tabs"); if(t && getComputedStyle(t).position === "sticky") document.documentElement.style.setProperty("--tabs-h", t.offsetHeight + "px"); }catch(e){} }
 render = (function(orig){ return function(){ var r = orig.apply(this, arguments); setTabsH(); return r; }; })(render);
 window.addEventListener("resize", setTabsH);
+
+/* V3.14 : barre fixe du classement des clubs (Retour + Outdoor/Indoor, puis tri) */
+function crSurfSeg(surf){ return '<div class="seg mseg">' + [["out","Outdoor"],["in","Indoor"]].map(function(o){ return '<button class="seg-btn' + (surf === o[0] ? ' on' : '') + '" data-action="cr-surf" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div>'; }
+function clubRankBar(back){
+  var surf = crSurf(), sort = state.crSort || "poids"; if(sort === "ppm" || sort === "diff") sort = "poids";
+  return '<div class="mbar"><div class="mbar-r">' + (back || '') + crSurfSeg(surf) + '</div><div class="mbar-r"><div class="seg mseg cr-sort">' +
+    [["poids","Poids"],["force","Force"],["pct","% victoires"]].map(function(o){ return '<button class="seg-btn' + (sort === o[0] ? ' on' : '') + '" data-action="cr-sort" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join("") + '</div></div></div>';
+}
 
 /* ===================== v2 : demarrage ===================== */
 async function init(){
