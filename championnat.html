@@ -2364,7 +2364,7 @@ function srcStandings(){ return SRC ? SRC.standings : state.standings; }
 async function loadExtPools(pids, force){
   var todo = pids.filter(function(p){ return force || !EXT.loaded[p]; });
   if(!todo.length) return;
-  EXT.loading += todo.length; EXT.failed = []; render();
+  EXT.loading += todo.length; EXT.failed = []; EXT.failedEmpty = []; render();
   var byId = {}; EXT.matches.forEach(function(m){ byId[m.id] = m; });
   var put = function(o){
     var id = matchKey(o.pool, o.teamA, o.teamB), m = byId[id];
@@ -2386,12 +2386,13 @@ async function loadExtPools(pids, force){
         /* hockey.be renvoie parfois un classement vide : on garde alors celui du robot */
         if(res[2].length || !EXT.standings[pid]) EXT.standings[pid] = res[2].map(function(t){ return {rank:t[0], team:t[1], j:t[2], g:t[3], p:t[4], n:t[5], bp:t[6], bc:t[7], pts:t[8]}; });
         EXT.loaded[pid] = true; EXT.live = EXT.live || {}; EXT.live[pid] = new Date();
-      }catch(e){ EXT.failed.push(poolName(pid)); }
+      }catch(e){ EXT.failed.push(poolName(pid)); if(!EXT.matches.some(function(m){ return m.pool === pid; })) EXT.failedEmpty.push(poolName(pid)); }
       EXT.loading--; render();
     }
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
-  if(EXT.failed.length) showToast("hockey.be n'a pas répondu pour : " + EXT.failed.join(", "));
+  /* V3.15 : message seulement si on n'a rien du tout a montrer ; sinon les donnees du robot restent affichees sans alerte */
+  if(EXT.failedEmpty.length) showToast("hockey.be n'a pas répondu pour : " + EXT.failedEmpty.join(", ") + ". Réessaie dans un moment.");
 }
 function allTeams(){
   var set = {};
@@ -2586,7 +2587,7 @@ function logoImg(team, cls){
 /* plus de bouton Outdoor / Indoor : les categories indoor portent deja le mot "Indoor" */
 
 /* ===================== v2 : petits morceaux ===================== */
-var APP_VERSION = "3.14 · 24/11/2026";
+var APP_VERSION = "3.15 · 24/11/2026";
 var ICON_CHAT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-4.6 3.5A.9.9 0 0 1 3 20.8V6a2 2 0 0 1 1-2zm1 2v12.2L8.3 16H20V6H5z"/></svg>';
 var ICON_REFRESH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 5a7 7 0 0 1 6.3 4H15v2h6V5h-2v2.4A9 9 0 1 0 21 12h-2a7 7 0 1 1-7-7z"/></svg>';
 var ICON_GEAR = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
