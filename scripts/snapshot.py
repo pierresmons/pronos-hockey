@@ -418,6 +418,9 @@ def parse_rows(page):
     Lignes au format de l'ancien site : programme [date | lieu, heure, '', A, '', '', '', B],
     resultats [date, heure, '', A, '', score ou statut, '', B]."""
     if "<table" not in page:
+        # periode sans aucun match : petite page « Geen resultaten gevonden voor de geselecteerde filters. » (440 octets)
+        if len(page) < 3000 and "Hockey Belgium" in page and re.search(r"resultaten|r[ée]sultat|results", page, re.I):
+            return []
         raise RuntimeError("reponse inattendue de hockey.be (pas de tableau)")
     out = []
     body = page.split("<tbody", 1)[-1]
