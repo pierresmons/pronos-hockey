@@ -51,6 +51,15 @@ def get(url, tries=3, timeout=45):
         except Exception as e:  # noqa
             last = e
             REQ["fail"] += 1
+            if isinstance(e, urllib.error.HTTPError) and e.code == 429:
+                # 25/11/2026 : le nouveau site limite le nombre de demandes (429 Too Many Requests) : on attend plus
+                REQ["429"] = REQ.get("429", 0) + 1
+                try:
+                    wait = int(e.headers.get("Retry-After") or 0)
+                except (TypeError, ValueError):
+                    wait = 0
+                time.sleep(min(max(wait, 15 * (i + 1)), 90))
+                continue
             time.sleep(2 * (i + 1))
     REQ["lost"] += 1
     if len(REQ["examples"]) < 3:
@@ -399,20 +408,32 @@ def cell_team(td):
     return n
 
 
+import threading  # noqa: E402
+HB_SLOT = threading.Semaphore(2)   # au plus 2 demandes a la fois au nouveau site (429 avec 6 le 25/11/2026)
+HB_PAUSE = 0.7                     # pause apres chaque demande (secondes)
+
+
 def fetch_rows(pid, d_from, d_to):
     """Matchs d'une poule entre deux dates -> lignes au format de l'ancien site :
     programme [date | lieu, heure, '', A, '', '', '', B] et resultats [date, heure, '', A, '', score ou statut, '', B]."""
     pt = PROGRAM_TYPE[POOL_TYPE.get(pid, "out")]
     q = urllib.parse.urlencode({"programType": pt, "pool[]": pid, "period": f"{unix_day(d_from)} - {unix_day(d_to, True)}"})
-    page = get(f"{NEW_BASE}/competition/download-program-data?{q}", tries=3, timeout=60)
+    with HB_SLOT:
+        page = get(f"{NEW_BASE}/competition/download-program-data?{q}", tries=4, timeout=60)
+        time.sleep(HB_PAUSE)
     if "<table" not in page:
         raise RuntimeError("reponse inattendue de hockey.be (pas de tableau)")
     program, results = [], []
     body = page.split("<tbody", 1)[-1]
-    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", body, re.S):
-        tds = re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)
-        if len(tds) < 6:
-            continue
+    trs = [re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S) for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", body, re.S)]
+    trs = [t for t in trs if len(t) >= 6]
+    # 25/11/2026 : une poule SANS match dans la periode demandee fait ignorer le filtre par hockey.be, qui renvoie
+    # alors les matchs de TOUTES les poules (56 poules gonflees a ~1900 matchs au premier passage). Une vraie reponse
+    # n'a qu'une seule « Poule » (colonne 3) : sinon, la poule n'a aucun match dans la periode.
+    levels = {strip(t[2]) for t in trs}
+    if len(levels) > 1:
+        return [], []
+    for tds in trs:
         d = fr_date(strip(tds[0]))
         if not d:
             continue
@@ -490,6 +511,51 @@ def init_bonus(old):
             x = c.get(r[1])
             if x and list(r[2:8]) == list(x[2:8]) and r[8] > x[8]:
                 BONUS.setdefault(pid, {})[r[1]] = r[8] - x[8]
+
+
+def team_cat(t):
+    """« Old Club U19B-1 » -> « U19B » ; « Ixelles D-1 » -> « D »"""
+    m = re.match(r".* (\S+?)-\d+$", t or "")
+    return m.group(1) if m else (t or "").rsplit(" ", 1)[-1]
+
+
+REPAIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "repair-2026-11-25.json")
+
+
+def repair_bloated(old):
+    """Poule « gonflee » (matchs de toutes les categories, voir fetch_rows) : ses matchs sont retires du snapshot
+    precedent et remplaces par ceux de scripts/repair-2026-11-25.json (copie propre du 24/11) quand il existe.
+    Une vraie poule n'a qu'une ou deux categories d'equipes ; les poules gonflees en avaient des dizaines."""
+    pools, teams = old.get("pools") or [], old.get("teams") or []
+    cats = {}
+    for m in old.get("matches") or []:
+        pid = pools[m[0]][0]
+        if pid.isdigit():
+            cats.setdefault(pid, set()).update((team_cat(teams[m[3]]), team_cat(teams[m[4]])))
+    bad = {pid for pid, c in cats.items() if len(c) > 4}
+    if not bad:
+        return
+    keep = [m for m in old["matches"] if pools[m[0]][0] not in bad]
+    n_rep = 0
+    try:
+        rp = json.load(open(REPAIR, encoding="utf-8"))
+        pidx = {p[0]: i for i, p in enumerate(pools)}
+        tidx = {t: i for i, t in enumerate(teams)}
+        for pid, a, b, *rest in rp.get("matches") or []:
+            if pid in bad and pid in pidx:
+                for x in (a, b):
+                    if x not in tidx:
+                        tidx[x] = len(teams)
+                        teams.append(x)
+                keep.append([pidx[pid], rest[0], rest[1], tidx[a], tidx[b]] + rest[2:])
+                n_rep += 1
+    except (OSError, ValueError) as e:
+        print(f"Pas de fichier de reparation ({e})", file=sys.stderr)
+    removed = len(old["matches"]) - (len(keep) - n_rep)
+    old["matches"] = keep
+    for pid in bad:
+        (old.get("standings") or {}).pop(pid, None)
+    print(f"Reparation : {len(bad)} poule(s) gonflee(s), {removed} match(s) retire(s), {n_rep} repris de la copie du 24/11", file=sys.stderr)
 
 
 def compute_standings(rows, bonus=None):
@@ -899,6 +965,7 @@ def main():
         LOGOS.update(old.get("logos") or {})
         LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
         CLUB_LOGOS.update({k: v for k, v in (old.get("logoUrls") or {}).items() if "hockey.be/files/" in v})
+        repair_bloated(old)
         init_bonus(old)
     pools = [p for p in pool_list(previous) if not p[0].startswith(QUICK)]
     # ordre : parties/favoris, poules en retard, puis les autres ; certaines poules calmes ou vides sont gardees telles quelles
@@ -969,7 +1036,7 @@ def main():
     if FRESH["n"]:
         print(f"Resultats en retard chez hockey.be : {FRESH['n']} poule(s) redemandee(s), {FRESH['ok']} avec des scores plus recents", file=sys.stderr)
     print(f"Demandes a hockey.be : {REQ['n']}, essais rates puis refaits : {REQ['fail'] - REQ['lost']}, "
-          f"abandonnees : {REQ['lost']}, duree {int(time.time() - START)} s", file=sys.stderr)
+          f"abandonnees : {REQ['lost']}, refus 429 (trop de demandes) : {REQ.get('429', 0)}, duree {int(time.time() - START)} s", file=sys.stderr)
     for e in REQ["examples"]:
         print(f"  exemple de demande abandonnee : {e}", file=sys.stderr)
     if reuse and old:
