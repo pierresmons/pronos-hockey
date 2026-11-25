@@ -413,27 +413,18 @@ HB_SLOT = threading.Semaphore(2)   # au plus 2 demandes a la fois au nouveau sit
 HB_PAUSE = 0.7                     # pause apres chaque demande (secondes)
 
 
-def fetch_rows(pid, d_from, d_to):
-    """Matchs d'une poule entre deux dates -> lignes au format de l'ancien site :
-    programme [date | lieu, heure, '', A, '', '', '', B] et resultats [date, heure, '', A, '', score ou statut, '', B]."""
-    pt = PROGRAM_TYPE[POOL_TYPE.get(pid, "out")]
-    q = urllib.parse.urlencode({"programType": pt, "pool[]": pid, "period": f"{unix_day(d_from)} - {unix_day(d_to, True)}"})
-    with HB_SLOT:
-        page = get(f"{NEW_BASE}/competition/download-program-data?{q}", tries=4, timeout=60)
-        time.sleep(HB_PAUSE)
+def parse_rows(page):
+    """Tableau de download-program-data -> liste de (poule affichee, ligne programme, ligne resultat ou None, A, B).
+    Lignes au format de l'ancien site : programme [date | lieu, heure, '', A, '', '', '', B],
+    resultats [date, heure, '', A, '', score ou statut, '', B]."""
     if "<table" not in page:
         raise RuntimeError("reponse inattendue de hockey.be (pas de tableau)")
-    program, results = [], []
+    out = []
     body = page.split("<tbody", 1)[-1]
-    trs = [re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S) for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", body, re.S)]
-    trs = [t for t in trs if len(t) >= 6]
-    # 25/11/2026 : une poule SANS match dans la periode demandee fait ignorer le filtre par hockey.be, qui renvoie
-    # alors les matchs de TOUTES les poules (56 poules gonflees a ~1900 matchs au premier passage). Une vraie reponse
-    # n'a qu'une seule « Poule » (colonne 3) : sinon, la poule n'a aucun match dans la periode.
-    levels = {strip(t[2]) for t in trs}
-    if len(levels) > 1:
-        return [], []
-    for tds in trs:
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", body, re.S):
+        tds = re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)
+        if len(tds) < 6:
+            continue
         d = fr_date(strip(tds[0]))
         if not d:
             continue
@@ -441,10 +432,138 @@ def fetch_rows(pid, d_from, d_to):
         a, b = cell_team(tds[3]), cell_team(tds[5])
         res = strip(tds[4])
         venue = strip(re.sub(r"<br\s*/?>", ", ", tds[6])) if len(tds) > 6 else ""
-        program.append([d + (f" | {venue}" if venue else ""), hour, "", a, "", "", "", b])
-        if res and res not in ("-", "–"):
-            results.append([d, hour, "", a, "", res, "", b])
-    return program, results
+        prog = [d + (f" | {venue}" if venue else ""), hour, "", a, "", "", "", b]
+        result = [d, hour, "", a, "", res, "", b] if res and res not in ("-", "–") else None
+        out.append((norm_level(strip(tds[2])), prog, result, a, b))
+    return out
+
+
+def norm_level(t):
+    return re.sub(r"\s+", " ", html.unescape(t or "")).strip()
+
+
+def program_page(pt, period, pid=None):
+    q = {"programType": pt}
+    if pid:
+        q["pool[]"] = pid
+    q["period"] = period
+    with HB_SLOT:
+        page = get(f"{NEW_BASE}/competition/download-program-data?{urllib.parse.urlencode(q)}", tries=4, timeout=120)
+        time.sleep(HB_PAUSE)
+    return page
+
+
+def fetch_rows(pid, d_from, d_to):
+    """Matchs d'une poule entre deux dates -> (programme, resultats) au format de l'ancien site."""
+    pt = PROGRAM_TYPE[POOL_TYPE.get(pid, "out")]
+    rows = parse_rows(program_page(pt, f"{unix_day(d_from)} - {unix_day(d_to, True)}", pid))
+    # 25/11/2026 : une poule SANS match dans la periode demandee fait ignorer le filtre par hockey.be, qui renvoie
+    # alors les matchs de TOUTES les poules (56 poules gonflees a ~1900 matchs au premier passage). Une vraie reponse
+    # n'a qu'une seule « Poule » (colonne 3) : sinon, la poule n'a aucun match dans la periode.
+    if len({r[0] for r in rows}) > 1:
+        return [], []
+    return [r[1] for r in rows], [r[2] for r in rows if r[2]]
+
+
+# ---------- Lecture groupee (26/11/2026) ----------
+# Lire 500 poules une par une prenait 36 min avec des refus 429. download-program-data SANS numero de poule renvoie
+# tous les matchs d'une periode (week-end outdoor du 21-22/11 : 1088 matchs en 11 s ; indoor du 28-30/11 : 363 en 5 s).
+# La ligne ne donne pas le numero de poule : on le retrouve par les equipes deja connues dans le snapshot
+# et par le nom de la poule affiche (« Nat. 2 A »), compare a celui de la liste des poules (POOL_LEVEL).
+POOL_LEVEL = {}                 # poule -> nom affiche dans le tableau (ex. « Nat. 2 A »)
+BULK_BEFORE, BULK_AFTER, BULK_CHUNK = 3, 10, 4   # lecture complete : de J-3 a J+10, par tranches de 4 jours
+ROTATE_MAX = 80                 # au plus 80 poules relues une par une par lecture complete (verification de la saison)
+BULK = {"req": 0, "err": 0, "rows": 0, "ok": 0, "unknown": 0, "ambiguous": 0}
+
+
+def team_index(old, only=None):
+    """(A, B) -> poules ; equipe -> poules (poules hockey.be du snapshot precedent)"""
+    pair, by_team = {}, {}
+    if not old:
+        return pair, by_team
+    pools, teams = old.get("pools") or [], old.get("teams") or []
+    for m in old.get("matches") or []:
+        pid = pools[m[0]][0]
+        if not pid.isdigit() or (only is not None and pid not in only):
+            continue
+        a, b = teams[m[3]], teams[m[4]]
+        pair.setdefault((a, b), set()).add(pid)
+        by_team.setdefault(a, set()).add(pid)
+        by_team.setdefault(b, set()).add(pid)
+    return pair, by_team
+
+
+def pool_of(level, a, b, pair, by_team, surf):
+    cand = pair.get((a, b)) or (by_team.get(a, set()) & by_team.get(b, set()))
+    cand = {p for p in cand if POOL_TYPE.get(p, surf) == surf}
+    if len(cand) > 1 or (cand and level):
+        exact = {p for p in cand if POOL_LEVEL.get(p) == level}
+        if exact:
+            cand = exact
+        else:
+            cand = {p for p in cand if p not in POOL_LEVEL}
+    return next(iter(cand)) if len(cand) == 1 else (None if not cand else "?")
+
+
+def bulk_read(old, d_from, d_to, only=None, surfs=("out", "in")):
+    """Tous les matchs entre deux dates, ranges par poule -> {poule: (programme, resultats)}"""
+    pair, by_team = team_index(old, only)
+    out = {}
+    day, end = dt.date.fromisoformat(d_from), dt.date.fromisoformat(d_to)
+    while day <= end:
+        stop = min(end, day + dt.timedelta(days=BULK_CHUNK - 1))
+        for surf in surfs:
+            if too_late():
+                return out
+            BULK["req"] += 1
+            try:
+                rows = parse_rows(program_page(PROGRAM_TYPE[surf], f"{unix_day(day.isoformat())} - {unix_day(stop.isoformat(), True)}"))
+            except Exception as e:  # noqa
+                BULK["err"] += 1
+                print(f"  lecture groupee {surf} {day:%d/%m}-{stop:%d/%m} impossible : {e}", file=sys.stderr)
+                continue
+            for level, prog, res, a, b in rows:
+                BULK["rows"] += 1
+                pid = pool_of(level, a, b, pair, by_team, surf)
+                if pid is None:
+                    BULK["unknown"] += 1
+                    continue
+                if pid == "?":
+                    BULK["ambiguous"] += 1
+                    continue
+                BULK["ok"] += 1
+                p, r = out.setdefault(pid, ([], []))
+                p.append(prog)
+                if res:
+                    r.append(res)
+        day = stop + dt.timedelta(days=1)
+    return out
+
+
+def plan_rotation(pools, old):
+    """Poules a relire une par une en plus de la lecture groupee : jamais lues (ou en echec), parties et favoris
+    pas encore relus aujourd'hui, puis les autres pas relues depuis 7 jours (les plus anciennes d'abord)."""
+    global POOL_SEEN
+    POOL_SEEN = dict((old or {}).get("poolSeen") or {})
+    today = dt.datetime.now(BXL).date()
+    prio = priority_pools(old)
+    never, daily, weekly = [], [], []
+    for p in pools:
+        pid = p[0]
+        if not pid.isdigit():
+            continue
+        seen = POOL_SEEN.get(pid)
+        age = (today - dt.date.fromisoformat(seen)).days if seen else None
+        if age is None:
+            never.append(pid)
+        elif pid in prio and age >= 1:
+            daily.append(pid)
+        elif age >= 7:
+            weekly.append((seen, pid))
+    weekly = [pid for _, pid in sorted(weekly)]
+    room = max(0, ROTATE_MAX - len(never) - len(daily))
+    return never + daily + weekly[:room], {"jamais lues": len(never), "parties/favoris du jour": len(daily),
+                                           "verification hebdo": min(room, len(weekly)), "hebdo reportees": max(0, len(weekly) - room)}
 
 
 def pool_list(previous):
@@ -467,6 +586,9 @@ def pool_list(previous):
                 continue
             pid = v.group(1)
             POOL_TYPE[pid] = surf
+            lab0 = labels.get(i.group(1) if i else "", "")
+            if " – " in lab0:
+                POOL_LEVEL[pid] = norm_level(lab0.split(" – ", 1)[1])
             if pid in prev:
                 name = prev[pid]
             else:
@@ -744,6 +866,7 @@ def write(pools, teams, matches, standings, failed, generated=None, ehl_generate
         "poolSeen": dict(sorted(POOL_SEEN.items())),
         "logoUrls": dict(sorted({**CLUB_LOGOS, **FLAGS}.items())),
         "standingBonus": BONUS,
+        "poolLevels": dict(sorted(POOL_LEVEL.items())),
         "fihplStatus": {"ok": FIHPL_STATUS["ok"], "info": FIHPL_STATUS["info"], "at": now},
         "nlhkStatus": {"ok": NLHK_STATUS["ok"], "info": NLHK_STATUS["info"], "at": now},
     }
@@ -842,6 +965,21 @@ def main_scores():
     for p in pools:
         if p[0].isdigit():
             POOL_TYPE[p[0]] = "in" if re.search(r"\bIndoor\b", p[1]) else "out"
+    POOL_LEVEL.update(old.get("poolLevels") or {})
+
+    # 26/11/2026 : plus de 3 poules a chasser (samedi) -> une lecture groupee d'hier et d'aujourd'hui (1 ou 2 demandes)
+    # au lieu d'une demande par poule ; poule par poule si la lecture groupee echoue
+    todo = list(pending)
+    found = []
+    if len(todo) > 3:
+        d0 = (now.date() - dt.timedelta(days=1)).isoformat()
+        surfs = tuple(sorted({POOL_TYPE.get(p, "out") for p in todo}, reverse=True))
+        bulk = bulk_read(old, d0, now.date().isoformat(), only=set(todo), surfs=surfs)
+        print(f"Chasseur de scores, lecture groupee : {BULK['req']} demande(s) ({BULK['err']} en echec), "
+              f"{BULK['ok']} matchs ranges, {BULK['unknown']} hors poules chassees, {BULK['ambiguous']} ambigus", file=sys.stderr)
+        if BULK["err"] == 0:
+            found = [(pid, bulk.get(pid, ([], []))[1], [], None) for pid in todo]
+            todo = []
 
     rows = {}
     for i, m in enumerate(old["matches"]):
@@ -849,7 +987,7 @@ def main_scores():
     pidx = {p[0]: i for i, p in enumerate(pools)}
     got = 0
     with ThreadPoolExecutor(min(WORKERS, 6)) as ex:
-        for pid, results, standing, err in ex.map(read, list(pending)):
+        for pid, results, standing, err in found + list(ex.map(read, todo)):
             if err:
                 print(f"  poule en echec : {err}", file=sys.stderr)
                 continue
@@ -967,16 +1105,33 @@ def main():
         CLUB_LOGOS.update({k: v for k, v in (old.get("logoUrls") or {}).items() if "hockey.be/files/" in v})
         repair_bloated(old)
         init_bonus(old)
+    POOL_LEVEL.update((old or {}).get("poolLevels") or {})
     pools = [p for p in pool_list(previous) if not p[0].startswith(QUICK)]
-    # ordre : parties/favoris, poules en retard, puis les autres ; certaines poules calmes ou vides sont gardees telles quelles
-    pools, kept, cnt = plan_pools(pools, old)
+    today = dt.datetime.now(BXL).date()
+    today_s = today.isoformat()
+    # 26/11/2026 : d'abord la lecture groupee (quelques demandes pour tous les matchs de J-3 a J+10)...
+    bulk = bulk_read(old, (today - dt.timedelta(days=BULK_BEFORE)).isoformat(), (today + dt.timedelta(days=BULK_AFTER)).isoformat())
+    print(f"Lecture groupee : {BULK['req']} demande(s) ({BULK['err']} en echec), {BULK['rows']} matchs, {BULK['ok']} ranges dans "
+          f"{len(bulk)} poules, {BULK['unknown']} sans poule connue, {BULK['ambiguous']} ambigus", file=sys.stderr)
+    if BULK["req"] and BULK["err"] * 2 <= BULK["req"]:
+        # ... puis quelques poules une par une (nouvelles, parties du jour, verification de la saison)
+        one, cnt = plan_rotation(pools, old)
+    else:
+        print("Lecture groupee en echec : retour a la lecture poule par poule", file=sys.stderr)
+        first, kept, cnt = plan_pools(pools, old)
+        one = [p[0] for p in first]
     note_had(old)
-    print(f"{len(pools) + len(kept)} poules connues, {len(pools)} a lire : " +
+    print(f"{len(pools)} poules connues, {len(one)} a lire une par une : " +
           ", ".join(f"{k} {v}" for k, v in cnt.items() if v), file=sys.stderr)
-    kept_ids = {p[0] for p in kept}
-    pools = pools + kept  # les poules gardees restent dans la liste (index), sans etre lues
-    to_read = [p[0] for p in pools if p[0] not in kept_ids]
-    today_s = dt.datetime.now(BXL).date().isoformat()
+    to_read = list(dict.fromkeys(list(bulk) + one))
+    kept_ids = {p[0] for p in pools if p[0] not in set(to_read)}
+
+    def reads():
+        for pid, (program, results) in bulk.items():
+            yield pid, program, results, [], None, False
+        with ThreadPoolExecutor(WORKERS) as ex:
+            for pid, program, results, standing, err in ex.map(fetch_pool, one):
+                yield pid, program, results, standing, err, True
 
     teams, tidx = [], {}
 
@@ -987,13 +1142,15 @@ def main():
         return tidx[name]
 
     matches, standings, failed = {}, {}, []
-    with ThreadPoolExecutor(WORKERS) as ex:
-        for n, (pid, program, results, standing, err) in enumerate(ex.map(fetch_pool, to_read), 1):
+    if True:
+        for n, (pid, program, results, standing, err, single) in enumerate(reads(), 1):
             if err:
-                failed.append(pid)
+                if pid not in bulk:
+                    failed.append(pid)
                 if err == LATE:
                     LATE_POOLS.add(pid)
-            else:
+                continue
+            elif single:
                 POOL_SEEN[pid] = today_s
             pi = next(i for i, p in enumerate(pools) if p[0] == pid)
             for r in program:
@@ -1026,7 +1183,7 @@ def main():
                                 int(m.group(1)) if m else None, int(m.group(2)) if m else None, status, venue]
             if standing:
                 standings[pid] = [[s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8]] for s in standing]
-            if n % 50 == 0:
+            if single and n % 50 == 0:
                 print(f"  {n}/{len(to_read)}", file=sys.stderr)
 
     # Une poule en echec, ou pas lue a ce passage, garde ses donnees du snapshot precedent
