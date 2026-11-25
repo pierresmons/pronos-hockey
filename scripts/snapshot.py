@@ -543,6 +543,9 @@ def bulk_read(old, d_from, d_to, only=None, surfs=("out", "in")):
     return out
 
 
+FULL_SEASON = set()  # poules a relire sur toute la saison a ce passage (logos manquants)
+
+
 def plan_rotation(pools, old):
     """Poules a relire une par une en plus de la lecture groupee : jamais lues (ou en echec), parties et favoris
     pas encore relus aujourd'hui, puis les autres pas relues depuis 7 jours (les plus anciennes d'abord)."""
@@ -564,8 +567,28 @@ def plan_rotation(pools, old):
         elif age >= 7:
             weekly.append((seen, pid))
     weekly = [pid for _, pid in sorted(weekly)]
-    room = max(0, ROTATE_MAX - len(never) - len(daily))
-    return never + daily + weekly[:room], {"jamais lues": len(never), "parties/favoris du jour": len(daily),
+    # 26/11/2026 : club sans logo (ex. Koksijde, aucun match lu depuis le nouveau site) -> une de ses poules relue
+    # (saison complete), au plus 15 par passage. Seulement les poules des listes outdoor/indoor (pas Trimmers).
+    logos = []
+    if old:
+        opools, oteams = old.get("pools") or [], old.get("teams") or []
+        done = set(never + daily)
+        for m in old.get("matches") or []:
+            pid = opools[m[0]][0]
+            if pid not in POOL_LEVEL or pid in done or len(logos) >= 15:
+                continue
+            for t in (oteams[m[3]], oteams[m[4]]):
+                c = re.sub(r" \S+-\d+$", "", t)
+                if c not in CLUB_LOGOS and pid not in done:
+                    CLUB_LOGOS.setdefault(c, None)  # une seule poule par club
+                    logos.append(pid)
+                    FULL_SEASON.add(pid)
+                    done.add(pid)
+        for c in [c for c, v in CLUB_LOGOS.items() if v is None]:
+            del CLUB_LOGOS[c]
+    weekly = [p for p in weekly if p not in logos]
+    room = max(0, ROTATE_MAX - len(never) - len(daily) - len(logos))
+    return never + daily + logos + weekly[:room], {"jamais lues": len(never), "parties/favoris du jour": len(daily), "logos manquants": len(logos),
                                            "verification hebdo": min(room, len(weekly)), "hebdo reportees": max(0, len(weekly) - room)}
 
 
@@ -734,7 +757,7 @@ def fetch_pool(pid):
     try:
         today = dt.datetime.now(BXL).date()
         seen = POOL_SEEN.get(pid)
-        short = seen and (today - dt.date.fromisoformat(seen)).days < 7
+        short = seen and (today - dt.date.fromisoformat(seen)).days < 7 and pid not in FULL_SEASON
         d_from = max(SEASON_FROM, (today - dt.timedelta(days=10)).isoformat()) if short else SEASON_FROM
         d_to = min(SEASON_TO, (today + dt.timedelta(days=60)).isoformat()) if short else SEASON_TO
         program, results = fetch_rows(pid, d_from, d_to)
