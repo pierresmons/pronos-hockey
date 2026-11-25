@@ -385,12 +385,12 @@ def send(sub, payload, key_file):
 
 def club_logo(club):
     """Adresse du logo hockey.be d'un club (d'apres le fichier du robot), ou None."""
+    # 25/11/2026 : nouveau site hockey.be, les adresses des logos sont dans logoUrls (les anciennes images n'existent plus)
     try:
         with open(SNAPSHOT, encoding="utf-8") as f:
-            code = (json.load(f).get("logos") or {}).get(club)
+            return (json.load(f).get("logoUrls") or {}).get(club)
     except (OSError, ValueError):
         return None
-    return f"https://hockey.be/wp-content/uploads/logos/50x50/{code}.png" if code else None
 
 
 def test_payload():

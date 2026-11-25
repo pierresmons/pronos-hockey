@@ -211,22 +211,6 @@ def api(pid, endpoint, variants=None):
     raise RuntimeError(f"hockey.be injoignable pour {pid}/{endpoint}")
 
 
-def pool_list(previous):
-    try:
-        page = get(PAGE)
-        sel = re.search(r'<select[^>]*name="poolid"[^>]*>(.*?)</select>', page, re.S)
-        opts = re.findall(r'<option[^>]*value="(\d+)"[^>]*>(.*?)</option>', sel.group(1), re.S)
-        pools = [[v, strip(n)] for v, n in opts]
-        if len(pools) > 50:
-            return pools
-    except Exception as e:
-        print("Liste des poules indisponible :", e, file=sys.stderr)
-    if previous:
-        print("On reutilise la liste du snapshot precedent", file=sys.stderr)
-        return previous
-    raise SystemExit("Impossible d'obtenir la liste des poules")
-
-
 # ---------- Quelles poules lire a ce passage ? ----------
 FIREBASE_URL = os.environ.get("FIREBASE_URL", "https://pronos-hockey-default-rtdb.europe-west1.firebasedatabase.app")
 BXL = ZoneInfo("Europe/Brussels")
@@ -374,20 +358,196 @@ def stale_results(program, results):
 FRESH = {"n": 0, "ok": 0}
 
 
+# =====================================================================================================
+# Nouveau site hockey.be (25/11/2026) : l'ancienne adresse wp-json/sportlink-api ne repond plus.
+# Les matchs viennent maintenant de la page publique d'impression du programme :
+#   https://www.hockey.be/fr/competition/download-program-data?programType=3015|3019&pool[]=<poule>&period=<debut> - <fin>
+# (3015 = outdoor, 3019 = indoor ; periode en secondes Unix ; tableau HTML complet, sans pages).
+# La liste des poules (memes numeros qu'avant) vient des cases a cocher des pages « Programme & resultats ».
+# Les classements ne sont plus publies tout faits : le robot les calcule (3 / 1 / 0 point).
+# =====================================================================================================
+NEW_BASE = "https://www.hockey.be/fr"
+PROGRAM_TYPE = {"out": 3015, "in": 3019}
+POOL_TYPE = {}      # poule -> "out" / "in"
+CLUB_LOGOS = {}     # club -> adresse du logo sur le nouveau site (ecrit dans logoUrls, lu par l'app)
+MOIS = {"janv": 1, "jan": 1, "févr": 2, "fevr": 2, "fév": 2, "mars": 3, "avr": 4, "mai": 5, "juin": 6, "juil": 7,
+        "août": 8, "aout": 8, "sept": 9, "oct": 10, "nov": 11, "déc": 12, "dec": 12}
+
+
+def unix_day(d, end=False):
+    t = dt.datetime.combine(dt.date.fromisoformat(d), dt.time(23, 59, 59) if end else dt.time(0, 0), tzinfo=BXL)
+    return int(t.timestamp())
+
+
+def fr_date(txt):
+    """« 05 sept. 2026 » -> « 05/09/2026 » (format de l'ancien site, compris par iso())"""
+    m = re.match(r"\s*(\d{1,2})\s+([^\s.]+)\.?\s+(\d{4})", txt or "")
+    if not m:
+        return None
+    mo = MOIS.get(m.group(2).lower().rstrip("."))
+    return f"{int(m.group(1)):02d}/{mo:02d}/{m.group(3)}" if mo else None
+
+
+def cell_team(td):
+    """Cellule equipe : nom complet (<span>), nom du club et adresse du logo."""
+    name = re.search(r"<span[^>]*>(.*?)</span>", td, re.S)
+    club = re.search(r'font-semibold[^"]*">(.*?)</div>', td, re.S)
+    logo = re.search(r"(https://[^\s\"']+/_48xAUTO_[^\s\"']+?\.png)", td) or re.search(r"background-image:\s*url\('([^']+)'\)", td)
+    n = strip(name.group(1)) if name else strip(td)
+    if club and logo:
+        CLUB_LOGOS[strip(club.group(1))] = html.unescape(logo.group(1))
+    return n
+
+
+def fetch_rows(pid, d_from, d_to):
+    """Matchs d'une poule entre deux dates -> lignes au format de l'ancien site :
+    programme [date | lieu, heure, '', A, '', '', '', B] et resultats [date, heure, '', A, '', score ou statut, '', B]."""
+    pt = PROGRAM_TYPE[POOL_TYPE.get(pid, "out")]
+    q = urllib.parse.urlencode({"programType": pt, "pool[]": pid, "period": f"{unix_day(d_from)} - {unix_day(d_to, True)}"})
+    page = get(f"{NEW_BASE}/competition/download-program-data?{q}", tries=3, timeout=60)
+    if "<table" not in page:
+        raise RuntimeError("reponse inattendue de hockey.be (pas de tableau)")
+    program, results = [], []
+    body = page.split("<tbody", 1)[-1]
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", body, re.S):
+        tds = re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)
+        if len(tds) < 6:
+            continue
+        d = fr_date(strip(tds[0]))
+        if not d:
+            continue
+        hour = strip(tds[1])[:5]
+        a, b = cell_team(tds[3]), cell_team(tds[5])
+        res = strip(tds[4])
+        venue = strip(re.sub(r"<br\s*/?>", ", ", tds[6])) if len(tds) > 6 else ""
+        program.append([d + (f" | {venue}" if venue else ""), hour, "", a, "", "", "", b])
+        if res and res not in ("-", "–"):
+            results.append([d, hour, "", a, "", res, "", b])
+    return program, results
+
+
+def pool_list(previous):
+    """Poules des pages « Programme & resultats » outdoor et indoor (cases pool[]) ; noms gardes du snapshot
+    precedent quand la poule est connue (l'app s'appuie sur l'ancien format « ... Outdoor - Nat. 2 - A »)."""
+    prev = {p[0]: p[1] for p in (previous or [])}
+    period = f"{unix_day(SEASON_FROM)} - {unix_day(SEASON_TO, True)}"
+    pools = []
+    for surf, slug in (("out", "program-outdoor"), ("in", "program-indoor")):
+        try:
+            page = get(f"{NEW_BASE}/competition-overview/{slug}/?" + urllib.parse.urlencode({"lang": "hbFr", "period": period}))
+        except Exception as e:  # noqa
+            print(f"Liste des poules {slug} indisponible :", e, file=sys.stderr)
+            continue
+        labels = {i: strip(t) for i, t in re.findall(r'<label[^>]*for="([^"]+)"[^>]*>(.*?)</label>', page, re.S)}
+        for inp in re.findall(r"<input[^>]*name=\"pool\[\]\"[^>]*>", page):
+            v = re.search(r'value="(\d+)"', inp)
+            i = re.search(r'id="([^"]+)"', inp)
+            if not v:
+                continue
+            pid = v.group(1)
+            POOL_TYPE[pid] = surf
+            if pid in prev:
+                name = prev[pid]
+            else:
+                lab = labels.get(i.group(1) if i else "", "") or pid
+                comp, _, lvl = lab.partition(" – ")
+                lvl = re.sub(r" ([A-Z]\d?)$", r" - \1", lvl.strip())
+                name = f"{comp.strip()} {'Indoor' if surf == 'in' else 'Outdoor'} - {lvl}" if lvl else lab
+            if pid not in {p[0] for p in pools}:
+                pools.append([pid, name])
+    if len(pools) > 50:
+        # une poule connue mais absente des listes (coupe terminee...) reste dans le snapshot avec ses matchs
+        ids = {p[0] for p in pools}
+        for pid, name in prev.items():
+            if pid not in ids and pid.isdigit():
+                POOL_TYPE.setdefault(pid, "in" if re.search(r"\bIndoor\b", name) else "out")
+                pools.append([pid, name])
+        return pools
+    if previous:
+        print("Liste des poules du nouveau site indisponible : on reutilise celle du snapshot precedent", file=sys.stderr)
+        for p in previous:
+            POOL_TYPE.setdefault(p[0], "in" if re.search(r"\bIndoor\b", p[1]) else "out")
+        return previous
+    raise SystemExit("Impossible d'obtenir la liste des poules")
+
+
+BONUS = {}  # poule -> {equipe: points de bonus} (shoot-outs des championnats nationaux jeunes, voir init_bonus)
+
+
+def init_bonus(old):
+    """U19/U16 Nat. 1 : un nul donne un shoot-out et 1 point de plus au vainqueur. Le nouveau site n'affiche que
+    le score (ex. 1-1), pas le shoot-out. On fige donc une fois les points de bonus du dernier classement officiel
+    (24/11/2026) ; les shoot-outs joues apres manquent (ecart d'au plus 1 point par nul)."""
+    if not old:
+        return
+    if "standingBonus" in old:
+        BONUS.update(old["standingBonus"] or {})
+        return
+    calc = standings_from(old.get("matches", []), old.get("pools", []), old.get("teams", []), bonus=False)
+    for pid, st in (old.get("standings") or {}).items():
+        c = {r[1]: r for r in calc.get(pid, [])}
+        for r in st or []:
+            x = c.get(r[1])
+            if x and list(r[2:8]) == list(x[2:8]) and r[8] > x[8]:
+                BONUS.setdefault(pid, {})[r[1]] = r[8] - x[8]
+
+
+def compute_standings(rows, bonus=None):
+    """rows = [(A, B, butsA, butsB)] -> classement [rang, equipe, J, G, P, N, BP, BC, Pts] (3 / 1 / 0 point).
+    Attention : l'ordre des colonnes de hockey.be est J, G, P (perdus), N (nuls)."""
+    t = {}
+    for a, b, sa, sb in rows:
+        for x in (a, b):
+            t.setdefault(x, [0, 0, 0, 0, 0, 0, 0])  # J G P N BP BC Pts
+        if sa is None or sb is None:
+            continue
+        for x, gf, ga in ((a, sa, sb), (b, sb, sa)):
+            r = t[x]
+            r[0] += 1; r[4] += gf; r[5] += ga
+            if gf > ga:
+                r[1] += 1; r[6] += 3
+            elif gf < ga:
+                r[2] += 1
+            else:
+                r[3] += 1; r[6] += 1
+    # departage verifie sur les classements officiels du 24/11/2026 : points, victoires, difference de buts, buts marques
+    for x, pts in (bonus or {}).items():
+        if x in t:
+            t[x][6] += pts
+    order = sorted(t.items(), key=lambda kv: (-kv[1][6], -kv[1][1], -(kv[1][4] - kv[1][5]), -kv[1][4], kv[0]))
+    return [[i + 1, name] + v for i, (name, v) in enumerate(order)]
+
+
+NO_TABLE = re.compile(r"coupe|cup|beker|trophy|troph[ée]e|final", re.I)
+
+
+def standings_from(matches, pools, teams, only=None, bonus=True):
+    """Classements des poules hockey.be (numeros) calcules a partir des matchs [pi, date, heure, A, B, butsA, butsB, ...].
+    Pas de classement pour les coupes. only = ensemble de poules a recalculer (toutes sinon)."""
+    rows = {}
+    for m in matches:
+        pid = pools[m[0]][0]
+        if not pid.isdigit() or (only is not None and pid not in only) or NO_TABLE.search(pools[m[0]][1]):
+            continue
+        if m[1] and m[1] < SEASON_FROM:
+            continue
+        rows.setdefault(pid, []).append((teams[m[3]], teams[m[4]], m[5], m[6]))
+    return {pid: compute_standings(r, BONUS.get(pid) if bonus else None) for pid, r in rows.items()}
+
+
 def fetch_pool(pid):
+    """Nouveau site (25/11/2026) : fenetre courte (10 jours avant, 60 jours apres) pour une poule deja lue
+    cette semaine, toute la saison sinon. Les matchs hors fenetre restent ceux du snapshot precedent."""
     if too_late():
         return pid, [], [], [], LATE
     try:
-        program, results, standing = api(pid, "program"), api(pid, "results"), api(pid, "standing")
-        if stale_results(program, results):
-            # copie trop ancienne chez hockey.be : on redemande sous une forme encore jamais demandee
-            FRESH["n"] += 1
-            fresh = api(pid, "results", fresh_variants())
-            if fresh and last_scored(fresh) > last_scored(results):
-                FRESH["ok"] += 1
-                results = fresh
-                standing = api(pid, "standing", fresh_variants()) or standing
-        return pid, program, results, standing, None
+        today = dt.datetime.now(BXL).date()
+        seen = POOL_SEEN.get(pid)
+        short = seen and (today - dt.date.fromisoformat(seen)).days < 7
+        d_from = max(SEASON_FROM, (today - dt.timedelta(days=10)).isoformat()) if short else SEASON_FROM
+        d_to = min(SEASON_TO, (today + dt.timedelta(days=60)).isoformat()) if short else SEASON_TO
+        program, results = fetch_rows(pid, d_from, d_to)
+        return pid, program, results, [], None
     except Exception as e:
         return pid, [], [], [], str(e)
 
@@ -506,7 +666,7 @@ def write(pools, teams, matches, standings, failed, generated=None, ehl_generate
         "ehlGenerated": ehl_generated or now,
         "ehlStatus": {"ok": EHL_STATUS["ok"], "info": EHL_STATUS["info"], "at": now},
         "season": [SEASON_FROM, SEASON_TO],
-        "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts] ; logos = {club: code} -> https://hockey.be/wp-content/uploads/logos/50x50/<code>.png ; logosMissing = clubs dont l'image n'existe pas sur hockey.be",
+        "format": "matches = [poule, date, heure, equipeA, equipeB, butsA, butsB, statut, terrain ou adresse] ; standings = [rang, equipe, J, G, P, N, BP, BC, Pts] (calcules par le robot depuis le 25/11/2026) ; logoUrls = {club ou equipe: adresse de l'image} ; logos = anciens codes (images supprimees par hockey.be)",
         "pools": out_pools,
         "teams": [teams[i] for i in used_t],
         "matches": out_matches,
@@ -516,7 +676,8 @@ def write(pools, teams, matches, standings, failed, generated=None, ehl_generate
         "logosMissing": logos_missing(),
         "logoCheck": LOGO_CHECK,
         "poolSeen": dict(sorted(POOL_SEEN.items())),
-        "logoUrls": dict(sorted(FLAGS.items())),
+        "logoUrls": dict(sorted({**CLUB_LOGOS, **FLAGS}.items())),
+        "standingBonus": BONUS,
         "fihplStatus": {"ok": FIHPL_STATUS["ok"], "info": FIHPL_STATUS["info"], "at": now},
         "nlhkStatus": {"ok": NLHK_STATUS["ok"], "info": NLHK_STATUS["info"], "at": now},
     }
@@ -606,16 +767,15 @@ def main_scores():
 
     def read(pid):
         try:
-            res = api(pid, "results")
-            fresh = False
-            # copie trop ancienne chez hockey.be : on redemande toujours sous une forme jamais demandee
-            alt = api(pid, "results", fresh_variants())
-            if alt and last_scored(alt) >= last_scored(res or []):
-                res, fresh = alt, True
-            st = api(pid, "standing", fresh_variants()) if fresh else api(pid, "standing")
-            return pid, res or [], st or [], None
+            today = now.date()
+            _, res = fetch_rows(pid, (today - dt.timedelta(days=1)).isoformat(), today.isoformat())
+            return pid, res, [], None
         except Exception as e:
             return pid, [], [], str(e)
+
+    for p in pools:
+        if p[0].isdigit():
+            POOL_TYPE[p[0]] = "in" if re.search(r"\bIndoor\b", p[1]) else "out"
 
     rows = {}
     for i, m in enumerate(old["matches"]):
@@ -644,12 +804,13 @@ def main_scores():
                 else:
                     old["matches"].append([pidx[pid], iso(r[0]), (r[1] or "")[:5], t_id(a), t_id(b), int(mm.group(1)), int(mm.group(2)), status, None])
                     rows[key] = len(old["matches"]) - 1
-            if standing:
-                old["standings"][pid] = [[s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8]] for s in standing]
     print(f"Chasseur de scores : {got} nouveau(x) score(s), demandes a hockey.be : {REQ['n']}", file=sys.stderr)
     if not got:
         return
     old["teams"] = teams
+    init_bonus(old)
+    old["standingBonus"] = BONUS
+    old["standings"].update(standings_from(old["matches"], pools, teams, set(pending)))
     old["matches"].sort(key=lambda m: (m[1] or "9999", m[2] or "", m[0]))
     old["scoresGenerated"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     with open(OUT, "w", encoding="utf-8") as f:
@@ -737,6 +898,8 @@ def main():
     if old:
         LOGOS.update(old.get("logos") or {})
         LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
+        CLUB_LOGOS.update({k: v for k, v in (old.get("logoUrls") or {}).items() if "hockey.be/files/" in v})
+        init_bonus(old)
     pools = [p for p in pool_list(previous) if not p[0].startswith(QUICK)]
     # ordre : parties/favoris, poules en retard, puis les autres ; certaines poules calmes ou vides sont gardees telles quelles
     pools, kept, cnt = plan_pools(pools, old)
@@ -849,18 +1012,20 @@ def main():
         if n_back or n_sc:
             print(f"Copie incomplete chez hockey.be : {n_back} match(s) repris et {n_sc} score(s) gardes du snapshot precedent", file=sys.stderr)
 
+    # 25/11/2026 : le nouveau site ne publie plus les classements, on les calcule (3 / 1 / 0 point)
+    calc = standings_from(list(matches.values()), pools, teams)
+    for pid in [p for p in standings if p.isdigit()]:
+        if pid not in calc:
+            del standings[pid]
+    standings.update(calc)
+    print(f"Classements calcules : {len(calc)} poules, logos de clubs : {len(CLUB_LOGOS)}", file=sys.stderr)
     add_ehl(pools, matches, standings, t_id, old)
     add_fihpl(pools, matches, standings, t_id, old)
     add_nlhk(pools, matches, standings, t_id, old)
     n_late = sum(1 for p in failed if p in LATE_POOLS)
     if n_late:
         print(f"Temps depasse : {n_late} poule(s) non lues, reprises du snapshot precedent", file=sys.stderr)
-    try:
-        if too_late():
-            raise RuntimeError("temps depasse, reportee au prochain passage")
-        check_logos()
-    except Exception as e:  # noqa : la verification des logos ne doit jamais bloquer le snapshot
-        print(f"Verification des logos impossible : {e}", file=sys.stderr)
+    # 25/11/2026 : les anciennes images (wp-content/uploads/logos) n'existent plus ; l'app prend logoUrls
     write(pools, teams, matches, standings, failed)
 
 
