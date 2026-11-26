@@ -379,6 +379,16 @@ NEW_BASE = "https://www.hockey.be/fr"
 PROGRAM_TYPE = {"out": 3015, "in": 3019}
 POOL_TYPE = {}      # poule -> "out" / "in"
 CLUB_LOGOS = {}     # club -> adresse du logo sur le nouveau site (ecrit dans logoUrls, lu par l'app)
+
+
+def load_club_logos(old):
+    """Logos connus : liste de base scripts/logos-clubs.json (108 clubs le 25/11/2026) + ceux du snapshot precedent.
+    26/11/2026 : le mode --ehl-only reecrivait logoUrls sans les logos des clubs (plus aucun logo dans l'app)."""
+    try:
+        CLUB_LOGOS.update(json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "logos-clubs.json"), encoding="utf-8")))
+    except (OSError, ValueError) as e:
+        print(f"Liste de base des logos illisible : {e}", file=sys.stderr)
+    CLUB_LOGOS.update({k: v for k, v in ((old or {}).get("logoUrls") or {}).items() if v and "hockey.be/files/" in v})
 MOIS = {"janv": 1, "jan": 1, "févr": 2, "fevr": 2, "fév": 2, "mars": 3, "avr": 4, "mai": 5, "juin": 6, "juil": 7,
         "août": 8, "aout": 8, "sept": 9, "oct": 10, "nov": 11, "déc": 12, "dec": 12}
 
@@ -640,6 +650,7 @@ def pool_list(previous):
     raise SystemExit("Impossible d'obtenir la liste des poules")
 
 
+BONUS_24_11 = '{"12089": {"Leopold U19B-1": 1, "Uccle Sport U19B-1": 2, "Dragons U19B-1": 3, "Gantoise U19B-1": 2, "Oree U19B-1": 4, "Racing U19B-1": 2, "Louvain-La-Neuve U19B-1": 1}, "12092": {"Antwerp U19G-1": 1, "Leuven U19G-1": 1, "Waterloo Ducks U19G-1": 1, "Wellington U19G-1": 3, "Gantoise U19G-1": 2, "Uccle Sport U19G-1": 3, "Oree U19G-1": 1, "Dragons U19G-1": 1}, "12097": {"Gantoise U16B-1": 1, "Waterloo Ducks U16B-1": 2, "Uccle Sport U16B-1": 2, "Oree U16B-1": 1, "Pingouin U16B-1": 1, "Indiana U16B-1": 2}, "12100": {"Braxgata U16G-1": 1, "Leuven U16G-1": 1, "Victory U16G-1": 1, "White Star U16G-1": 4, "Rasante U16G-1": 1, "Dragons U16G-1": 1, "Leopold U16G-1": 1}}'
 BONUS = {}  # poule -> {equipe: points de bonus} (shoot-outs des championnats nationaux jeunes, voir init_bonus)
 
 
@@ -647,18 +658,11 @@ def init_bonus(old):
     """U19/U16 Nat. 1 : un nul donne un shoot-out et 1 point de plus au vainqueur. Le nouveau site n'affiche que
     le score (ex. 1-1), pas le shoot-out. On fige donc une fois les points de bonus du dernier classement officiel
     (24/11/2026) ; les shoot-outs joues apres manquent (ecart d'au plus 1 point par nul)."""
-    if not old:
+    if old and old.get("standingBonus"):
+        BONUS.update(old["standingBonus"])
         return
-    if "standingBonus" in old:
-        BONUS.update(old["standingBonus"] or {})
-        return
-    calc = standings_from(old.get("matches", []), old.get("pools", []), old.get("teams", []), bonus=False)
-    for pid, st in (old.get("standings") or {}).items():
-        c = {r[1]: r for r in calc.get(pid, [])}
-        for r in st or []:
-            x = c.get(r[1])
-            if x and list(r[2:8]) == list(x[2:8]) and r[8] > x[8]:
-                BONUS.setdefault(pid, {})[r[1]] = r[8] - x[8]
+    # 26/11/2026 : le mode --ehl-only effacait standingBonus ; valeurs figees le 24/11 (classements officiels)
+    BONUS.update(json.loads(BONUS_24_11))
 
 
 def team_cat(t):
@@ -912,6 +916,9 @@ def main_ehl_only():
     """Remplace seulement la partie EHL du snapshot existant (quelques secondes)."""
     old = json.load(open(OUT, encoding="utf-8"))
     LOGOS.update(old.get("logos") or {})
+    load_club_logos(old)
+    init_bonus(old)
+    POOL_LEVEL.update(old.get("poolLevels") or {})
     global LOGO_CHECK
     LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
     global POOL_SEEN
@@ -1128,10 +1135,10 @@ def main():
     if old:
         LOGOS.update(old.get("logos") or {})
         LOGO_CHECK = old.get("logoCheck") or LOGO_CHECK
-        CLUB_LOGOS.update({k: v for k, v in (old.get("logoUrls") or {}).items() if "hockey.be/files/" in v})
         repair_bloated(old)
         init_bonus(old)
     POOL_LEVEL.update((old or {}).get("poolLevels") or {})
+    load_club_logos(old)
     pools = [p for p in pool_list(previous) if not p[0].startswith(QUICK)]
     today = dt.datetime.now(BXL).date()
     today_s = today.isoformat()
