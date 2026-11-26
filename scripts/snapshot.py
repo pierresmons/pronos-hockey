@@ -864,8 +864,34 @@ def add_fihpl(pools, matches, standings, t_id, old):
     return add_league("fihpl-", fihpl.collect, FIHPL_STATUS, "Pro League", pools, matches, standings, t_id, old)
 
 
+UA_BROWSER = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+
+
+def get_browser(url, tries=2, timeout=45):
+    """26/11/2026 : le site de la Hoofdklasse repond 404 au robot alors que la page s'ouvre dans un navigateur :
+    on se presente comme un navigateur ordinaire (sans la mention PronosHockeyFamille)."""
+    last = None
+    for i in range(tries):
+        REQ["n"] += 1
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": UA_BROWSER, "Accept-Language": "nl,en;q=0.8",
+                                                       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read().decode("utf-8", "replace")
+        except Exception as e:  # noqa
+            last = e
+            time.sleep(3 * (i + 1))
+    raise last
+
+
 def add_nlhk(pools, matches, standings, t_id, old):
-    return add_league("nlhk-", nlhk.collect, NLHK_STATUS, "Hoofdklasse", pools, matches, standings, t_id, old)
+    def collect(_get, *a, **k):
+        try:
+            return nlhk.collect(get, *a, **k)
+        except Exception as e:  # noqa
+            print(f"Hoofdklasse : {e} ; nouvel essai comme un navigateur", file=sys.stderr)
+            return nlhk.collect(get_browser, *a, **k)
+    return add_league("nlhk-", collect, NLHK_STATUS, "Hoofdklasse", pools, matches, standings, t_id, old)
 
 
 def write(pools, teams, matches, standings, failed, generated=None, ehl_generated=None):
