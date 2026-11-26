@@ -884,6 +884,11 @@ def get_browser(url, tries=2, timeout=45):
     raise last
 
 
+# page neerlandaise de la meme liste (26/11/2026 : la page anglaise repond 404 au robot)
+if "https://staatsloterijhoofdklasse.com/wedstrijden-standen" not in nlhk.URLS:
+    nlhk.URLS.insert(1, "https://staatsloterijhoofdklasse.com/wedstrijden-standen")
+
+
 def add_nlhk(pools, matches, standings, t_id, old):
     def collect(_get, *a, **k):
         try:
