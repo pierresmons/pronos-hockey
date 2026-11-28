@@ -1439,6 +1439,15 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 /* V3.6 : cloche des matchs suivis */
 .bell{display:inline-flex;align-items:center;gap:3px;margin-left:8px;color:var(--ice-faint,#5f7c92);cursor:pointer;vertical-align:middle;padding:2px;border-radius:6px;}
 .bell.on{color:var(--gold,#f0a93b);}
+.ws-list{display:flex;flex-direction:column;gap:8px;}
+.ws-row{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px;cursor:pointer;}
+.ws-row .ws-bell{margin:0;padding:4px;}
+.ws-row .ws-bell svg{width:20px;height:20px;}
+.ws-mid{flex:1;min-width:0;display:flex;flex-direction:column;}
+.ws-l1{font-size:11.5px;color:var(--ice-dim);}
+.ws-l2{font-weight:700;line-height:1.25;}
+.ws-r{font-family:var(--font-mono);font-weight:700;font-size:12px;background:var(--input-bg);border-radius:6px;padding:2px 8px;white-space:nowrap;}
+.ws-tag{font-size:10px;font-weight:800;border-radius:6px;padding:1px 5px;background:var(--line);color:var(--ice);margin-left:4px;}
 .club-time .bell{margin:0 0 0 4px;}
 .bell-l{font-size:12px;border:1px solid var(--line);padding:2px 8px;margin-left:10px;}
 .bell-l.on{border-color:var(--gold,#f0a93b);}
@@ -3008,6 +3017,7 @@ function renderMatchsBody(){
     }).join("") + '</div>';
     return html;
   }
+  html += renderWatchBlock();
   html += renderFavBlock();
   /* mes poules */
   var pools = state.pools.slice();
@@ -5651,6 +5661,33 @@ function pmBlend(m, played, A, B){
 var BELL_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5-6.7V3.5a2 2 0 0 0-4 0v.8A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z"/></svg>';
 function watchKey(m){ return String(m.pool + "_" + m.teamA + "_" + m.teamB).replace(/[.#$\[\]\/]/g, "-"); }
 function isWatched(m){ return !!(((state.watch || {})[state.me] || {})[watchKey(m)]); }
+/* V3.17 (test) : liste « Mes matchs suivis » en haut de l'onglet Matchs (maquette A choisie par Piet, 28/11/2026).
+   Toutes surfaces ; étiquette quand ce n'est pas la surface affichée. Les cloches se retirent seules après le score. */
+function renderWatchBlock(){
+  if(!state.me) return "";
+  var mine = (state.watch || {})[state.me] || {}, today = todayIso(), now = Date.now();
+  var list = Object.keys(mine).map(function(k){ var w = mine[k]; return w && typeof w === "object" ? {k:k, p:w.p, a:w.a, b:w.b, d:w.d, t:w.t} : null; })
+    .filter(function(w){ return w && w.d && w.d >= addDaysIso(-1); })
+    .sort(function(x, y){ return (x.d + (x.t || "")).localeCompare(y.d + (y.t || "")); });
+  if(!list.length) return "";
+  var all = withAllData(function(){ return srcMatches(); });
+  var dayLbl = function(d){ return d === today ? "Aujourd\u2019hui" : (d === addDaysIso(1) ? "Demain" : formatDate(d)); };
+  var rows = list.map(function(w){
+    var m = all.find(function(x){ return x.pool === w.p && x.teamA === w.a && x.teamB === w.b && (!x.date || x.date === w.d); }) || {};
+    var right;
+    if(hasScore(m)) right = '<span class="ws-r ws-sc">' + m.scoreA + '-' + m.scoreB + '</span>';
+    else if(m.status && !/planifi/i.test(m.status)) right = '<span class="ws-r">' + escapeHtml(m.status) + '</span>';
+    else { var ko = new Date(w.d + "T" + (w.t || "12:00") + ":00").getTime(); right = '<span class="ws-r">' + (ko + 2 * 3600e3 < now ? 'score ?' : (ko < now ? 'en cours' : escapeHtml(w.t || ""))) + '</span>'; }
+    var sf = isIndoorPid(w.p) ? "in" : "out";
+    var tag = sf !== gSurf() ? ' <span class="ws-tag">' + SURF_LABEL[sf] + '</span>' : '';
+    return '<div class="ws-row" data-action="goto-pool" data-pool="' + escapeHtml(w.p) + '">' +
+      '<span class="bell on ws-bell" role="button" tabindex="0" data-action="watch" data-pool="' + escapeHtml(w.p) + '" data-a="' + escapeHtml(w.a) + '" data-b="' + escapeHtml(w.b) + '" data-d="' + escapeHtml(w.d) + '" data-t="' + escapeHtml(w.t || "") + '" title="Ne plus suivre">' + BELL_SVG + '</span>' +
+      '<span class="ws-mid"><span class="ws-l1">' + dayLbl(w.d) + (w.t ? ' &middot; ' + escapeHtml(w.t) : '') + ' &middot; ' + escapeHtml(shortPoolName(w.p)) + tag + '</span>' +
+      '<span class="ws-l2">' + escapeHtml(w.a) + ' &ndash; ' + escapeHtml(w.b) + '</span></span>' + right + '</div>';
+  }).join("");
+  return '<h2 class="section-title" style="font-size:18px;margin-top:4px;">' + BELL_SVG + ' Mes matchs suivis (' + list.length + ')</h2><div class="ws-list">' + rows + '</div>' +
+    '<p class="points-sub" style="margin:4px 0 14px;">Touche un match pour sa poule, la cloche pour ne plus le suivre. Une cloche disparaît toute seule quand le score t\u2019a été envoyé.</p>';
+}
 function bellHtml(m, label){
   if(!state.me || !state.room || !m || !m.pool || !m.date || hasScore(m) || !/^\d{1,2}:\d{2}/.test(m.time || "") || m.date < todayIso()) return "";
   var on = isWatched(m);
