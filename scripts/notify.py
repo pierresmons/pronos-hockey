@@ -82,7 +82,7 @@ def load_snapshot():
         a, b = d["teams"][m[3]], d["teams"][m[4]]
         leg = m[9] if len(m) > 9 and m[9] else 1
         out[match_key(pid, a, b, leg)] = {"date": m[1], "time": m[2], "sa": m[5] if len(m) > 5 else None, "sb": m[6] if len(m) > 6 else None,
-                                          "in": bool(re.search(r" Indoor( |$)", d["pools"][m[0]][1] or ""))}
+                                          "in": bool(re.search(r"\bIndoor\b", d["pools"][m[0]][1] or ""))}
     return out
 
 
