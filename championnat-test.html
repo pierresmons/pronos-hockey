@@ -2299,7 +2299,7 @@ function staleBanner(){
     '<span class="stale-sub">Depuis le nouveau site hockey.be (25/11/2026), tous les scores passent par le robot.</span>' +
     '<a class="btn btn-sm" href="' + ROBOT_URL + '" target="_blank" rel="noopener">Relancer le robot (GitHub)</a></div>';
 }
-function isIndoorPid(pid){ return / Indoor( |$)/.test(poolName(pid)); }
+function isIndoorPid(pid){ return /\bIndoor\b/.test(poolName(pid)); }   /* 28/11 : aussi « ... HWB (Indoor) » */
 function surfOfPid(pid){ return isIndoorPid(pid) ? "in" : "out"; }
 var SURF_LABEL = {out:"Outdoor", "in":"Indoor"};
 function teamSurfaces(team, list){
