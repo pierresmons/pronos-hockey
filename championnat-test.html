@@ -1440,6 +1440,10 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .bell{display:inline-flex;align-items:center;gap:3px;margin-left:8px;color:var(--ice-faint,#5f7c92);cursor:pointer;vertical-align:middle;padding:2px;border-radius:6px;}
 .bell.on{color:var(--gold,#f0a93b);}
 .ws-list{display:flex;flex-direction:column;gap:8px;}
+.ws-head{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:0;padding:4px 0 8px;margin:4px 0 6px;color:var(--ice);font-family:var(--font-display);font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:.01em;cursor:pointer;text-align:left;}
+.ws-head span:first-child{display:inline-flex;align-items:center;gap:8px;}
+.ws-head svg{width:18px;height:18px;}
+.ws-chev{font-family:var(--font-body);font-size:14px;color:var(--ice-dim);}
 .ws-row{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px;cursor:pointer;}
 .ws-row .ws-bell{margin:0;padding:4px;}
 .ws-row .ws-bell svg{width:20px;height:20px;}
@@ -5009,6 +5013,7 @@ var ACTIONS = {
   "cr-all": function(){ state.crAll = !state.crAll; render(); },
   "club-cmp": function(el){ pushNav(); state.mview = {type:"clubcmp", id:el.getAttribute("data-club"), other:null}; state.cmpQ = ""; state.crSurf = null; loadSnapshot(false); render(); window.scrollTo(0, 0); },
   "cmp-pick": function(el){ state.mview.other = el.getAttribute("data-club"); state.cmpQ = ""; render(); },
+  "watch-fold": function(){ setLocal("hb-watch-fold", getLocal("hb-watch-fold") === "1" ? null : "1"); render(); },
   "watch": async function(el){
     if(!state.me || !state.room) return;
     var m = {pool:el.getAttribute("data-pool"), teamA:el.getAttribute("data-a"), teamB:el.getAttribute("data-b"), date:el.getAttribute("data-d"), time:el.getAttribute("data-t")};
@@ -5685,7 +5690,10 @@ function renderWatchBlock(){
       '<span class="ws-mid"><span class="ws-l1">' + dayLbl(w.d) + (w.t ? ' &middot; ' + escapeHtml(w.t) : '') + ' &middot; ' + escapeHtml(shortPoolName(w.p)) + tag + '</span>' +
       '<span class="ws-l2">' + escapeHtml(w.a) + ' &ndash; ' + escapeHtml(w.b) + '</span></span>' + right + '</div>';
   }).join("");
-  return '<h2 class="section-title" style="font-size:18px;margin-top:4px;">' + BELL_SVG + ' Mes matchs suivis (' + list.length + ')</h2><div class="ws-list">' + rows + '</div>' +
+  var folded = getLocal("hb-watch-fold") === "1";
+  var head = '<button class="ws-head" data-action="watch-fold"><span>' + BELL_SVG + ' Mes matchs suivis (' + list.length + ')</span><span class="ws-chev">' + (folded ? '&#9662;' : '&#9652;') + '</span></button>';
+  if(folded) return head;
+  return head + '<div class="ws-list">' + rows + '</div>' +
     '<p class="points-sub" style="margin:4px 0 14px;">Touche un match pour sa poule, la cloche pour ne plus le suivre. Une cloche disparaît toute seule quand le score t\u2019a été envoyé.</p>';
 }
 function bellHtml(m, label){
