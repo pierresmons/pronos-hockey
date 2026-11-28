@@ -1442,6 +1442,10 @@ img.club-ologo{width:18px;height:18px;object-fit:contain;margin:0;border-radius:
 .bell{display:inline-flex;align-items:center;gap:3px;margin-left:8px;color:var(--ice-faint,#5f7c92);cursor:pointer;vertical-align:middle;padding:2px;border-radius:6px;}
 .bell.on{color:var(--gold,#f0a93b);}
 .ws-list{display:flex;flex-direction:column;gap:8px;}
+.ws-club{display:flex;align-items:center;gap:8px;margin:8px 2px 0;font-weight:800;font-size:14px;color:var(--ice);}
+.ws-club:first-child{margin-top:0;}
+.ws-club .logo{width:20px;height:20px;}
+.ws-club .ws-n{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--ice-dim);font-weight:700;}
 .ws-head{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:0;padding:4px 0 8px;margin:4px 0 6px;color:var(--ice);font-family:var(--font-display);font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:.01em;cursor:pointer;text-align:left;}
 .ws-head span:first-child{display:inline-flex;align-items:center;gap:8px;}
 .ws-head svg{width:18px;height:18px;}
@@ -5677,9 +5681,19 @@ function renderWatchBlock(){
     .filter(function(w){ return w && w.d && w.d >= addDaysIso(-1); })
     .sort(function(x, y){ return (x.d + (x.t || "")).localeCompare(y.d + (y.t || "")); });
   if(!list.length) return "";
+  /* 28/11 (demande de Piet) : groupés par club, puis par jour et heure. Club du match = celui des clubs suivis
+     (s'il y en a un), sinon le club de l'équipe qui reçoit. Clubs suivis d'abord, puis ordre alphabétique. */
+  var fc = myClubs();
+  list.forEach(function(w){ var ca = teamParts(w.a).club, cb = teamParts(w.b).club; w.club = fc.indexOf(ca) !== -1 ? ca : (fc.indexOf(cb) !== -1 ? cb : ca); });
+  list.sort(function(x, y){ var fx = fc.indexOf(x.club) === -1 ? 1 : 0, fy = fc.indexOf(y.club) === -1 ? 1 : 0;
+    return fx - fy || x.club.localeCompare(y.club) || (x.d + (x.t || "")).localeCompare(y.d + (y.t || "")); });
   var all = withAllData(function(){ return srcMatches(); });
   var dayLbl = function(d){ return d === today ? "Aujourd\u2019hui" : (d === addDaysIso(1) ? "Demain" : formatDate(d)); };
+  var lastClub = null;
   var rows = list.map(function(w){
+    var gh = "";
+    if(w.club !== lastClub){ lastClub = w.club; var n = list.filter(function(x){ return x.club === w.club; }).length;
+      gh = '<div class="ws-club">' + logoImg(w.club + " X-1") + '<span>' + escapeHtml(w.club) + '</span><span class="ws-n">' + n + '</span></div>'; }
     var m = all.find(function(x){ return x.pool === w.p && x.teamA === w.a && x.teamB === w.b && (!x.date || x.date === w.d); }) || {};
     var right;
     if(hasScore(m)) right = '<span class="ws-r ws-sc">' + m.scoreA + '-' + m.scoreB + '</span>';
@@ -5687,10 +5701,11 @@ function renderWatchBlock(){
     else { var ko = new Date(w.d + "T" + (w.t || "12:00") + ":00").getTime(); right = '<span class="ws-r">' + (ko + 2 * 3600e3 < now ? 'score ?' : (ko < now ? 'en cours' : escapeHtml(w.t || ""))) + '</span>'; }
     var sf = isIndoorPid(w.p) ? "in" : "out";
     var tag = sf !== gSurf() ? ' <span class="ws-tag">' + SURF_LABEL[sf] + '</span>' : '';
-    return '<div class="ws-row" data-action="goto-pool" data-pool="' + escapeHtml(w.p) + '">' +
+    var row = '<div class="ws-row" data-action="goto-pool" data-pool="' + escapeHtml(w.p) + '">' +
       '<span class="bell on ws-bell" role="button" tabindex="0" data-action="watch" data-pool="' + escapeHtml(w.p) + '" data-a="' + escapeHtml(w.a) + '" data-b="' + escapeHtml(w.b) + '" data-d="' + escapeHtml(w.d) + '" data-t="' + escapeHtml(w.t || "") + '" title="Ne plus suivre">' + BELL_SVG + '</span>' +
       '<span class="ws-mid"><span class="ws-l1">' + dayLbl(w.d) + (w.t ? ' &middot; ' + escapeHtml(w.t) : '') + ' &middot; ' + escapeHtml(shortPoolName(w.p)) + tag + '</span>' +
       '<span class="ws-l2">' + escapeHtml(w.a) + ' &ndash; ' + escapeHtml(w.b) + '</span></span>' + right + '</div>';
+    return gh + row;
   }).join("");
   var folded = getLocal("hb-watch-fold") === "1";
   var head = '<button class="ws-head" data-action="watch-fold"><span>' + BELL_SVG + ' Mes matchs suivis (' + list.length + ')</span><span class="ws-chev">' + (folded ? '&#9662;' : '&#9652;') + '</span></button>';
